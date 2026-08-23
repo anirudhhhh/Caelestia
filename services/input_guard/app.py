@@ -111,25 +111,28 @@ async def check_pii(text: str, geography: str, timeout: float) -> CheckResult:
 async def scan_input(envelope: InteractionEnvelope):
     text = envelope.payload.content
     budget_ms = get_latency_budget(envelope.use_case, "input_guard")
-    timeout_seconds = budget_ms / 1000.0
-    
-    # Create tasks for all scanners including PII
-    tasks = [
-        run_scanner_with_timeout(name, scanner, text, timeout_seconds)
+
+    # Local scanners (in-process, sub-ms) use the latency budget.
+    # PII is a remote HTTP call — give it a generous fixed timeout so a
+    # cold-start or slow machine doesn't immediately mark every request as SKIPPED.
+    scanner_timeout = budget_ms / 1000.0          # e.g. 0.15s for customer_support
+    pii_timeout = max(scanner_timeout, 5.0)       # always at least 5 seconds
+    policy_timeout = max(scanner_timeout, 3.0)    # always at least 3 seconds
+
+    # Run local scanners + PII in parallel with their respective timeouts
+    scanner_tasks = [
+        run_scanner_with_timeout(name, scanner, text, scanner_timeout)
         for name, scanner in scanners.items()
     ]
-    tasks.append(check_pii(text, envelope.geography.value, timeout_seconds))
-    
-    # Run them in parallel
-    results = await asyncio.gather(*tasks)
-    
-    # --- ADD THIS LOGGING BLOCK ---
+    pii_task = check_pii(text, envelope.geography.value, pii_timeout)
+
+    results = await asyncio.gather(*scanner_tasks, pii_task)
+
     check_times = {res.check_name: f"{res.latency_ms:.2f}ms" for res in results}
     logger.info(f"[{envelope.interaction_id}] Scanner latencies: {check_times}")
 
-    # Extend envelope checks
     envelope.checks.extend(results)
-    
+
     # Call policy engine
     policy_req = PolicyDecisionRequest(
         interaction_id=envelope.interaction_id,
@@ -139,26 +142,23 @@ async def scan_input(envelope: InteractionEnvelope):
         checks=envelope.checks,
         tool_calls=envelope.tool_calls
     )
-    
+
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"{POLICY_ENGINE_URL}/decide",
                 json=policy_req.model_dump(mode='json'),
-                timeout=timeout_seconds
+                timeout=policy_timeout
             )
             resp.raise_for_status()
             decision_data = resp.json()
-            
             envelope.decision = Decision(**decision_data["decision"])
             envelope.risk = RiskAssessment(**decision_data["risk"])
-            
     except Exception as e:
         logger.error(f"Failed to call Policy Engine: {e}")
-        # Default fail-closed decision
         envelope.decision = Decision(action=DecisionAction.BLOCK, reason="Policy Engine unavailable", decided_by="input_guard")
         envelope.risk = RiskAssessment(tier=RiskTier.HIGH, confidence=1.0)
-        
+
     return envelope
 
 

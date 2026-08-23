@@ -15,7 +15,7 @@ policies:
   geography: US
   on_timeout: allow_with_flag
   use_case: customer_support
-- block_threshold: 0.9
+- block_threshold: 0.4
   check: pii
   flag_threshold: 0.6
   geography: US
