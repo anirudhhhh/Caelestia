@@ -362,16 +362,30 @@ async def get_policies():
 
 @app.put("/v1/policies")
 async def update_policies(request: Request):
-    rules = await request.json()  # frontend sends a bare array
-    config = {
-        "policies": [{
-            "use_case": r["use_case"],
-            "geography": r["geography"],
-            "check": r["check_name"],
-            "block_threshold": r["block_threshold"],
-            "flag_threshold": r["flag_threshold"],
+    body = await request.json()
+    # Frontend sends {"policies": [...]} (wrapped); bare list also accepted
+    if isinstance(body, list):
+        raw_rules = body
+    elif isinstance(body, dict):
+        raw_rules = body.get("policies") or body.get("rules") or []
+    else:
+        raw_rules = []
+
+    policy_list = []
+    for r in raw_rules:
+        if not isinstance(r, dict):
+            continue  # skip string keys if iterated wrongly
+        policy_list.append({
+            "use_case": r.get("use_case", "*"),
+            "geography": r.get("geography", "*"),
+            "check": r.get("check_name") or r.get("check", ""),
+            "block_threshold": float(r.get("block_threshold", 0.7)),
+            "flag_threshold": float(r.get("flag_threshold", 0.4)),
             "on_timeout": "block" if r.get("on_timeout") == "block" else "allow_with_flag",
-        } for r in rules],
+        })
+
+    config = {
+        "policies": policy_list,
         "defaults": {"block_threshold": 0.7, "flag_threshold": 0.4, "on_timeout": "block"},
     }
     async with httpx.AsyncClient(timeout=5.0) as client:
@@ -410,21 +424,77 @@ async def get_alerts():
 @app.get("/v1/trust/outcomes")
 async def get_outcome_stats():
     async with httpx.AsyncClient(timeout=5.0) as client:
-        outcomes_resp = await client.get(f"{AUDIT_STORE_URL}/outcomes/stats")
-        stats_resp = await client.get(f"{AUDIT_STORE_URL}/stats")
-        outcomes = outcomes_resp.json() if outcomes_resp.status_code == 200 else {}
-        stats = stats_resp.json() if stats_resp.status_code == 200 else {}
-        fpr = outcomes.get("false_positive_rate", 0) * 100
-        fnr = outcomes.get("false_negative_rate", 0) * 100
-        return {
-            "fpr": round(fpr, 1),
-            "fnr": round(fnr, 1),
-            "trust_score": round(100 - fpr - fnr, 1),
-            "total": stats.get("total_interactions", 0),
-            "block_rate": round(stats.get("block_rate", 0) * 100, 1),
-            "escalate_rate": round(stats.get("escalation_rate", 0) * 100, 1),
-            "coverage": None,
-        }
+        outcomes_resp, stats_resp = await asyncio.gather(
+            client.get(f"{AUDIT_STORE_URL}/outcomes/stats"),
+            client.get(f"{AUDIT_STORE_URL}/stats"),
+            return_exceptions=True,
+        )
+        outcomes = outcomes_resp.json() if not isinstance(outcomes_resp, Exception) and outcomes_resp.status_code == 200 else {}
+        stats = stats_resp.json() if not isinstance(stats_resp, Exception) and stats_resp.status_code == 200 else {}
+
+    total = stats.get("total_interactions", 0)
+    action_counts = stats.get("action_counts", {})
+    block_rate = round(stats.get("block_rate", 0) * 100, 1)
+    escalate_rate = round(stats.get("escalation_rate", 0) * 100, 1)
+    flag_count = action_counts.get("flag", 0)
+    flag_rate = round((flag_count / total * 100) if total > 0 else 0, 1)
+
+    fpr_raw = outcomes.get("false_positive_rate", 0)
+    fnr_raw = outcomes.get("false_negative_rate", 0)
+    fpr = round(fpr_raw * 100, 1)
+    fnr = round(fnr_raw * 100, 1)
+    trust_score = round(max(0, min(100, 100 - block_rate * 2 - fpr * 3)), 1)
+
+    return {
+        "total": total,
+        "fpr": fpr,
+        "fnr": fnr,
+        "trust_score": trust_score,
+        "block_rate": block_rate,
+        "flag_rate": flag_rate,
+        "escalate_rate": escalate_rate,
+        "total_reviews": outcomes.get("total_reviews", 0),
+        "by_use_case": stats.get("by_use_case", {}),
+        "action_counts": action_counts,
+    }
+
+
+@app.get("/v1/audit/trend")
+async def get_audit_trend():
+    """Return last 7 days of block/flag/escalate counts for the Trust Dashboard chart."""
+    from datetime import datetime, timedelta, timezone
+    days = []
+    for i in range(6, -1, -1):
+        d = datetime.now(timezone.utc) - timedelta(days=i)
+        days.append(d.strftime("%Y-%m-%d"))
+
+    # Fetch recent events (up to 1000 to compute 7-day trend)
+    async with httpx.AsyncClient(timeout=8.0) as client:
+        resp = await client.get(f"{AUDIT_STORE_URL}/events", params={"limit": 1000})
+        events = resp.json().get("events", []) if resp.status_code == 200 else []
+
+    # Bucket by day
+    from collections import defaultdict
+    buckets: dict = defaultdict(lambda: {"block": 0, "flag": 0, "escalate": 0, "allow": 0})
+    for ev in events:
+        ts = (ev.get("created_at") or "")[:10]
+        if ts in days:
+            action = ev.get("decision_action", "allow")
+            if action in buckets[ts]:
+                buckets[ts][action] += 1
+
+    day_labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    result = []
+    for i, day in enumerate(days):
+        b = buckets.get(day, {})
+        result.append({
+            "date": day_labels[i % 7],
+            "block": b.get("block", 0),
+            "flag": b.get("flag", 0),
+            "escalate": b.get("escalate", 0),
+            "allow": b.get("allow", 0),
+        })
+    return result
 
 # ─── Proxy: Action Guard ─────────────────────────────────────────────────────
 

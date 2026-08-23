@@ -48,7 +48,10 @@ def init_presidio():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_presidio()
+    import asyncio
+    # Run blocking Presidio/spaCy init in a thread pool so the event loop stays free
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, init_presidio)
     yield
 
 app = FastAPI(title="PII Service", lifespan=lifespan)
@@ -95,29 +98,42 @@ def regex_fallback_anonymize(text: str, entities: List[PIIEntity], action: str =
 async def detect_pii(request: PIIDetectRequest):
     import time
     start_time = time.time()
-    
+
+    # Minimum thresholds — anything below these is noise, not PII
+    MIN_SCORE = 0.4
+    MIN_ENTITY_LEN = 4  # ignore matches shorter than 4 chars (e.g. "hi", "yo")
+
+    # Only look for data-type PII (not PERSON/LOCATION which are too noisy)
+    DATA_ENTITIES = ["EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD", "US_SSN",
+                     "IBAN_CODE", "IP_ADDRESS", "US_BANK_NUMBER", "US_DRIVER_LICENSE",
+                     "US_PASSPORT", "US_ITIN"]
+
     entities = []
     if analyzer:
         try:
-            # Presidio detection
+            target_entities = request.entity_types or DATA_ENTITIES
             results = analyzer.analyze(
-                text=request.text, 
-                language="en", 
-                entities=request.entity_types,
-                # presidio doesn't natively map geography directly without custom recognizers,
-                # but we could map Geography to supported entity lists.
+                text=request.text,
+                language="en",
+                entities=target_entities,
+                score_threshold=MIN_SCORE,  # Presidio will skip results below this
             )
             entities = [PIIEntity(
                 entity_type=r.entity_type,
                 start=r.start,
                 end=r.end,
                 score=r.score
-            ) for r in results]
+            ) for r in results
+                if r.score >= MIN_SCORE
+                and (r.end - r.start) >= MIN_ENTITY_LEN]  # drop short spurious matches
         except Exception as e:
             logger.error(f"Presidio analyze error: {e}")
             entities = regex_fallback_detect(request.text)
     else:
         entities = regex_fallback_detect(request.text)
+
+    # Apply the same length filter to regex fallback results
+    entities = [e for e in entities if (e.end - e.start) >= MIN_ENTITY_LEN]
 
     latency_ms = (time.time() - start_time) * 1000
     return PIIDetectResponse(entities=entities, latency_ms=latency_ms)
