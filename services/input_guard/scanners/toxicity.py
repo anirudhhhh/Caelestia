@@ -14,8 +14,7 @@ class ToxicityScanner(ScannerBase):
         
         overlap = words.intersection(self.bad_words)
         if overlap:
-            # Simple heuristic
-            score = min(len(overlap) * 0.3, 1.0)
+            score = min(0.8 + (len(overlap) - 1) * 0.2, 1.0)
             
         latency_ms = (time.time() - start) * 1000
         return CheckResult(

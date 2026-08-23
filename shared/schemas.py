@@ -202,15 +202,14 @@ class ChatMessage(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    """Incoming request to the Gateway API."""
     messages: list[ChatMessage]
     model: Optional[str] = None
     use_case: UseCase = UseCase.CUSTOMER_SUPPORT
     geography: Geography = Geography.US
     session_id: Optional[str] = None
     stream: bool = False
+    max_tokens: Optional[int] = None
     tool_calls: list[ToolCall] = Field(default_factory=list)
-
 
 class ChatResponse(BaseModel):
     """Response from the Gateway API."""
@@ -291,8 +290,8 @@ class EscalationItem(BaseModel):
 
 
 class ReviewAction(BaseModel):
-    interaction_id: str
-    reviewer_id: str
+    interaction_id: Optional[str] = None   
+    reviewer_id: str = "demo_reviewer"     
     action: str  # approve | deny | edit_approve
     was_original_flag_correct: bool
     reason: str
@@ -388,6 +387,15 @@ LATENCY_BUDGETS: dict[UseCase, dict[str, int]] = {
     },
 }
 
+
+DEFAULT_MAX_TOKENS: dict[UseCase, int] = {
+    UseCase.CUSTOMER_SUPPORT: 500,
+    UseCase.INTERNAL_COPILOT: 1500,
+    UseCase.DECISION_SUPPORT: 4000,
+}
+
+def get_default_max_tokens(use_case: UseCase) -> int:
+    return DEFAULT_MAX_TOKENS.get(use_case, 500)
 
 def get_latency_budget(use_case: UseCase, stage: str) -> int:
     """Get the latency budget in ms for a specific pipeline stage."""

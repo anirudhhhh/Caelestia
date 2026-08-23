@@ -2,6 +2,7 @@ import sys
 import uuid
 import time
 import asyncio
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -12,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import httpx
 from shared.schemas import (
     ChatRequest, ChatResponse, InteractionEnvelope, Direction,
-    Payload, PayloadRole, DecisionAction, UseCase, Geography
+    Payload, PayloadRole, DecisionAction, UseCase, Geography, get_default_max_tokens
 )
 from shared.config import (
     setup_logging, INPUT_GUARD_URL, ROUTER_URL, ADAPTER_URL,
@@ -78,8 +79,14 @@ async def aggregate_health():
 
 @app.get("/v1/health/system")
 async def system_health():
-    """Alias for aggregate_health — used by the dashboard."""
-    return await aggregate_health()
+    raw = await aggregate_health()
+    now = datetime.now(timezone.utc).isoformat()
+    return [{
+        "name": name.replace("_", " ").title(),
+        "status": info.get("status", "unhealthy"),
+        "latency": info.get("latency_ms", 0),
+        "last_check": now,
+    } for name, info in raw.items()]
 
 
 # ─── Audit Logging Helper ────────────────────────────────────────────────────
@@ -166,7 +173,12 @@ async def chat_completions(req: ChatRequest, token: str = Depends(optional_auth)
             routed_model = envelope.model.routed_to or req.model or "google/gemini-2.0-flash-001"
 
             # 4. Model Adapter
-            adapter_req = {"model": routed_model, "messages": [m.model_dump() for m in req.messages]}
+            max_tokens = req.max_tokens or get_default_max_tokens(req.use_case)
+            adapter_req = {
+                "model": routed_model,
+                "messages": [m.model_dump() for m in req.messages],
+                "max_tokens": max_tokens,
+            }
             resp = await client.post(f"{ADAPTER_URL}/complete", json=adapter_req)
             resp.raise_for_status()
             adapter_resp = resp.json()
@@ -276,15 +288,40 @@ async def get_audit_events(
         params["since"] = since
     async with httpx.AsyncClient(timeout=5.0) as client:
         resp = await client.get(f"{AUDIT_STORE_URL}/events", params=params)
-        return resp.json() if resp.status_code == 200 else []
+        if resp.status_code != 200:
+            return []
+        return [_to_frontend_audit_event(e) for e in resp.json().get("events", [])]
 
-
-@app.get("/v1/audit/stats")
-async def get_audit_stats():
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.get(f"{AUDIT_STORE_URL}/stats")
-        return resp.json() if resp.status_code == 200 else {}
-
+def _to_frontend_audit_event(e: dict) -> dict:
+    envelope = e.get("envelope") or {}
+    risk = envelope.get("risk", {}) or {}
+    return {
+        "interaction_id": e.get("interaction_id"),
+        "timestamp": e.get("created_at"),
+        "use_case": e.get("use_case"),
+        "geography": e.get("geography"),
+        "direction": e.get("direction"),
+        "decision_action": e.get("decision_action"),
+        "risk_tier": risk.get("tier", "low"),
+        "interaction": {
+            "interaction_id": envelope.get("interaction_id"),
+            "timestamp": envelope.get("created_at"),
+            "use_case": envelope.get("use_case"),
+            "geography": envelope.get("geography"),
+            "direction": envelope.get("direction"),
+            "payload": envelope.get("payload", {}),
+            "checks": envelope.get("checks", []),
+            "risk_assessment": {
+                "tier": risk.get("tier", "low"),
+                "confidence": risk.get("confidence", 0.0),
+                "blast_radius": "low",
+                "reasoning": "",
+            },
+            "decision": envelope.get("decision", {}),
+            "latency_breakdown": {},
+            "model_used": (envelope.get("model") or {}).get("routed_to"),
+        },
+    }
 
 # ─── Proxy: Review Console ───────────────────────────────────────────────────
 
@@ -310,16 +347,36 @@ async def resolve_escalation(interaction_id: str, body: Dict[str, Any]):
 async def get_policies():
     async with httpx.AsyncClient(timeout=5.0) as client:
         resp = await client.get(f"{POLICY_ENGINE_URL}/policies")
-        return resp.json() if resp.status_code == 200 else []
-
+        if resp.status_code != 200:
+            return []
+        rules = (resp.json().get("config") or {}).get("policies", [])
+        return [{
+            "id": f"{r.get('use_case')}:{r.get('geography')}:{r.get('check')}",
+            "use_case": r.get("use_case"),
+            "geography": r.get("geography"),
+            "check_name": r.get("check"),
+            "block_threshold": r.get("block_threshold"),
+            "flag_threshold": r.get("flag_threshold"),
+            "on_timeout": "block" if r.get("on_timeout") == "block" else "allow",
+        } for r in rules]
 
 @app.put("/v1/policies")
 async def update_policies(request: Request):
-    body = await request.json()
+    rules = await request.json()  # frontend sends a bare array
+    config = {
+        "policies": [{
+            "use_case": r["use_case"],
+            "geography": r["geography"],
+            "check": r["check_name"],
+            "block_threshold": r["block_threshold"],
+            "flag_threshold": r["flag_threshold"],
+            "on_timeout": "block" if r.get("on_timeout") == "block" else "allow_with_flag",
+        } for r in rules],
+        "defaults": {"block_threshold": 0.7, "flag_threshold": 0.4, "on_timeout": "block"},
+    }
     async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.put(f"{POLICY_ENGINE_URL}/policies", json=body)
+        resp = await client.put(f"{POLICY_ENGINE_URL}/policies", json=config)
         return resp.json() if resp.status_code == 200 else {}
-
 
 # ─── Proxy: Router ────────────────────────────────────────────────────────────
 
@@ -336,7 +393,16 @@ async def get_models():
 async def get_alerts():
     async with httpx.AsyncClient(timeout=5.0) as client:
         resp = await client.get(f"{IMMUNE_SYSTEM_URL}/alerts")
-        return resp.json() if resp.status_code == 200 else []
+        if resp.status_code != 200:
+            return []
+        return [{
+            "id": a.get("alert_id"),
+            "severity": "high" if a.get("severity") == "critical" else "medium",
+            "metric": a.get("metric_name"),
+            "current_value": a.get("current_value"),
+            "baseline_value": a.get("baseline_mean"),
+            "timestamp": a.get("created_at"),
+        } for a in resp.json()]
 
 
 # ─── Proxy: Trust / Outcome Stats ────────────────────────────────────────────
@@ -344,9 +410,21 @@ async def get_alerts():
 @app.get("/v1/trust/outcomes")
 async def get_outcome_stats():
     async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.get(f"{AUDIT_STORE_URL}/outcomes/stats")
-        return resp.json() if resp.status_code == 200 else {}
-
+        outcomes_resp = await client.get(f"{AUDIT_STORE_URL}/outcomes/stats")
+        stats_resp = await client.get(f"{AUDIT_STORE_URL}/stats")
+        outcomes = outcomes_resp.json() if outcomes_resp.status_code == 200 else {}
+        stats = stats_resp.json() if stats_resp.status_code == 200 else {}
+        fpr = outcomes.get("false_positive_rate", 0) * 100
+        fnr = outcomes.get("false_negative_rate", 0) * 100
+        return {
+            "fpr": round(fpr, 1),
+            "fnr": round(fnr, 1),
+            "trust_score": round(100 - fpr - fnr, 1),
+            "total": stats.get("total_interactions", 0),
+            "block_rate": round(stats.get("block_rate", 0) * 100, 1),
+            "escalate_rate": round(stats.get("escalation_rate", 0) * 100, 1),
+            "coverage": None,
+        }
 
 # ─── Proxy: Action Guard ─────────────────────────────────────────────────────
 

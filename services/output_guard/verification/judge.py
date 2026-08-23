@@ -63,7 +63,7 @@ async def verify_hallucination(text: str, context: str = "") -> CheckResult:
             resp.raise_for_status()
             
             data = resp.json()
-            content = data["choices"][0]["message"]["content"]
+            content = data["choices"][0]["message"].get("content") or ""
             
             # Parse JSON
             result = json.loads(content)

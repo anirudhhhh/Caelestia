@@ -15,7 +15,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from shared.config import setup_logging, get_env
 from shared.schemas import (
     InteractionEnvelope, CheckResult, CheckVerdict,
-    PolicyDecisionRequest, get_latency_budget
+    PolicyDecisionRequest, get_latency_budget,
+    Decision, RiskAssessment, DecisionAction, RiskTier
 )
 
 from scanners.prompt_injection import PromptInjectionScanner
@@ -145,17 +146,12 @@ async def scan_input(envelope: InteractionEnvelope):
             resp.raise_for_status()
             decision_data = resp.json()
             
-            # Policy Engine dictates verdict for the checks based on threshold
-            # It also sets the final Decision and RiskAssessment
-            
-            # Since the response includes `decision` and `risk`, update envelope
-            envelope.decision = decision_data["decision"]
-            envelope.risk = decision_data["risk"]
+            envelope.decision = Decision(**decision_data["decision"])
+            envelope.risk = RiskAssessment(**decision_data["risk"])
             
     except Exception as e:
         logger.error(f"Failed to call Policy Engine: {e}")
         # Default fail-closed decision
-        from shared.schemas import Decision, DecisionAction, RiskAssessment, RiskTier
         envelope.decision = Decision(action=DecisionAction.BLOCK, reason="Policy Engine unavailable", decided_by="input_guard")
         envelope.risk = RiskAssessment(tier=RiskTier.HIGH, confidence=1.0)
         

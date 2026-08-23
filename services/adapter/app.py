@@ -25,7 +25,7 @@ app.add_middleware(
 class AdapterRequest(BaseModel):
     model: str
     messages: List[Dict[str, Any]]
-    max_tokens: Optional[int] = None
+    max_tokens: Optional[int] = 1000
     temperature: Optional[float] = None
 
 class Usage(BaseModel):
@@ -76,7 +76,7 @@ async def complete(req: AdapterRequest):
             resp.raise_for_status()
             data = resp.json()
             
-            content = data["choices"][0]["message"]["content"]
+            content = data["choices"][0]["message"].get("content") or ""
             finish_reason = data["choices"][0].get("finish_reason", "unknown")
             usage_data = data.get("usage", {})
             
