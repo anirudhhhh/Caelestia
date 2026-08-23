@@ -1,0 +1,22 @@
+models:
+  - id: google/gemini-2.0-flash-001
+    provider: openrouter
+    cost_per_1k_tokens: 0.0001
+    max_latency_ms: 1000
+    capabilities: [general, fast, coding, analysis]
+    keywords: [help, question, explain, general]
+    weight: 1.0
+  - id: google/gemini-2.5-flash-preview-05-20
+    provider: openrouter
+    cost_per_1k_tokens: 0.00015
+    max_latency_ms: 2000
+    capabilities: [reasoning, analysis, complex, coding]
+    keywords: [analyze, reason, complex, compare, evaluate]
+    weight: 0.8
+  - id: anthropic/claude-sonnet-4
+    provider: openrouter
+    cost_per_1k_tokens: 0.003
+    max_latency_ms: 3000
+    capabilities: [reasoning, writing, analysis, safety]
+    keywords: [write, creative, nuanced, policy, legal]
+    weight: 0.6

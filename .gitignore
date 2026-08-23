@@ -1,0 +1,46 @@
+# ControlPlane.ai — .gitignore
+files/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+!.env.example
+
+# Data
+data/*.db
+data/*.sqlite
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Logs
+*.log
+
+# Docker
+.docker/

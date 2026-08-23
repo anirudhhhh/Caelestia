@@ -1,0 +1,25 @@
+tools:
+  - name: search_knowledge_base
+    blast_radius: read_only
+    description: Search internal knowledge base
+  - name: lookup_customer
+    blast_radius: read_only
+    description: Look up customer information
+  - name: draft_email
+    blast_radius: reversible_write
+    description: Draft an email (not sent)
+  - name: create_ticket
+    blast_radius: reversible_write
+    description: Create a support ticket
+  - name: send_email
+    blast_radius: irreversible_action
+    description: Send an email to a customer
+  - name: issue_refund
+    blast_radius: irreversible_action
+    description: Issue a monetary refund
+  - name: delete_record
+    blast_radius: irreversible_action
+    description: Delete a database record
+  - name: update_account
+    blast_radius: reversible_write
+    description: Update account settings

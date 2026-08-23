@@ -1,0 +1,144 @@
+# ControlPlane.ai — Docker Compose
+# Runs all services + dependencies for production-like deployment
+
+services:
+  # ─── Infrastructure ─────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: controlplane
+      POSTGRES_USER: controlplane
+      POSTGRES_PASSWORD: controlplane_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U controlplane"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Backend Services ───────────────────────────────────────────────────────
+  audit-store:
+    build: .
+    command: python -m uvicorn services.audit_store.app:app --host 0.0.0.0 --port 8007
+    ports:
+      - "8007:8007"
+    env_file: .env
+    environment:
+      - DATABASE_URL=sqlite:///data/controlplane.db
+    volumes:
+      - ./data:/app/data
+
+  pii-service:
+    build: .
+    command: python -m uvicorn services.pii_service.app:app --host 0.0.0.0 --port 8003
+    ports:
+      - "8003:8003"
+    env_file: .env
+
+  policy-engine:
+    build: .
+    command: python -m uvicorn services.policy_engine.app:app --host 0.0.0.0 --port 8004
+    ports:
+      - "8004:8004"
+    env_file: .env
+
+  input-guard:
+    build: .
+    command: python -m uvicorn services.input_guard.app:app --host 0.0.0.0 --port 8001
+    ports:
+      - "8001:8001"
+    env_file: .env
+    depends_on:
+      - pii-service
+      - policy-engine
+
+  output-guard:
+    build: .
+    command: python -m uvicorn services.output_guard.app:app --host 0.0.0.0 --port 8002
+    ports:
+      - "8002:8002"
+    env_file: .env
+    depends_on:
+      - pii-service
+      - policy-engine
+
+  router:
+    build: .
+    command: python -m uvicorn services.router.app:app --host 0.0.0.0 --port 8005
+    ports:
+      - "8005:8005"
+    env_file: .env
+
+  adapter:
+    build: .
+    command: python -m uvicorn services.adapter.app:app --host 0.0.0.0 --port 8006
+    ports:
+      - "8006:8006"
+    env_file: .env
+
+  review-console:
+    build: .
+    command: python -m uvicorn services.review_console.app:app --host 0.0.0.0 --port 8008
+    ports:
+      - "8008:8008"
+    env_file: .env
+    depends_on:
+      - audit-store
+
+  immune-system:
+    build: .
+    command: python -m uvicorn services.immune_system.app:app --host 0.0.0.0 --port 8009
+    ports:
+      - "8009:8009"
+    env_file: .env
+    depends_on:
+      - audit-store
+
+  action-guard:
+    build: .
+    command: python -m uvicorn services.action_guard.app:app --host 0.0.0.0 --port 8010
+    ports:
+      - "8010:8010"
+    env_file: .env
+    depends_on:
+      - policy-engine
+
+  gateway:
+    build: .
+    command: python -m uvicorn services.gateway.app:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    env_file: .env
+    depends_on:
+      - input-guard
+      - output-guard
+      - router
+      - adapter
+      - audit-store
+      - action-guard
+
+  # ─── Frontend ───────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - gateway
+
+volumes:
+  pgdata:
