@@ -34,7 +34,7 @@ function Start-ControlService {
     param([string]$name, [string]$module, [int]$port)
     Write-Host "> Starting $name on port $port..." -ForegroundColor Green
     
-    $proc = Start-Process -FilePath $pythonPath -ArgumentList "-m uvicorn services.${module}.app:app --host 0.0.0.0 --port $port --reload --reload-dir services --reload-dir shared --log-level warning" -PassThru -NoNewWindow
+    $proc = Start-Process -FilePath $pythonPath -ArgumentList "-m uvicorn services.${module}.app:app --host 127.0.0.1 --port $port --reload --reload-dir services --reload-dir shared --log-level warning" -PassThru -NoNewWindow
     
     Add-Content -Path $pidFile -Value $proc.Id
 }
