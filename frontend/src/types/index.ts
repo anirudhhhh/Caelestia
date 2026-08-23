@@ -1,10 +1,13 @@
-export type UseCase = 'customer_support' | 'internal_copilot' | 'decision_support';
-export type Geography = 'US' | 'EU' | 'IN';
-export type Direction = 'input' | 'output';
-export type RiskTier = 'low' | 'medium' | 'high';
-export type CheckVerdict = 'pass' | 'warn' | 'fail' | 'error';
-export type DecisionAction = 'allow' | 'block' | 'flag' | 'escalate';
-export type BlastRadius = 'low' | 'medium' | 'high';
+export type UseCase =
+  | "customer_support"
+  | "internal_copilot"
+  | "decision_support";
+export type Geography = "US" | "EU" | "IN";
+export type Direction = "input" | "output";
+export type RiskTier = "low" | "medium" | "high";
+export type CheckVerdict = "pass" | "warn" | "fail" | "error";
+export type DecisionAction = "allow" | "block" | "flag" | "escalate";
+export type BlastRadius = "low" | "medium" | "high";
 
 export interface Payload {
   content: string;
@@ -58,12 +61,20 @@ export interface ChatRequest {
   use_case: UseCase;
   geography: Geography;
   model?: string;
+  session_id?: string;
+  max_tokens?: number;
 }
 
 export interface ChatResponse {
-  id: string;
-  message: { role: string; content: string };
-  interaction: InteractionEnvelope;
+  interaction_id: string;
+  session_id: string;
+  content: string;
+  model_used?: string;
+  decision: Decision;
+  checks_summary: CheckResult[];
+  risk: Pick<RiskAssessment, "tier" | "confidence">;
+  latency_ms: number;
+  tool_results: Record<string, any>[];
 }
 
 export interface EscalationItem {
@@ -72,15 +83,15 @@ export interface EscalationItem {
   risk_tier: RiskTier;
   escalation_reason: string;
   time_in_queue: number; // minutes or timestamp
-  status: 'pending' | 'resolved';
+  status: "pending" | "resolved";
   interaction: InteractionEnvelope;
 }
 
-export type ReviewAction = 'approve' | 'deny' | 'edit_approve';
+export type ReviewAction = "approve" | "deny" | "edit_approve";
 
 export interface AnomalyAlert {
   id: string;
-  severity: 'low' | 'medium' | 'high';
+  severity: "low" | "medium" | "high";
   metric: string;
   current_value: number;
   baseline_value: number;
@@ -115,10 +126,33 @@ export interface HumanOutcome {
 
 export interface PolicyRule {
   id?: string;
-  use_case: UseCase | '*';
-  geography: Geography | '*';
+  use_case: UseCase | "*";
+  geography: Geography | "*";
   check_name: string;
   block_threshold: number;
   flag_threshold: number;
-  on_timeout: 'allow' | 'block';
+  on_timeout: "allow" | "block";
+}
+
+export interface WorkflowEndpoint {
+  id: string;
+  name: string;
+  instructions: string;
+  target_model_or_url: string;
+  use_case: UseCase | "general" | string;
+  keywords: string[];
+  weight: number;
+  active: boolean;
+}
+
+export interface RoutingCandidate {
+  endpoint?: string;
+  id?: string;
+  name?: string;
+  model?: string;
+  target?: string;
+  score: number;
+  reason?: string;
+  matched_keywords?: string[];
+  use_case?: string;
 }

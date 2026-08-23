@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Target, AlertTriangle, ShieldCheck, Activity, RefreshCw } from 'lucide-react';
+import { ShieldCheck, Activity, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
@@ -83,35 +83,7 @@ export default function TrustDashboard() {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between pb-2">
-              <p className="text-xs font-medium text-muted-foreground">False Positive Rate</p>
-              <Target className="h-4 w-4 text-emerald-500" />
-            </div>
-            <div className="text-2xl font-bold">
-              {stats?.fpr != null ? `${stats.fpr}%` : '—'}
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-1">
-              {stats?.total_reviews ? `n=${stats.total_reviews} reviews` : 'From human reviews'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between pb-2">
-              <p className="text-xs font-medium text-muted-foreground">False Negative Rate</p>
-              <AlertTriangle className="h-4 w-4 text-rose-500" />
-            </div>
-            <div className="text-2xl font-bold">
-              {stats?.fnr != null ? `${stats.fnr}%` : '—'}
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-1">Estimated *</p>
-          </CardContent>
-        </Card>
-
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-primary/5 border-primary/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between pb-2">
@@ -132,7 +104,7 @@ export default function TrustDashboard() {
               <Activity className="h-4 w-4 text-muted-foreground" />
             </div>
             <div className="text-2xl font-bold">{stats?.total?.toLocaleString() ?? '—'}</div>
-            <p className="text-[10px] text-muted-foreground mt-1">All time</p>
+            <p className="text-[10px] text-muted-foreground mt-1">All time monitored</p>
           </CardContent>
         </Card>
 
@@ -145,20 +117,20 @@ export default function TrustDashboard() {
               </div>
             </div>
             <div className="text-2xl font-bold">{stats?.block_rate != null ? `${stats.block_rate}%` : '—'}</div>
-            <p className="text-[10px] text-muted-foreground mt-1">Policy enforcement</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Firewall safety enforcement</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between pb-2">
-              <p className="text-xs font-medium text-muted-foreground">Flag Rate</p>
+              <p className="text-xs font-medium text-muted-foreground">Flag / Review Rate</p>
               <div className="h-4 w-4 rounded-full bg-amber-500/20 flex items-center justify-center">
                 <div className="h-2 w-2 rounded-full bg-amber-500" />
               </div>
             </div>
             <div className="text-2xl font-bold">{stats?.flag_rate != null ? `${stats.flag_rate}%` : '—'}</div>
-            <p className="text-[10px] text-muted-foreground mt-1">For review</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Escalated for human review</p>
           </CardContent>
         </Card>
       </div>

@@ -97,54 +97,32 @@ export const api = {
   },
 
   // ── Trust / Stats (REAL data from audit store + outcome store) ────────────
-  getTrustStats: async () => {
-    const [auditStats, outcomeStats] = await Promise.all([
-      fetchApi<any>('/audit/stats').catch(() => null),
-      fetchApi<any>('/trust/outcomes').catch(() => null),
-    ]);
-
-    const total = auditStats?.total_interactions ?? 0;
-    const actionCounts = auditStats?.action_counts ?? {};
-    const blockRate = auditStats?.block_rate != null
-      ? +(auditStats.block_rate * 100).toFixed(1)
-      : 0;
-    const escalateRate = auditStats?.escalation_rate != null
-      ? +(auditStats.escalation_rate * 100).toFixed(1)
-      : 0;
-    const flagCount = actionCounts['flag'] ?? 0;
-    const flagRate = total > 0 ? +((flagCount / total) * 100).toFixed(1) : 0;
-
-    const totalReviews = outcomeStats?.total_reviews ?? 0;
-    const fpRate = outcomeStats?.false_positive_rate != null
-      ? +(outcomeStats.false_positive_rate * 100).toFixed(1)
-      : null;
-    const fnRate = outcomeStats?.false_negative_rate != null
-      ? +(outcomeStats.false_negative_rate * 100).toFixed(1)
-      : null;
-
-    // Composite trust score: 100 - weighted penalty from block/FP rates
-    const trustScore = Math.max(0, Math.min(100,
-      100 - blockRate * 2 - (fpRate ?? 0) * 3
-    )).toFixed(1);
-
-    return {
-      total,
-      block_rate: blockRate,
-      flag_rate: flagRate,
-      escalate_rate: escalateRate,
-      fpr: fpRate,
-      fnr: fnRate,
-      trust_score: trustScore,
-      total_reviews: totalReviews,
-      by_use_case: auditStats?.by_use_case ?? {},
-      action_counts: actionCounts,
-    };
-  },
+  getTrustStats: () => fetchApi<any>('/trust/outcomes'),
 
   // Keep old name as alias for backward compat
-  getOutcomeStats: () => api.getTrustStats(),
+  getOutcomeStats: () => fetchApi<any>('/trust/outcomes'),
 
   getModels: () => fetchApi<any>('/models'),
+
+  // ── Router & Endpoints ───────────────────────────────────────────────────
+  getEndpoints: () => fetchApi<any[]>('/router/endpoints'),
+
+  registerEndpoint: (endpoint: any) =>
+    fetchApi<any>('/router/endpoints', {
+      method: 'POST',
+      body: JSON.stringify(endpoint),
+    }),
+
+  deleteEndpoint: (endpointId: string) =>
+    fetchApi<any>(`/router/endpoints/${endpointId}`, {
+      method: 'DELETE',
+    }),
+
+  matchEndpoint: (prompt: string) =>
+    fetchApi<any>('/router/match', {
+      method: 'POST',
+      body: JSON.stringify({ prompt }),
+    }),
 
   guardAction: (request: any) =>
     fetchApi<any>('/guard', {

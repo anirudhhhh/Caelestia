@@ -25,13 +25,18 @@ if [ ! -f .env ]; then
     cp .env.example .env
 fi
 
+PYTHON_BIN="$PROJECT_ROOT/venv/bin/python3"
+if [ ! -f "$PYTHON_BIN" ]; then
+    PYTHON_BIN="python3"
+fi
+
 start_service() {
     local name=$1
     local module=$2
     local port=$3
     
     echo -e "${GREEN}▶ Starting ${name} on port ${port}...${NC}"
-    PYTHONPATH="$PROJECT_ROOT" python -m uvicorn "services.${module}.app:app" \
+    PYTHONPATH="$PROJECT_ROOT" "$PYTHON_BIN" -m uvicorn "services.${module}.app:app" \
         --host 0.0.0.0 --port "$port" --reload --log-level warning &
     echo $! >> /tmp/controlplane_pids.txt
 }

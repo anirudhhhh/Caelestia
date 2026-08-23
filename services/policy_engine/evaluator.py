@@ -25,9 +25,23 @@ class PolicyEvaluator:
         self.version = version
 
     def get_policy(self, use_case: str, geography: str, check_name: str) -> Dict[str, Any]:
+        # 1. Exact match (use_case + geography + check)
         for p in self.policies:
             if p.get("use_case") == use_case and p.get("geography") == geography and p.get("check") == check_name:
                 return p
+        # 2. Wildcard geography (use_case + * + check)
+        for p in self.policies:
+            if p.get("use_case") == use_case and p.get("geography") in ("*", None) and p.get("check") == check_name:
+                return p
+        # 3. Wildcard use_case (* + geography + check)
+        for p in self.policies:
+            if p.get("use_case") in ("*", None) and p.get("geography") == geography and p.get("check") == check_name:
+                return p
+        # 4. Global wildcard (* + * + check)
+        for p in self.policies:
+            if p.get("use_case") in ("*", None) and p.get("geography") in ("*", None) and p.get("check") == check_name:
+                return p
+        # 5. Default fallback
         return {
             "block_threshold": self.defaults.get("block_threshold", 0.7),
             "flag_threshold": self.defaults.get("flag_threshold", 0.4),

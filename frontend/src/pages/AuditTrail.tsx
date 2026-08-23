@@ -66,8 +66,12 @@ export default function AuditTrail() {
               <p className="text-sm font-medium text-muted-foreground">Total Interactions</p>
               <Activity className="h-4 w-4 text-muted-foreground" />
             </div>
-            <div className="text-2xl font-bold">{stats?.total?.toLocaleString() || '---'}</div>
-            <p className="text-xs text-muted-foreground mt-1">Last 30 days</p>
+            <div className="text-2xl font-bold">
+              {stats?.total != null
+                ? stats.total.toLocaleString()
+                : (stats?.total_interactions != null ? stats.total_interactions.toLocaleString() : '---')}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">All time monitored</p>
           </CardContent>
         </Card>
         <Card>
@@ -76,7 +80,9 @@ export default function AuditTrail() {
               <p className="text-sm font-medium text-muted-foreground">Block Rate</p>
               <ShieldAlert className="h-4 w-4 text-rose-500" />
             </div>
-            <div className="text-2xl font-bold">{stats?.block_rate || '---'}%</div>
+            <div className="text-2xl font-bold">
+              {stats?.block_rate != null ? `${stats.block_rate}%` : '---%'}
+            </div>
             <p className="text-xs text-muted-foreground mt-1">Policy enforcement</p>
           </CardContent>
         </Card>
@@ -86,7 +92,9 @@ export default function AuditTrail() {
               <p className="text-sm font-medium text-muted-foreground">Flag Rate</p>
               <ShieldAlert className="h-4 w-4 text-amber-500" />
             </div>
-            <div className="text-2xl font-bold">{stats?.flag_rate || '---'}%</div>
+            <div className="text-2xl font-bold">
+              {stats?.flag_rate != null ? `${stats.flag_rate}%` : '---%'}
+            </div>
             <p className="text-xs text-muted-foreground mt-1">Auditing required</p>
           </CardContent>
         </Card>
@@ -96,7 +104,11 @@ export default function AuditTrail() {
               <p className="text-sm font-medium text-muted-foreground">Escalation Rate</p>
               <ShieldCheck className="h-4 w-4 text-violet-500" />
             </div>
-            <div className="text-2xl font-bold">{stats?.escalate_rate || '---'}%</div>
+            <div className="text-2xl font-bold">
+              {stats?.escalate_rate != null
+                ? `${stats.escalate_rate}%`
+                : (stats?.escalation_rate != null ? `${stats.escalation_rate}%` : '---%')}
+            </div>
             <p className="text-xs text-muted-foreground mt-1">Human review</p>
           </CardContent>
         </Card>
