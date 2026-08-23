@@ -29,14 +29,22 @@ app.add_middleware(
 
 async def scan_pii(text: str) -> 'CheckResult':
     from shared.schemas import CheckResult
-    # Call PII service or mock
-    # For now mock since we only have output guard
-    return CheckResult(
-        check_name="pii_leakage",
-        engine="mock-pii",
-        score=0.0,
-        verdict=CheckVerdict.PASS
-    )
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.post(f"{PII_SERVICE_URL}/detect", json={"text": text})
+            resp.raise_for_status()
+            entities = resp.json().get("entities", [])
+            score = max((e["score"] for e in entities), default=0.0)
+            return CheckResult(
+                check_name="pii",              # was "pii_leakage" — must match policy.yaml's "pii"
+                engine="pii_service",
+                score=score,
+                verdict=CheckVerdict.FAIL if score >= 0.7 else CheckVerdict.PASS,
+                details={"entities_found": len(entities)}
+            )
+    except Exception as e:
+        logger.error(f"PII service call failed: {e}")
+        return CheckResult(check_name="pii", engine="pii_service", score=0.0, verdict=CheckVerdict.SKIPPED)
 
 @app.get("/healthz")
 async def healthz():
