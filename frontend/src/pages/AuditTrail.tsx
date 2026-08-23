@@ -34,8 +34,8 @@ export default function AuditTrail() {
       
       const [eventsData, statsData] = await Promise.all([
         api.getEvents(filters).catch(() => []),
-        api.getEventStats().catch(() => ({ 
-          total: 12450, block_rate: 4.2, flag_rate: 12.5, escalate_rate: 1.8 
+        api.getTrustStats().catch(() => ({ 
+          total: 0, block_rate: 0, flag_rate: 0, escalate_rate: 0 
         }))
       ]);
       

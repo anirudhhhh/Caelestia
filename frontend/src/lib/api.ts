@@ -1,4 +1,4 @@
-import type { 
+import type {
   ChatRequest, EscalationItem, ReviewAction,
   PolicyRule, AnomalyAlert, AuditEvent
 } from '../types';
@@ -98,46 +98,18 @@ export const api = {
 
   // ── Trust / Stats (REAL data from audit store + outcome store) ────────────
   getTrustStats: async () => {
-    const [auditStats, outcomeStats] = await Promise.all([
-      fetchApi<any>('/audit/stats').catch(() => null),
-      fetchApi<any>('/trust/outcomes').catch(() => null),
-    ]);
-
-    const total = auditStats?.total_interactions ?? 0;
-    const actionCounts = auditStats?.action_counts ?? {};
-    const blockRate = auditStats?.block_rate != null
-      ? +(auditStats.block_rate * 100).toFixed(1)
-      : 0;
-    const escalateRate = auditStats?.escalation_rate != null
-      ? +(auditStats.escalation_rate * 100).toFixed(1)
-      : 0;
-    const flagCount = actionCounts['flag'] ?? 0;
-    const flagRate = total > 0 ? +((flagCount / total) * 100).toFixed(1) : 0;
-
-    const totalReviews = outcomeStats?.total_reviews ?? 0;
-    const fpRate = outcomeStats?.false_positive_rate != null
-      ? +(outcomeStats.false_positive_rate * 100).toFixed(1)
-      : null;
-    const fnRate = outcomeStats?.false_negative_rate != null
-      ? +(outcomeStats.false_negative_rate * 100).toFixed(1)
-      : null;
-
-    // Composite trust score: 100 - weighted penalty from block/FP rates
-    const trustScore = Math.max(0, Math.min(100,
-      100 - blockRate * 2 - (fpRate ?? 0) * 3
-    )).toFixed(1);
-
-    return {
-      total,
-      block_rate: blockRate,
-      flag_rate: flagRate,
-      escalate_rate: escalateRate,
-      fpr: fpRate,
-      fnr: fnRate,
-      trust_score: trustScore,
-      total_reviews: totalReviews,
-      by_use_case: auditStats?.by_use_case ?? {},
-      action_counts: actionCounts,
+    const data = await fetchApi<any>('/trust/outcomes').catch(() => null);
+    return data || {
+      total: 0,
+      block_rate: 0,
+      flag_rate: 0,
+      escalate_rate: 0,
+      fpr: null,
+      fnr: null,
+      trust_score: 100,
+      total_reviews: 0,
+      by_use_case: {},
+      action_counts: {},
     };
   },
 

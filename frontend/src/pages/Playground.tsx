@@ -157,7 +157,7 @@ export default function Playground() {
           </Badge>
         </div>
 
-        <ScrollArea className="flex-1 p-4">
+        <div className="flex-1 overflow-y-auto p-4">
           <div className="space-y-4 max-w-3xl mx-auto">
             {messages.map((msg, idx) => (
               <div
@@ -192,7 +192,7 @@ export default function Playground() {
             )}
             <div ref={endOfMessagesRef} />
           </div>
-        </ScrollArea>
+        </div>
 
         <div className="p-4 bg-background border-t border-border">
           <div className="max-w-3xl mx-auto relative flex items-end gap-2">
