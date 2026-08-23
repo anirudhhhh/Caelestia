@@ -123,6 +123,10 @@ async def scan_input(envelope: InteractionEnvelope):
     # Run them in parallel
     results = await asyncio.gather(*tasks)
     
+    # --- ADD THIS LOGGING BLOCK ---
+    check_times = {res.check_name: f"{res.latency_ms:.2f}ms" for res in results}
+    logger.info(f"[{envelope.interaction_id}] Scanner latencies: {check_times}")
+
     # Extend envelope checks
     envelope.checks.extend(results)
     

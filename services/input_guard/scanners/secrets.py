@@ -1,29 +1,36 @@
-import re
 import time
+import tempfile
 from . import ScannerBase
 from shared.schemas import CheckResult, CheckVerdict
+from detect_secrets import SecretsCollection
+from detect_secrets.settings import default_settings
 
 class SecretsScanner(ScannerBase):
     def __init__(self):
-        self.patterns = {
-            "aws_key": r"AKIA[0-9A-Z]{16}",
-            "github_token": r"gh[pousr]_[A-Za-z0-9_]{36}",
-            "generic_api_key": r"api_key\s*=\s*['\"][A-Za-z0-9_-]+['\"]"
-        }
+        # compiles all the regexes and entropy models in memory, eliminating the cold start.
+        with default_settings():
+            pass
 
     async def scan(self, text: str, **kwargs) -> CheckResult:
         start = time.time()
         score = 0.0
         
-        for name, pattern in self.patterns.items():
-            if re.search(pattern, text):
+        # Write the payload to an in-memory temp file for the scanner
+        with tempfile.NamedTemporaryFile(mode='w+', delete=True) as temp:
+            temp.write(text)
+            temp.flush()
+            
+            secrets = SecretsCollection()
+            with default_settings():
+                secrets.scan_file(temp.name)
+            
+            if secrets.json().get("results"):
                 score = 1.0
-                break
                 
         latency_ms = (time.time() - start) * 1000
         return CheckResult(
             check_name="secrets",
-            engine="regex_fallback",
+            engine="detect_secrets",
             score=score,
             latency_ms=latency_ms
         )
