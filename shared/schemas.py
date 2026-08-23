@@ -363,7 +363,7 @@ class ThresholdProposal(BaseModel):
 LATENCY_BUDGETS: dict[UseCase, dict[str, int]] = {
     UseCase.CUSTOMER_SUPPORT: {
         "total": 800,
-        "input_guard": 60,
+        "input_guard": 150,
         "routing": 20,
         "model_call": 600,
         "output_guard": 80,
