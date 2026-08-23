@@ -15,7 +15,7 @@ if (!(Test-Path -Path ".env")) {
     Write-Host "   Please edit .env with your API keys before running." -ForegroundColor Yellow
 }
 
-$pidFile = "$env:TEMP\controlplane_pids.txt"
+$pidFile = Join-Path -Path ([IO.Path]::GetTempPath()) -ChildPath 'controlplane_pids.txt'
 
 if (Test-Path $pidFile) {
     Write-Host "Stopping previous services..." -ForegroundColor Yellow
