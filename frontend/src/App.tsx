@@ -6,6 +6,7 @@ import HumanReview from './pages/HumanReview';
 import TrustDashboard from './pages/TrustDashboard';
 import PolicyEditor from './pages/PolicyEditor';
 import SystemHealth from './pages/SystemHealth';
+import LoadBalancer from './pages/LoadBalancer';
 import { TooltipProvider } from './components/ui/tooltip';
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
         <Routes>
           <Route element={<AppLayout />}>
             <Route path="/" element={<Playground />} />
+            <Route path="/load-balancer" element={<LoadBalancer />} />
             <Route path="/review" element={<HumanReview />} />
             <Route path="/trust" element={<TrustDashboard />} />
             <Route path="/audit" element={<AuditTrail />} />

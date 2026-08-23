@@ -53,14 +53,20 @@ OPENROUTER_BASE_URL = get_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/
 GEMINI_API_KEY = get_env("GEMINI_API_KEY")
 
 # Default models (configurable via env)
-DEFAULT_MODEL = get_env("DEFAULT_MODEL", "google/gemini-2.0-flash-001")
-JUDGE_MODEL = get_env("JUDGE_MODEL", "google/gemini-2.0-flash-001")
+DEFAULT_MODEL = get_env("DEFAULT_MODEL", "google/gemini-2.5-flash")
+JUDGE_MODEL = get_env("JUDGE_MODEL", "google/gemini-2.5-flash")
+
+# Default system prompt
+CONTROLPLANE_SYSTEM_PROMPT = get_env(
+    "CONTROLPLANE_SYSTEM_PROMPT",
+    "You are an enterprise AI assistant protected by ControlPlane.ai."
+)
 
 # Model list for routing (comma-separated in env)
 AVAILABLE_MODELS = [
     m.strip() for m in get_env(
         "AVAILABLE_MODELS",
-        "google/gemini-2.0-flash-001,google/gemini-2.5-flash-preview-05-20,anthropic/claude-sonnet-4"
+        "google/gemini-2.5-flash,openai/gpt-4o-mini,meta-llama/llama-3.3-70b-instruct"
     ).split(",") if m.strip()
 ]
 

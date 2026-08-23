@@ -30,39 +30,75 @@ async def monitor_loop():
     logger.info("Starting immune system monitor loop...")
     while True:
         try:
-            # Query audit store for events
             async with httpx.AsyncClient(timeout=10.0) as client:
                 try:
-                    resp = await client.get(f"{AUDIT_STORE_URL}/stats")
-                    if resp.status_code == 200:
-                        stats = resp.json()
-                        # Dummy EWMA anomaly detection for prototype
-                        # In real world, we would keep historical series and compute z-score
-                        
-                        # Fake anomaly injection if stats indicate high block rate
-                        block_rate = stats.get("block_rate", 0.0)
-                        if block_rate > 0.15: # 15% block rate
-                            alert = AnomalyAlert(
-                                metric_name="block_rate",
-                                current_value=block_rate,
-                                baseline_mean=0.05,
-                                baseline_std=0.02,
-                                sigma_breach=(block_rate - 0.05)/0.02,
-                                severity="critical"
-                            )
-                            ALERTS[alert.alert_id] = alert
-                            logger.warning(f"Anomaly detected: {alert.metric_name} = {alert.current_value}")
-                            
-                            # Send to review console
-                            # Actually need to send it as an escalation but we just log for now
-                except Exception as e:
-                    logger.error(f"Failed to query audit store: {e}")
+                    stats_resp, outcomes_resp = await asyncio.gather(
+                        client.get(f"{AUDIT_STORE_URL}/stats"),
+                        client.get(f"{AUDIT_STORE_URL}/outcomes/stats"),
+                        return_exceptions=True
+                    )
                     
+                    stats = stats_resp.json() if not isinstance(stats_resp, Exception) and stats_resp.status_code == 200 else {}
+                    outcomes = outcomes_resp.json() if not isinstance(outcomes_resp, Exception) and outcomes_resp.status_code == 200 else {}
+
+                    total_interactions = stats.get("total_interactions", 0)
+                    block_rate = stats.get("block_rate", 0.0)
+                    escalate_rate = stats.get("escalation_rate", 0.0)
+                    fp_rate = outcomes.get("false_positive_rate", 0.0)
+
+                    # 1. High Block Rate Anomaly
+                    if block_rate > 0.20 and total_interactions >= 5:
+                        alert_id = "alert_high_block_rate"
+                        ALERTS[alert_id] = AnomalyAlert(
+                            alert_id=alert_id,
+                            metric_name="Firewall Block Rate",
+                            current_value=round(block_rate * 100, 1),
+                            baseline_mean=5.0,
+                            baseline_std=2.0,
+                            sigma_breach=round((block_rate - 0.05) / 0.02, 1),
+                            severity="critical" if block_rate > 0.40 else "medium"
+                        )
+                    elif "alert_high_block_rate" in ALERTS and block_rate <= 0.20:
+                        del ALERTS["alert_high_block_rate"]
+
+                    # 2. High Escalation Rate Anomaly
+                    if escalate_rate > 0.10 and total_interactions >= 5:
+                        alert_id = "alert_high_escalation"
+                        ALERTS[alert_id] = AnomalyAlert(
+                            alert_id=alert_id,
+                            metric_name="Human Escalation Rate",
+                            current_value=round(escalate_rate * 100, 1),
+                            baseline_mean=2.0,
+                            baseline_std=1.0,
+                            sigma_breach=round((escalate_rate - 0.02) / 0.01, 1),
+                            severity="medium"
+                        )
+                    elif "alert_high_escalation" in ALERTS and escalate_rate <= 0.10:
+                        del ALERTS["alert_high_escalation"]
+
+                    # 3. False Positive Drift Anomaly
+                    if fp_rate > 0.15 and outcomes.get("total_reviews", 0) >= 3:
+                        alert_id = "alert_fp_drift"
+                        ALERTS[alert_id] = AnomalyAlert(
+                            alert_id=alert_id,
+                            metric_name="False Positive Drift",
+                            current_value=round(fp_rate * 100, 1),
+                            baseline_mean=3.0,
+                            baseline_std=1.5,
+                            sigma_breach=round((fp_rate - 0.03) / 0.015, 1),
+                            severity="high"
+                        )
+                    elif "alert_fp_drift" in ALERTS and fp_rate <= 0.15:
+                        del ALERTS["alert_fp_drift"]
+
+                except Exception as e:
+                    logger.error(f"Failed to evaluate immune health: {e}")
+
         except asyncio.CancelledError:
             break
         except Exception as e:
             logger.error(f"Monitor loop error: {e}")
-            
+
         await asyncio.sleep(30)
 
 @app.on_event("startup")

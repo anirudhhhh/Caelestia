@@ -32,31 +32,31 @@ Application ← ControlPlane Gateway ← Output Guard ← Model Response
 
 | # | Component | Port | Purpose |
 |---|-----------|------|---------|
-| 01 | **API Gateway** | 8000 | Single ingress point, orchestrates the full pipeline |
-| 02 | **Router & Load Balancer** | 8005 | Semantic intent classification, multi-model routing |
-| 03 | **Model Adapter** | 8006 | Provider-agnostic model calls (OpenRouter / Gemini) |
-| 04 | **Input Guard** | 8001 | Pre-model: prompt injection, toxicity, secrets, PII |
-| 05 | **Output Guard** | 8002 | Post-model: hallucination, leakage, toxicity, PII |
-| 06 | **PII Service** | 8003 | Shared PII detection & anonymization (Presidio) |
-| 07 | **Policy Engine** | 8004 | YAML-driven decision logic, configurable per use case |
-| 08 | **Immune System** | 8009 | System-level anomaly detection, drift monitoring |
-| 09 | **Human Review Console** | 8008 | Escalation queue with approve/deny/edit actions |
-| 10 | **Audit Store** | 8007 | Append-only event store for every interaction |
-| 11 | **Trust Dashboard** | — | FP/FN rates, trust scores, coverage metrics (frontend) |
-| 12 | **Action Guard** | 8010 | Tool/action call gating with blast radius classification |
+| 01 | **API Gateway** | 8000 | Single ingress point, proxy aggregator, orchestrates full inspection pipeline |
+| 02 | **Semantic Router & LB** | 8005 | Dynamic endpoint registry, semantic intent search over prompt instructions, multi-agent load balancing |
+| 03 | **Model Adapter** | 8006 | Provider-agnostic model execution via OpenRouter (`google/gemini-2.5-flash`, `gpt-4o-mini`, etc.) |
+| 04 | **Input Guard** | 8001 | Pre-model firewall: prompt injection, toxicity, secrets leakage (AWS/GitHub/Entropy), PII |
+| 05 | **Output Guard** | 8002 | Post-model firewall: hallucination (AI-as-judge), system prompt leakage, sensitive data, toxicity, PII |
+| 06 | **PII Service** | 8003 | Shared PII detection & anonymization (Presidio NLP + regex fallback with false-positive filtering) |
+| 07 | **Policy Engine** | 8004 | Versioned YAML-driven policy evaluator with wildcard matching and dynamic thresholds |
+| 08 | **Immune System** | 8009 | Firewall health telemetry, anomaly detection (block rate, escalation drift), auto-generated threshold proposals |
+| 09 | **Human Review Console** | 8008 | Escalation queue with human-in-the-loop review (Approve, Deny, Edit) establishing real ground truth |
+| 10 | **Audit Store** | 8007 | Append-only event store with indexed querying and statistical analytics |
+| 11 | **Trust Dashboard** | 3000 | Live visualization of composite trust scores, 7-day intervention trends, decision breakdowns, and review outcomes |
+| 12 | **Action Guard** | 8010 | Agentic tool-call gating with blast radius classification (read-only, reversible, irreversible) |
 
 ### How it Maps to the Problem Statement
 
 | Problem Statement Requirement | Our Solution |
 |-------------------------------|--------------|
-| Detection techniques | Input Guard (prompt injection, toxicity, secrets) + Output Guard (hallucination via AI-as-judge, PII, system prompt leakage) + PII Service (Presidio) |
-| Decision logic | Policy Engine: configurable thresholds per (use_case, geography, check), tiered responses (allow/edit/flag/block/escalate) |
-| Architecture | Gateway as pre/post gate, Guards run checks in parallel, fire-and-forget audit logging to protect latency |
-| Governance | YAML-driven policy configs, versioned (every decision traceable to exact policy version), geography-aware |
-| Feedback loops | Human Review outcomes → labeled data → Immune System → threshold proposals → Policy Engine |
-| Metrics & monitoring | Trust Dashboard (FP/FN rates, trust score, coverage), Immune System (anomaly detection) |
-| Multi-turn / agentic risk | Action Guard (blast radius classification, cumulative session risk tracking) |
-| Different risk tolerance | Latency budgets and policy thresholds vary by use case (customer_support vs. internal_copilot vs. decision_support) |
+| **Detection Techniques** | Input Guard (prompt injection, toxicity, secret detection via `detect-secrets`) + Output Guard (AI-as-judge hallucination verification, system prompt leakage, sensitive data) + PII Service (Microsoft Presidio) |
+| **Semantic Load Balancing** | Router inspects input semantics against candidate agent/endpoint instructions and keywords, routing to the specialized workflow agent with explainable trace |
+| **Decision Logic** | Policy Engine evaluates scores against hierarchical thresholds per `(use_case, geography, check)` with wildcard fallbacks and tiered responses (allow / flag / block / escalate) |
+| **Architecture** | Non-blocking async microservices, sub-5ms inspection latencies, fire-and-forget audit logging |
+| **Governance & Compliance** | Traceable, versioned YAML policies supporting regional rules (US vs. EU GDPR) and auditability |
+| **Self-Healing & Feedback Loops** | Review Console outcomes → labeled ground truth → Immune System anomaly analysis → automated threshold proposals |
+| **Metrics & Monitoring** | Real-time Trust Dashboard with composite trust scoring, FP/FN telemetry, and 7-day intervention trendlines |
+| **Agentic Action Governance** | Action Guard gates tool/function calls by blast radius and cumulative session risk |
 
 ---
 
@@ -207,7 +207,7 @@ Response includes the AI response **plus** full safety analysis:
 ```
 
 ### Action Execution Guard
-
+ 
 ```bash
 curl -X POST http://localhost:8000/v1/actions/execute \
   -H "Content-Type: application/json" \
@@ -218,6 +218,29 @@ curl -X POST http://localhost:8000/v1/actions/execute \
     ],
     "session_id": "session-uuid",
     "use_case": "customer_support"
+  }'
+```
+
+### Semantic Workflow Endpoints (Load Balancer)
+
+ControlPlane.ai automatically routes prompts to specialized enterprise agent endpoints based on semantic intent matching against their system instructions and domain keywords:
+
+```bash
+# List all registered workflow endpoints and their instructions
+curl http://localhost:8000/v1/router/endpoints
+
+# Register or update an enterprise workflow endpoint
+curl -X POST http://localhost:8000/v1/router/endpoints \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "code_review_agent",
+    "name": "Automated Code Review & Security Agent",
+    "instructions": "Reviews pull requests, inspects Python/TypeScript code for security vulnerabilities, memory leaks, and architectural best practices.",
+    "target_model_or_url": "google/gemini-2.5-flash",
+    "use_case": "internal_copilot",
+    "keywords": ["pull request", "pr", "review", "refactor", "vulnerability", "lint", "syntax", "git"],
+    "weight": 1.0,
+    "active": true
   }'
 ```
 

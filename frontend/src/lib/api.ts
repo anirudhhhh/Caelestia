@@ -1,4 +1,4 @@
-import type {
+import type { 
   ChatRequest, EscalationItem, ReviewAction,
   PolicyRule, AnomalyAlert, AuditEvent
 } from '../types';
@@ -97,26 +97,32 @@ export const api = {
   },
 
   // ── Trust / Stats (REAL data from audit store + outcome store) ────────────
-  getTrustStats: async () => {
-    const data = await fetchApi<any>('/trust/outcomes').catch(() => null);
-    return data || {
-      total: 0,
-      block_rate: 0,
-      flag_rate: 0,
-      escalate_rate: 0,
-      fpr: null,
-      fnr: null,
-      trust_score: 100,
-      total_reviews: 0,
-      by_use_case: {},
-      action_counts: {},
-    };
-  },
+  getTrustStats: () => fetchApi<any>('/trust/outcomes'),
 
   // Keep old name as alias for backward compat
-  getOutcomeStats: () => api.getTrustStats(),
+  getOutcomeStats: () => fetchApi<any>('/trust/outcomes'),
 
   getModels: () => fetchApi<any>('/models'),
+
+  // ── Router & Endpoints ───────────────────────────────────────────────────
+  getEndpoints: () => fetchApi<any[]>('/router/endpoints'),
+
+  registerEndpoint: (endpoint: any) =>
+    fetchApi<any>('/router/endpoints', {
+      method: 'POST',
+      body: JSON.stringify(endpoint),
+    }),
+
+  deleteEndpoint: (endpointId: string) =>
+    fetchApi<any>(`/router/endpoints/${endpointId}`, {
+      method: 'DELETE',
+    }),
+
+  matchEndpoint: (prompt: string) =>
+    fetchApi<any>('/router/match', {
+      method: 'POST',
+      body: JSON.stringify({ prompt }),
+    }),
 
   guardAction: (request: any) =>
     fetchApi<any>('/guard', {

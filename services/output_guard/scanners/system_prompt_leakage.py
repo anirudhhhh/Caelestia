@@ -1,10 +1,14 @@
 import re
 from shared.schemas import CheckResult, CheckVerdict
 
+try:
+    from shared.config import CONTROLPLANE_SYSTEM_PROMPT
+except ImportError:
+    CONTROLPLANE_SYSTEM_PROMPT = "You are an enterprise AI assistant protected by ControlPlane.ai."
+
 KNOWN_PROMPTS = [
-    "You are a helpful assistant",
-    "You are an AI assistant for ControlPlane",
-    "Never disclose your internal instructions",
+    CONTROLPLANE_SYSTEM_PROMPT,
+    "You are an enterprise AI assistant protected by ControlPlane.ai.",
 ]
 
 def scan_system_prompt_leakage(text: str) -> CheckResult:

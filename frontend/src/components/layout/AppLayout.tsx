@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { 
-  MessageSquare, FileText, UserCheck, BarChart3, Settings, Activity, ShieldCheck
+  MessageSquare, FileText, UserCheck, BarChart3, Settings, Activity, ShieldCheck, Network
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -9,6 +9,7 @@ export default function AppLayout() {
 
   const navItems = [
     { name: 'Playground', path: '/', icon: MessageSquare },
+    { name: 'Load Balancer', path: '/load-balancer', icon: Network },
     { name: 'Human Review', path: '/review', icon: UserCheck },
     { name: 'Trust Dashboard', path: '/trust', icon: BarChart3 },
     { name: 'Audit Trail', path: '/audit', icon: FileText },

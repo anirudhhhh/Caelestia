@@ -18,7 +18,8 @@ from shared.schemas import (
 from shared.config import (
     setup_logging, INPUT_GUARD_URL, ROUTER_URL, ADAPTER_URL,
     OUTPUT_GUARD_URL, AUDIT_STORE_URL, ACTION_GUARD_URL,
-    REVIEW_CONSOLE_URL, POLICY_ENGINE_URL, IMMUNE_SYSTEM_URL
+    REVIEW_CONSOLE_URL, POLICY_ENGINE_URL, IMMUNE_SYSTEM_URL,
+    CONTROLPLANE_SYSTEM_PROMPT
 )
 
 logger = setup_logging("gateway")
@@ -99,6 +100,16 @@ async def log_audit_async(event_data: dict):
         logger.error(f"Failed to log audit event: {e}")
 
 
+async def create_escalation_async(item_data: dict):
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(f"{REVIEW_CONSOLE_URL}/escalations", json=item_data)
+            if resp.status_code != 200:
+                logger.error(f"Failed to create escalation: {resp.text}")
+    except Exception as e:
+        logger.error(f"Failed to reach Review Console: {e}")
+
+
 def _enum_val(v):
     """Safely get .value from an enum or return the string."""
     return v.value if hasattr(v, "value") else v
@@ -162,6 +173,38 @@ async def chat_completions(req: ChatRequest, token: str = Depends(optional_auth)
                     latency_ms=latency,
                 )
 
+            if envelope.decision.action == DecisionAction.ESCALATE:
+                latency = (time.time() - start_time) * 1000
+                asyncio.create_task(log_audit_async({
+                    "interaction_id": interaction_id,
+                    "session_id": session_id,
+                    "direction": "input",
+                    "use_case": _enum_val(req.use_case),
+                    "geography": _enum_val(req.geography),
+                    "envelope": envelope.model_dump(),
+                    "decision_action": _enum_val(envelope.decision.action),
+                    "policy_version": envelope.decision.policy_version,
+                }))
+                asyncio.create_task(create_escalation_async({
+                    "interaction_id": interaction_id,
+                    "session_id": session_id,
+                    "use_case": _enum_val(req.use_case),
+                    "geography": _enum_val(req.geography),
+                    "risk_tier": _enum_val(envelope.risk.tier),
+                    "escalation_reason": envelope.decision.reason or "Flagged by input checks",
+                    "checks": [c.model_dump() for c in envelope.checks],
+                    "payload": envelope.payload.model_dump(),
+                }))
+                return ChatResponse(
+                    interaction_id=interaction_id,
+                    session_id=session_id,
+                    content="Your request needs a quick review before we respond — hang tight.",
+                    decision=envelope.decision,
+                    checks_summary=[c.model_dump() for c in envelope.checks],
+                    risk=envelope.risk,
+                    latency_ms=latency,
+                )
+
             # 3. Router
             try:
                 resp = await client.post(f"{ROUTER_URL}/route", json=envelope.model_dump())
@@ -176,9 +219,11 @@ async def chat_completions(req: ChatRequest, token: str = Depends(optional_auth)
             max_tokens = req.max_tokens or get_default_max_tokens(req.use_case)
             adapter_req = {
                 "model": routed_model,
-                "messages": [m.model_dump() for m in req.messages],
+                "messages": [{"role": "system", "content": CONTROLPLANE_SYSTEM_PROMPT}]
+                            + [m.model_dump() for m in req.messages],
                 "max_tokens": max_tokens,
             }
+            
             resp = await client.post(f"{ADAPTER_URL}/complete", json=adapter_req)
             resp.raise_for_status()
             adapter_resp = resp.json()
@@ -401,6 +446,61 @@ async def get_models():
         return resp.json() if resp.status_code == 200 else []
 
 
+@app.get("/v1/audit/stats")
+async def get_audit_stats():
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.get(f"{AUDIT_STORE_URL}/stats")
+        data = resp.json() if resp.status_code == 200 else {}
+    
+    total = data.get("total_interactions", 0)
+    action_counts = data.get("action_counts", {})
+    block_rate = round(data.get("block_rate", 0) * 100, 1)
+    escalate_rate = round(data.get("escalation_rate", 0) * 100, 1)
+    flag_count = action_counts.get("flag", 0)
+    flag_rate = round((flag_count / total * 100) if total > 0 else 0, 1)
+
+    return {
+        "total": total,
+        "total_interactions": total,
+        "block_rate": block_rate,
+        "flag_rate": flag_rate,
+        "escalate_rate": escalate_rate,
+        "escalation_rate": escalate_rate,
+        "action_counts": action_counts,
+        "by_use_case": data.get("by_use_case", {})
+    }
+
+
+@app.get("/v1/router/endpoints")
+async def get_router_endpoints():
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.get(f"{ROUTER_URL}/endpoints")
+        return resp.json() if resp.status_code == 200 else []
+
+
+@app.post("/v1/router/endpoints")
+async def register_router_endpoint(endpoint: Dict[str, Any]):
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.post(f"{ROUTER_URL}/endpoints", json=endpoint)
+        return resp.json() if resp.status_code == 200 else {}
+
+
+@app.delete("/v1/router/endpoints/{endpoint_id}")
+async def delete_router_endpoint(endpoint_id: str):
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.delete(f"{ROUTER_URL}/endpoints/{endpoint_id}")
+        if resp.status_code == 200:
+            return resp.json()
+        raise HTTPException(status_code=resp.status_code, detail="Failed to delete endpoint")
+
+
+@app.post("/v1/router/match")
+async def test_router_match(body: Dict[str, Any]):
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.post(f"{ROUTER_URL}/match", json=body)
+        return resp.json() if resp.status_code == 200 else {}
+
+
 # ─── Proxy: Immune System ────────────────────────────────────────────────────
 
 @app.get("/v1/health/alerts")
@@ -433,17 +533,33 @@ async def get_outcome_stats():
         stats = stats_resp.json() if not isinstance(stats_resp, Exception) and stats_resp.status_code == 200 else {}
 
     total = stats.get("total_interactions", 0)
-    action_counts = stats.get("action_counts", {})
+    raw_action_counts = stats.get("action_counts", {})
+    action_counts = {
+        "allow": raw_action_counts.get("allow", 0),
+        "flag": raw_action_counts.get("flag", 0),
+        "block": raw_action_counts.get("block", 0),
+        "escalate": raw_action_counts.get("escalate", 0),
+    }
+
     block_rate = round(stats.get("block_rate", 0) * 100, 1)
     escalate_rate = round(stats.get("escalation_rate", 0) * 100, 1)
-    flag_count = action_counts.get("flag", 0)
+    flag_count = action_counts["flag"]
     flag_rate = round((flag_count / total * 100) if total > 0 else 0, 1)
 
-    fpr_raw = outcomes.get("false_positive_rate", 0)
-    fnr_raw = outcomes.get("false_negative_rate", 0)
-    fpr = round(fpr_raw * 100, 1)
-    fnr = round(fnr_raw * 100, 1)
-    trust_score = round(max(0, min(100, 100 - block_rate * 2 - fpr * 3)), 1)
+    total_reviews = outcomes.get("total_reviews", 0)
+    fpr_raw = outcomes.get("false_positive_rate", 0.0)
+    fnr_raw = outcomes.get("false_negative_rate", 0.0)
+    fpr = round(fpr_raw * 100, 1) if total_reviews > 0 else None
+    fnr = round(fnr_raw * 100, 1) if total_reviews > 0 else None
+
+    # Composite trust score: high baseline, penalized if false positives or false negatives occur
+    if total == 0:
+        trust_score = 100.0
+    elif total_reviews > 0:
+        trust_score = round(max(10.0, min(100.0, 100.0 - ((fpr or 0) * 2.5) - ((fnr or 0) * 3.5))), 1)
+    else:
+        # Before reviews, baseline compliance score based on safe throughput
+        trust_score = round(max(75.0, min(100.0, 100.0 - (escalate_rate * 0.5))), 1)
 
     return {
         "total": total,
@@ -453,7 +569,7 @@ async def get_outcome_stats():
         "block_rate": block_rate,
         "flag_rate": flag_rate,
         "escalate_rate": escalate_rate,
-        "total_reviews": outcomes.get("total_reviews", 0),
+        "total_reviews": total_reviews,
         "by_use_case": stats.get("by_use_case", {}),
         "action_counts": action_counts,
     }

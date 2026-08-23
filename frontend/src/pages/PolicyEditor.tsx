@@ -23,7 +23,7 @@ export default function PolicyEditor() {
       check_name: 'pii_leak',
       current_threshold: 0.9,
       proposed_threshold: 0.85,
-      reason: 'Detected 12 False Negatives in past 48h. Lowering threshold improves recall by 14% with negligible FP increase.'
+      reason: 'Observed elevated PII variance in customer support telemetry over the past 48h. Adjusting threshold improves safety recall with negligible throughput impact.'
     }
   ]);
 
