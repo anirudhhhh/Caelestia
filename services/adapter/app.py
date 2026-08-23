@@ -26,7 +26,7 @@ class AdapterRequest(BaseModel):
     model: str
     messages: List[Dict[str, Any]]
     max_tokens: Optional[int] = 1000
-    temperature: Optional[float] = None
+    temperature: Optional[float] = 1.0
 
 class Usage(BaseModel):
     prompt_tokens: int = 0

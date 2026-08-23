@@ -1,6 +1,5 @@
 #!/bin/bash
 # ControlPlane.ai — Start All Services
-# Run this script from the project root to start all backend services
 
 set -e
 
@@ -13,23 +12,19 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${CYAN}  ControlPlane.ai — Starting All Services${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-# Ensure data directory exists
 mkdir -p data
 
-# Check for .env file
 if [ ! -f .env ]; then
     echo -e "${YELLOW}⚠  No .env file found. Copying from .env.example${NC}"
     cp .env.example .env
-    echo -e "${YELLOW}   Please edit .env with your API keys before running.${NC}"
 fi
 
-# Function to start a service
 start_service() {
     local name=$1
     local module=$2
@@ -41,7 +36,6 @@ start_service() {
     echo $! >> /tmp/controlplane_pids.txt
 }
 
-# Clean up previous runs
 if [ -f /tmp/controlplane_pids.txt ]; then
     echo -e "${YELLOW}Stopping previous services...${NC}"
     while read pid; do
@@ -52,58 +46,53 @@ fi
 
 touch /tmp/controlplane_pids.txt
 
-# Start services in dependency order
-echo ""
-echo -e "${BLUE}Phase 1: Core Infrastructure${NC}"
+echo -e "\n${BLUE}Phase 1: Core Infrastructure${NC}"
 start_service "Audit Store"       "audit_store"     8007
 start_service "PII Service"       "pii_service"     8003
 start_service "Policy Engine"     "policy_engine"   8004
 sleep 1
 
-echo ""
-echo -e "${BLUE}Phase 2: Guards${NC}"
+echo -e "\n${BLUE}Phase 2: Guards${NC}"
 start_service "Input Guard"       "input_guard"     8001
 start_service "Output Guard"      "output_guard"    8002
 start_service "Action Guard"      "action_guard"    8010
 sleep 1
 
-echo ""
-echo -e "${BLUE}Phase 3: Pipeline${NC}"
+echo -e "\n${BLUE}Phase 3: Pipeline${NC}"
 start_service "Router / LB"       "router"          8005
 start_service "Model Adapter"     "adapter"         8006
 sleep 1
 
-echo ""
-echo -e "${BLUE}Phase 4: Monitoring & Review${NC}"
+echo -e "\n${BLUE}Phase 4: Monitoring & Review${NC}"
 start_service "Review Console"    "review_console"  8008
 start_service "Immune System"     "immune_system"   8009
 sleep 1
 
-echo ""
-echo -e "${BLUE}Phase 5: Gateway (main entry point)${NC}"
+echo -e "\n${BLUE}Phase 5: Gateway (main entry point)${NC}"
 start_service "API Gateway"       "gateway"         8000
+sleep 3 # Give Gateway a moment to bind to the port
 
-echo ""
-echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}✓ All services started!${NC}"
-echo ""
+# ---------------------------------------------------------
+# NEW WARM UP PHASE
+# ---------------------------------------------------------
+echo -e "\n${BLUE}Phase 6: Warming Up Services (Eliminating Cold Starts)...${NC}"
+
+# 1. Warm up the Gateway system cascade (initializes HTTPX connection pools)
+curl -s http://localhost:8000/v1/health/system > /dev/null
+echo -e "${GREEN}✓ Gateway and connection pools initialized${NC}"
+
+# 2. Warm up Input Guard (forces regex/plugins/models to compile in memory)
+curl -s -X POST http://localhost:8001/scan \
+  -H "Content-Type: application/json" \
+  -d '{"interaction_id":"warmup","session_id":"warmup","use_case":"internal","geography":"US","direction":"input","payload":{"role":"user","content":"warmup"},"model":{"requested":"dummy"},"checks":[],"tool_calls":[]}' > /dev/null
+echo -e "${GREEN}✓ Scanners and Regex Engines compiled${NC}"
+
+# ---------------------------------------------------------
+
+echo -e "\n${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}✓ All services started and warmed up!${NC}"
 echo -e "  ${CYAN}API Gateway:${NC}      http://localhost:8000"
-echo -e "  ${CYAN}Input Guard:${NC}      http://localhost:8001"
-echo -e "  ${CYAN}Output Guard:${NC}     http://localhost:8002"
-echo -e "  ${CYAN}PII Service:${NC}      http://localhost:8003"
-echo -e "  ${CYAN}Policy Engine:${NC}    http://localhost:8004"
-echo -e "  ${CYAN}Router/LB:${NC}        http://localhost:8005"
-echo -e "  ${CYAN}Model Adapter:${NC}    http://localhost:8006"
-echo -e "  ${CYAN}Audit Store:${NC}      http://localhost:8007"
-echo -e "  ${CYAN}Review Console:${NC}   http://localhost:8008"
-echo -e "  ${CYAN}Immune System:${NC}    http://localhost:8009"
-echo -e "  ${CYAN}Action Guard:${NC}     http://localhost:8010"
-echo ""
-echo -e "  ${CYAN}Frontend (dev):${NC}   cd frontend && npm run dev"
-echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
 echo -e "${YELLOW}Press Ctrl+C to stop all services${NC}"
 
-# Wait for all background processes
 trap 'echo -e "\n${RED}Stopping all services...${NC}"; kill $(cat /tmp/controlplane_pids.txt) 2>/dev/null; rm /tmp/controlplane_pids.txt; exit 0' SIGINT SIGTERM
 wait

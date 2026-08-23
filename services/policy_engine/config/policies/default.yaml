@@ -1,72 +1,71 @@
-policies:
-  - use_case: customer_support
-    geography: US
-    check: prompt_injection
-    block_threshold: 0.85
-    flag_threshold: 0.5
-    on_timeout: allow_with_flag
-  - use_case: customer_support
-    geography: US
-    check: toxicity
-    block_threshold: 0.8
-    flag_threshold: 0.4
-    on_timeout: allow_with_flag
-  - use_case: customer_support
-    geography: US
-    check: pii
-    block_threshold: 0.9
-    flag_threshold: 0.6
-    on_timeout: block
-  - use_case: customer_support
-    geography: US
-    check: hallucination_risk
-    block_threshold: 0.8
-    flag_threshold: 0.5
-    on_timeout: allow_with_flag
-  - use_case: decision_support
-    geography: EU
-    check: prompt_injection
-    block_threshold: 0.6
-    flag_threshold: 0.3
-    on_timeout: block
-  - use_case: decision_support
-    geography: EU
-    check: hallucination_risk
-    block_threshold: 0.6
-    flag_threshold: 0.3
-    on_timeout: block
-  - use_case: decision_support
-    geography: EU
-    check: pii
-    block_threshold: 0.5
-    flag_threshold: 0.2
-    on_timeout: block
-  - use_case: internal_copilot
-    geography: US
-    check: prompt_injection
-    block_threshold: 0.75
-    flag_threshold: 0.45
-    on_timeout: allow_with_flag
-  - use_case: internal_copilot
-    geography: US
-    check: toxicity
-    block_threshold: 0.7
-    flag_threshold: 0.4
-    on_timeout: allow_with_flag
-  - use_case: internal_copilot
-    geography: US
-    check: pii
-    block_threshold: 0.8
-    flag_threshold: 0.5
-    on_timeout: block
-  - use_case: internal_copilot
-    geography: US
-    check: hallucination_risk
-    block_threshold: 0.7
-    flag_threshold: 0.4
-    on_timeout: allow_with_flag
-
 defaults:
   block_threshold: 0.7
   flag_threshold: 0.4
   on_timeout: block
+policies:
+- block_threshold: 0.85
+  check: prompt_injection
+  flag_threshold: 0.5
+  geography: US
+  on_timeout: allow_with_flag
+  use_case: customer_support
+- block_threshold: 0.8
+  check: toxicity
+  flag_threshold: 0.4
+  geography: US
+  on_timeout: allow_with_flag
+  use_case: customer_support
+- block_threshold: 0.9
+  check: pii
+  flag_threshold: 0.6
+  geography: US
+  on_timeout: block
+  use_case: customer_support
+- block_threshold: 0.8
+  check: hallucination_risk
+  flag_threshold: 0.5
+  geography: US
+  on_timeout: allow_with_flag
+  use_case: customer_support
+- block_threshold: 0.6
+  check: prompt_injection
+  flag_threshold: 0.3
+  geography: EU
+  on_timeout: block
+  use_case: decision_support
+- block_threshold: 0.6
+  check: hallucination_risk
+  flag_threshold: 0.3
+  geography: EU
+  on_timeout: block
+  use_case: decision_support
+- block_threshold: 0.5
+  check: pii
+  flag_threshold: 0.2
+  geography: EU
+  on_timeout: block
+  use_case: decision_support
+- block_threshold: 0.75
+  check: prompt_injection
+  flag_threshold: 0.45
+  geography: US
+  on_timeout: allow_with_flag
+  use_case: internal_copilot
+- block_threshold: 0.7
+  check: toxicity
+  flag_threshold: 0.4
+  geography: US
+  on_timeout: allow_with_flag
+  use_case: internal_copilot
+- block_threshold: 0.8
+  check: pii
+  flag_threshold: 0.5
+  geography: US
+  on_timeout: block
+  use_case: internal_copilot
+- block_threshold: 0.7
+  check: hallucination_risk
+  flag_threshold: 0.4
+  geography: US
+  on_timeout: allow_with_flag
+  use_case: internal_copilot
