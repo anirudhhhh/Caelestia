@@ -15,7 +15,7 @@ if (!(Test-Path -Path ".env")) {
     Write-Host "   Please edit .env with your API keys before running." -ForegroundColor Yellow
 }
 
-$pidFile = "$env:TEMP\controlplane_pids.txt"
+$pidFile = Join-Path -Path ([IO.Path]::GetTempPath()) -ChildPath 'controlplane_pids.txt'
 
 if (Test-Path $pidFile) {
     Write-Host "Stopping previous services..." -ForegroundColor Yellow
@@ -34,7 +34,7 @@ function Start-ControlService {
     param([string]$name, [string]$module, [int]$port)
     Write-Host "> Starting $name on port $port..." -ForegroundColor Green
     
-    $proc = Start-Process -FilePath $pythonPath -ArgumentList "-m uvicorn services.${module}.app:app --host 0.0.0.0 --port $port --reload --reload-dir services --reload-dir shared --log-level warning" -PassThru -NoNewWindow
+    $proc = Start-Process -FilePath $pythonPath -ArgumentList "-m uvicorn services.${module}.app:app --host 127.0.0.1 --port $port --reload --reload-dir services --reload-dir shared --log-level warning" -PassThru -NoNewWindow
     
     Add-Content -Path $pidFile -Value $proc.Id
 }
