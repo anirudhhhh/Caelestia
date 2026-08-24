@@ -10,8 +10,10 @@ export type DecisionAction = "allow" | "block" | "flag" | "escalate";
 export type BlastRadius = "low" | "medium" | "high";
 
 export interface Payload {
+  role?: string;
   content: string;
   metadata?: Record<string, any>;
+  attachments?: any[];
 }
 
 export interface ToolCall {
@@ -79,12 +81,17 @@ export interface ChatResponse {
 
 export interface EscalationItem {
   interaction_id: string;
+  session_id?: string;
   use_case: UseCase;
+  geography?: Geography;
   risk_tier: RiskTier;
   escalation_reason: string;
-  time_in_queue: number; // minutes or timestamp
-  status: "pending" | "resolved";
-  interaction: InteractionEnvelope;
+  time_in_queue?: number;
+  created_at?: string;
+  status: "pending" | "in_review" | "resolved";
+  payload?: Payload;
+  checks?: CheckResult[];
+  interaction?: InteractionEnvelope;
 }
 
 export type ReviewAction = "approve" | "deny" | "edit_approve";
@@ -100,10 +107,15 @@ export interface AnomalyAlert {
 
 export interface ThresholdProposal {
   id: string;
+  proposal_id?: string;
+  use_case?: string;
+  geography?: string;
   check_name: string;
   current_threshold: number;
   proposed_threshold: number;
-  reason: string;
+  reason?: string;
+  justification?: string;
+  status?: string;
 }
 
 export interface AuditEvent {

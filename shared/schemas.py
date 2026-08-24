@@ -270,6 +270,7 @@ class PolicyDecisionRequest(BaseModel):
 class PolicyDecisionResponse(BaseModel):
     decision: Decision
     risk: RiskAssessment
+    checks: list[CheckResult] = Field(default_factory=list)
 
 
 # ─── Human Review Models ─────────────────────────────────────────────────────
@@ -277,6 +278,7 @@ class PolicyDecisionResponse(BaseModel):
 class EscalationItem(BaseModel):
     interaction_id: str
     session_id: str
+    direction: Direction = Direction.INPUT
     use_case: UseCase
     geography: Geography
     risk_tier: RiskTier

@@ -142,6 +142,7 @@ async def get_events(interaction_id: str):
 async def query_events(
     use_case: Optional[str] = None,
     action: Optional[str] = None,
+    direction: Optional[str] = None,
     since: Optional[str] = None,
     limit: int = Query(50, le=1000)
 ):
@@ -154,6 +155,9 @@ async def query_events(
     if action:
         conditions.append("decision_action = ?")
         params.append(action)
+    if direction:
+        conditions.append("direction = ?")
+        params.append(direction)
     if since:
         conditions.append("created_at >= ?")
         params.append(since)

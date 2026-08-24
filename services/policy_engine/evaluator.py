@@ -4,10 +4,13 @@ from typing import Any, Dict
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from shared.config import setup_logging
 from shared.schemas import (
     PolicyDecisionRequest, PolicyDecisionResponse, Decision,
     DecisionAction, RiskAssessment, RiskTier, CheckVerdict
 )
+
+logger = setup_logging("policy_evaluator")
 
 class PolicyEvaluator:
     def __init__(self):
@@ -25,27 +28,42 @@ class PolicyEvaluator:
         self.version = version
 
     def get_policy(self, use_case: str, geography: str, check_name: str) -> Dict[str, Any]:
-        # 1. Exact match (use_case + geography + check)
-        for p in self.policies:
-            if p.get("use_case") == use_case and p.get("geography") == geography and p.get("check") == check_name:
-                return p
-        # 2. Wildcard geography (use_case + * + check)
-        for p in self.policies:
-            if p.get("use_case") == use_case and p.get("geography") in ("*", None) and p.get("check") == check_name:
-                return p
-        # 3. Wildcard use_case (* + geography + check)
-        for p in self.policies:
-            if p.get("use_case") in ("*", None) and p.get("geography") == geography and p.get("check") == check_name:
-                return p
-        # 4. Global wildcard (* + * + check)
-        for p in self.policies:
-            if p.get("use_case") in ("*", None) and p.get("geography") in ("*", None) and p.get("check") == check_name:
-                return p
+        # Support check name aliases across input and output guards
+        aliases = [check_name]
+        if check_name == "sensitive_data":
+            aliases.append("secrets")
+        elif check_name == "secrets":
+            aliases.append("sensitive_data")
+        elif check_name == "system_prompt_leakage":
+            aliases.append("prompt_injection")
+
+        for alias in aliases:
+            # 1. Exact match (use_case + geography + check)
+            for p in self.policies:
+                p_check = p.get("check") or p.get("check_name")
+                if p.get("use_case") == use_case and p.get("geography") == geography and p_check == alias:
+                    return p
+            # 2. Wildcard geography (use_case + * + check)
+            for p in self.policies:
+                p_check = p.get("check") or p.get("check_name")
+                if p.get("use_case") == use_case and p.get("geography") in ("*", None) and p_check == alias:
+                    return p
+            # 3. Wildcard use_case (* + geography + check)
+            for p in self.policies:
+                p_check = p.get("check") or p.get("check_name")
+                if p.get("use_case") in ("*", None) and p.get("geography") == geography and p_check == alias:
+                    return p
+            # 4. Global wildcard (* + * + check)
+            for p in self.policies:
+                p_check = p.get("check") or p.get("check_name")
+                if p.get("use_case") in ("*", None) and p.get("geography") in ("*", None) and p_check == alias:
+                    return p
+
         # 5. Default fallback
         return {
-            "block_threshold": self.defaults.get("block_threshold", 0.7),
-            "flag_threshold": self.defaults.get("flag_threshold", 0.4),
-            "on_timeout": self.defaults.get("on_timeout", "block")
+            "block_threshold": float(self.defaults.get("block_threshold", 0.85)),
+            "flag_threshold": float(self.defaults.get("flag_threshold", 0.4)),
+            "on_timeout": self.defaults.get("on_timeout", "allow_with_flag")
         }
 
     def evaluate(self, req: PolicyDecisionRequest) -> PolicyDecisionResponse:
@@ -67,8 +85,8 @@ class PolicyEvaluator:
             score = check.score
             highest_score = max(highest_score, score)
 
-            block_thresh = policy.get("block_threshold", 0.7)
-            flag_thresh = policy.get("flag_threshold", 0.4)
+            block_thresh = float(policy.get("block_threshold", 0.85))
+            flag_thresh = float(policy.get("flag_threshold", 0.4))
 
             # Assign verdicts dynamically based on thresholds for robust handling
             if score >= block_thresh:
@@ -78,8 +96,10 @@ class PolicyEvaluator:
             else:
                 check.verdict = CheckVerdict.PASS
 
+            logger.info(f"[{req.interaction_id}] Policy evaluated: use_case={req.use_case.value} geo={req.geography.value} check={check.check_name} (score={score:.2f}, block_thresh={block_thresh}, verdict={check.verdict.value})")
+
             if check.verdict == CheckVerdict.FAIL:
-                return self._create_response(DecisionAction.BLOCK, f"Failed {check.check_name} check (score: {score:.2f} >= {block_thresh})", RiskTier.HIGH, score)
+                return self._create_response(DecisionAction.BLOCK, f"Failed {check.check_name} check (score: {score:.2f} >= {block_thresh})", RiskTier.HIGH, score, checks=req.checks)
             
             if check.verdict == CheckVerdict.WARN:
                 warn_count += 1
@@ -87,13 +107,13 @@ class PolicyEvaluator:
         
         # Compound logic
         if warn_count > 1:
-            return self._create_response(DecisionAction.ESCALATE, f"Multiple warnings: {', '.join(reasons)}", RiskTier.MEDIUM, highest_score)
+            return self._create_response(DecisionAction.ESCALATE, f"Multiple warnings: {', '.join(reasons)}", RiskTier.MEDIUM, highest_score, checks=req.checks)
         elif warn_count == 1:
-            return self._create_response(DecisionAction.FLAG, reasons[0], RiskTier.MEDIUM, highest_score)
+            return self._create_response(DecisionAction.FLAG, reasons[0], RiskTier.MEDIUM, highest_score, checks=req.checks)
         
-        return self._create_response(DecisionAction.ALLOW, "All checks passed", RiskTier.LOW, highest_score)
+        return self._create_response(DecisionAction.ALLOW, "All checks passed", RiskTier.LOW, highest_score, checks=req.checks)
 
-    def _create_response(self, action: DecisionAction, reason: str, tier: RiskTier, confidence: float) -> PolicyDecisionResponse:
+    def _create_response(self, action: DecisionAction, reason: str, tier: RiskTier, confidence: float, checks: list = None) -> PolicyDecisionResponse:
         return PolicyDecisionResponse(
             decision=Decision(
                 action=action,
@@ -105,7 +125,8 @@ class PolicyEvaluator:
             risk=RiskAssessment(
                 tier=tier,
                 confidence=confidence
-            )
+            ),
+            checks=checks or []
         )
 
 def load_policies(data: Dict[str, Any], version: str) -> PolicyEvaluator:

@@ -55,6 +55,15 @@ async def complete(req: AdapterRequest):
     logger.info(f"Completing request with model {req.model}")
     start_time = time.time()
     
+    payload = {
+        "model": req.model,
+        "messages": req.messages,
+    }
+    if req.max_tokens is not None:
+        payload["max_tokens"] = req.max_tokens
+    if req.temperature is not None:
+        payload["temperature"] = req.temperature
+        
     # Case 1: External HTTP agent or microservice endpoint
     if req.model.startswith(("http://", "https://")):
         try:

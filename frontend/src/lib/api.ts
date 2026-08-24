@@ -1,6 +1,6 @@
 import type { 
   ChatRequest, EscalationItem, ReviewAction,
-  PolicyRule, AnomalyAlert, AuditEvent
+  PolicyRule, AnomalyAlert, AuditEvent, ThresholdProposal
 } from '../types';
 
 const API_BASE = '/api/v1';
@@ -95,6 +95,21 @@ export const api = {
     const data = await fetchApi<AnomalyAlert[] | any>('/health/alerts');
     return Array.isArray(data) ? data : data.alerts ?? [];
   },
+
+  getProposals: async (): Promise<ThresholdProposal[]> => {
+    const data = await fetchApi<ThresholdProposal[] | any>('/health/proposals');
+    return Array.isArray(data) ? data : data.proposals ?? [];
+  },
+
+  acceptProposal: (proposalId: string) =>
+    fetchApi<any>(`/health/proposals/${proposalId}/accept`, {
+      method: 'POST',
+    }),
+
+  dismissProposal: (proposalId: string) =>
+    fetchApi<any>(`/health/proposals/${proposalId}/dismiss`, {
+      method: 'POST',
+    }),
 
   // ── Trust / Stats (REAL data from audit store + outcome store) ────────────
   getTrustStats: () => fetchApi<any>('/trust/outcomes'),

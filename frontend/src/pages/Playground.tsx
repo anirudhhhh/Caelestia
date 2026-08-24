@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   Send,
   ShieldCheck,
+  ShieldAlert,
   Activity,
   Cpu,
   Loader2,
@@ -11,7 +12,8 @@ import {
   Check,
   Sparkles,
   ArrowRight,
-  Bot
+  Bot,
+  AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,6 +36,8 @@ import { api } from "@/lib/api";
 interface Message {
   role: "user" | "assistant";
   content: string;
+  action?: "allow" | "block" | "flag" | "escalate";
+  reason?: string;
 }
 
 const STORAGE_KEY = "controlplane_playground_session";
@@ -120,10 +124,14 @@ export default function Playground() {
     setError(null);
 
     try {
-      const requestMessages = [...messages, userMessage].map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      // Only send real conversation turns (filter out firewall-blocked system messages)
+      const requestMessages = messages
+        .filter((m) => m.action !== "block" && !m.content.startsWith("Failed "))
+        .concat(userMessage)
+        .map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
 
       const data = await api.sendChat({
         messages: requestMessages,
@@ -140,6 +148,8 @@ export default function Playground() {
         {
           role: "assistant" as const,
           content: data.content || "No response received.",
+          action: data.decision?.action || "allow",
+          reason: data.decision?.reason || "",
         },
       ]);
       setLatestInteraction({
@@ -238,7 +248,7 @@ export default function Playground() {
   }'`;
 
   return (
-    <div className="flex h-full gap-6">
+    <div className="flex flex-col lg:flex-row h-full gap-6 min-h-0 overflow-hidden">
       {/* Left Panel: Chat Interface */}
       <div className="flex-1 flex flex-col min-w-0 bg-card rounded-lg border border-border overflow-hidden shadow-sm">
         <div className="p-3 border-b border-border bg-muted/30 flex flex-wrap gap-3 items-center">
@@ -323,22 +333,65 @@ export default function Playground() {
 
         <div className="flex-1 overflow-y-auto p-4">
           <div className="space-y-4 max-w-3xl mx-auto">
-            {messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`flex w-full ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-              >
+            {messages.map((msg, idx) => {
+              const isBlocked = msg.action === "block";
+              const isEscalated = msg.action === "escalate";
+              
+              if (msg.role === "assistant" && isBlocked) {
+                return (
+                  <div key={idx} className="flex w-full justify-start">
+                    <div className="max-w-[85%] rounded-lg p-3.5 bg-rose-500/10 border border-rose-500/30 text-foreground rounded-bl-sm space-y-1.5 shadow-sm">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-500">
+                        <ShieldAlert className="h-4 w-4 text-rose-500 shrink-0" />
+                        <span>Blocked by ControlPlane.ai Firewall</span>
+                        <Badge variant="outline" className="ml-auto text-[10px] text-rose-500 border-rose-500/30 font-mono">
+                          Input Blocked
+                        </Badge>
+                      </div>
+                      <p className="whitespace-pre-wrap text-xs text-foreground/90 font-mono bg-background/60 p-2 rounded border border-rose-500/20">
+                        {msg.content}
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (msg.role === "assistant" && isEscalated) {
+                return (
+                  <div key={idx} className="flex w-full justify-start">
+                    <div className="max-w-[85%] rounded-lg p-3.5 bg-violet-500/10 border border-violet-500/30 text-foreground rounded-bl-sm space-y-1.5 shadow-sm">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-violet-500">
+                        <AlertTriangle className="h-4 w-4 text-violet-500 shrink-0" />
+                        <span>Escalated to Human Review</span>
+                        <Badge variant="outline" className="ml-auto text-[10px] text-violet-500 border-violet-500/30 font-mono">
+                          Review Queue
+                        </Badge>
+                      </div>
+                      <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                        {msg.content}
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
                 <div
-                  className={`max-w-[80%] rounded-lg p-3 ${
-                    msg.role === "user"
-                      ? "bg-primary text-primary-foreground rounded-br-sm"
-                      : "bg-muted rounded-bl-sm border border-border text-foreground"
-                  }`}
+                  key={idx}
+                  className={`flex w-full ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
+                  <div
+                    className={`max-w-[80%] rounded-lg p-3 ${
+                      msg.role === "user"
+                        ? "bg-primary text-primary-foreground rounded-br-sm"
+                        : "bg-muted rounded-bl-sm border border-border text-foreground"
+                    }`}
+                  >
+                    <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {isLoading && (
               <div className="flex justify-start">
                 <div className="bg-muted border border-border text-foreground max-w-[80%] rounded-lg rounded-bl-sm p-4 flex items-center gap-3">
@@ -382,7 +435,7 @@ export default function Playground() {
       </div>
 
       {/* Right Panel: Analysis */}
-      <div className="w-[450px] flex flex-col gap-4 overflow-y-auto">
+      <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 flex flex-col gap-4 overflow-y-auto min-h-0">
         {!latestInteraction ? (
           <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center border border-dashed border-border rounded-lg bg-card/50">
             <ShieldCheck className="h-12 w-12 mb-4 opacity-20" />
@@ -504,16 +557,16 @@ export default function Playground() {
                           <span className="text-muted-foreground capitalize">
                             {stage.replace("_", " ")}
                           </span>
-                          <span className="font-mono">{ms}ms</span>
+                          <span className="font-mono">{String(ms)}ms</span>
                         </div>
                       ),
                     )}
                     <div className="pt-2 border-t border-border flex items-center justify-between text-sm font-medium">
                       <span>Total Processing</span>
                       <span className="font-mono">
-                        {Object.values(
-                          latestInteraction.latency_breakdown,
-                        ).reduce((a, b) => a + b, 0)}
+                        {(
+                          Object.values(latestInteraction.latency_breakdown) as number[]
+                        ).reduce((a, b) => Number(a) + Number(b), 0)}
                         ms
                       </span>
                     </div>

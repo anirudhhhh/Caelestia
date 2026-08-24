@@ -154,6 +154,9 @@ async def scan_input(envelope: InteractionEnvelope):
             decision_data = resp.json()
             envelope.decision = Decision(**decision_data["decision"])
             envelope.risk = RiskAssessment(**decision_data["risk"])
+            if decision_data.get("checks"):
+                from shared.schemas import CheckResult
+                envelope.checks = [CheckResult(**c) for c in decision_data["checks"]]
     except Exception as e:
         logger.error(f"Failed to call Policy Engine: {e}")
         envelope.decision = Decision(action=DecisionAction.BLOCK, reason="Policy Engine unavailable", decided_by="input_guard")

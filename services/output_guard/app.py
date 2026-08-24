@@ -90,9 +90,11 @@ async def scan_output(envelope: InteractionEnvelope):
             pe_resp = await client.post(f"{POLICY_ENGINE_URL}/decide", json=pe_req.model_dump())
             if pe_resp.status_code == 200:
                 pe_data = pe_resp.json()
-                from shared.schemas import Decision, RiskAssessment
+                from shared.schemas import Decision, RiskAssessment, CheckResult
                 envelope.decision = Decision(**pe_data["decision"])
                 envelope.risk = RiskAssessment(**pe_data["risk"])
+                if pe_data.get("checks"):
+                    envelope.checks = [CheckResult(**c) for c in pe_data["checks"]]
             else:
                 logger.error(f"[{envelope.interaction_id}] Policy Engine returned {pe_resp.status_code}")
     except Exception as e:

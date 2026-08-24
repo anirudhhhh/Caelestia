@@ -3,20 +3,19 @@ defaults:
   flag_threshold: 0.4
   on_timeout: block
 policies:
-# ─── Customer Support ────────────────────────────────────────────────────────
 - block_threshold: 0.85
   check: prompt_injection
   flag_threshold: 0.5
   geography: US
   on_timeout: allow_with_flag
   use_case: customer_support
-- block_threshold: 0.8
+- block_threshold: 0.9
   check: toxicity
   flag_threshold: 0.4
   geography: US
   on_timeout: allow_with_flag
   use_case: customer_support
-- block_threshold: 0.5
+- block_threshold: 0.85
   check: pii
   flag_threshold: 0.3
   geography: US
@@ -52,8 +51,6 @@ policies:
   geography: US
   on_timeout: allow_with_flag
   use_case: customer_support
-
-# ─── Internal Copilot ─────────────────────────────────────────────────────────
 - block_threshold: 0.75
   check: prompt_injection
   flag_threshold: 0.45
@@ -66,7 +63,7 @@ policies:
   geography: US
   on_timeout: allow_with_flag
   use_case: internal_copilot
-- block_threshold: 0.6
+- block_threshold: 0.85
   check: pii
   flag_threshold: 0.4
   geography: US
@@ -96,8 +93,6 @@ policies:
   geography: US
   on_timeout: allow_with_flag
   use_case: internal_copilot
-
-# ─── Decision Support (EU / High Compliance) ──────────────────────────────────
 - block_threshold: 0.6
   check: prompt_injection
   flag_threshold: 0.3
@@ -110,7 +105,7 @@ policies:
   geography: EU
   on_timeout: block
   use_case: decision_support
-- block_threshold: 0.5
+- block_threshold: 0.85
   check: pii
   flag_threshold: 0.2
   geography: EU
@@ -128,8 +123,6 @@ policies:
   geography: EU
   on_timeout: block
   use_case: decision_support
-
-# ─── Global Fallbacks (*) ─────────────────────────────────────────────────────
 - block_threshold: 0.5
   check: secrets
   flag_threshold: 0.3
@@ -148,7 +141,7 @@ policies:
   geography: '*'
   on_timeout: block
   use_case: '*'
-- block_threshold: 0.6
+- block_threshold: 0.85
   check: pii
   flag_threshold: 0.3
   geography: '*'

@@ -13,7 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import httpx
 from shared.schemas import (
     ChatRequest, ChatResponse, InteractionEnvelope, Direction,
-    Payload, PayloadRole, DecisionAction, UseCase, Geography, get_default_max_tokens
+    Payload, PayloadRole, DecisionAction, UseCase, Geography, get_default_max_tokens,
+    RiskTier, RiskAssessment, Decision
 )
 from shared.config import (
     setup_logging, INPUT_GUARD_URL, ROUTER_URL, ADAPTER_URL,
@@ -173,37 +174,31 @@ async def chat_completions(req: ChatRequest, token: str = Depends(optional_auth)
                     latency_ms=latency,
                 )
 
-            if envelope.decision.action == DecisionAction.ESCALATE:
-                latency = (time.time() - start_time) * 1000
-                asyncio.create_task(log_audit_async({
+            # Log Input Audit Event
+            asyncio.create_task(log_audit_async({
+                "interaction_id": interaction_id,
+                "session_id": session_id,
+                "direction": "input",
+                "use_case": _enum_val(req.use_case),
+                "geography": _enum_val(req.geography),
+                "envelope": envelope.model_dump(),
+                "decision_action": _enum_val(envelope.decision.action),
+                "policy_version": envelope.decision.policy_version,
+            }))
+
+            # If flagged or escalated for human verification, enqueue review asynchronously without blocking execution!
+            if envelope.decision.action in (DecisionAction.FLAG, DecisionAction.ESCALATE):
+                asyncio.create_task(create_escalation_async({
                     "interaction_id": interaction_id,
                     "session_id": session_id,
                     "direction": "input",
                     "use_case": _enum_val(req.use_case),
                     "geography": _enum_val(req.geography),
-                    "envelope": envelope.model_dump(),
-                    "decision_action": _enum_val(envelope.decision.action),
-                    "policy_version": envelope.decision.policy_version,
-                }))
-                asyncio.create_task(create_escalation_async({
-                    "interaction_id": interaction_id,
-                    "session_id": session_id,
-                    "use_case": _enum_val(req.use_case),
-                    "geography": _enum_val(req.geography),
                     "risk_tier": _enum_val(envelope.risk.tier),
-                    "escalation_reason": envelope.decision.reason or "Flagged by input checks",
+                    "escalation_reason": envelope.decision.reason or "Flagged for human verification",
                     "checks": [c.model_dump() for c in envelope.checks],
                     "payload": envelope.payload.model_dump(),
                 }))
-                return ChatResponse(
-                    interaction_id=interaction_id,
-                    session_id=session_id,
-                    content="Your request needs a quick review before we respond — hang tight.",
-                    decision=envelope.decision,
-                    checks_summary=[c.model_dump() for c in envelope.checks],
-                    risk=envelope.risk,
-                    latency_ms=latency,
-                )
 
             # 3. Router
             try:
@@ -235,7 +230,7 @@ async def chat_completions(req: ChatRequest, token: str = Depends(optional_auth)
                 use_case=req.use_case,
                 geography=req.geography,
                 direction=Direction.OUTPUT,
-                payload=Payload(role=PayloadRole.ASSISTANT, content=adapter_resp["content"]),
+                payload=Payload(role=PayloadRole.ASSISTANT, content=adapter_resp.get("content") or "Action executed successfully."),
                 model=envelope.model,
             )
 
@@ -246,9 +241,68 @@ async def chat_completions(req: ChatRequest, token: str = Depends(optional_auth)
             except Exception as e:
                 logger.error(f"[{interaction_id}] Output Guard failed: {e}")
 
-            final_content = output_envelope.payload.content
+            # 6. Combined Governance Logic (Merge Input & Output Decisions)
             if output_envelope.decision.action == DecisionAction.BLOCK:
+                combined_action = DecisionAction.BLOCK
+                combined_reason = output_envelope.decision.reason or "Response blocked by output safety policy"
+                combined_tier = RiskTier.HIGH
                 final_content = "Response blocked by safety policy."
+            elif envelope.decision.action == DecisionAction.FLAG or output_envelope.decision.action == DecisionAction.FLAG:
+                combined_action = DecisionAction.FLAG
+                flag_reason = envelope.decision.reason if envelope.decision.action == DecisionAction.FLAG else output_envelope.decision.reason
+                combined_reason = f"Warning flagged: {flag_reason}"
+                combined_tier = RiskTier.MEDIUM
+                final_content = output_envelope.payload.content
+            else:
+                combined_action = DecisionAction.ALLOW
+                combined_reason = "All checks passed"
+                combined_tier = RiskTier.LOW
+                final_content = output_envelope.payload.content
+
+            # Combine checks from input guard and output guard
+            combined_checks = []
+            seen_check_names = set()
+            
+            # Prioritize checks with actual non-zero scores or warnings
+            for c in envelope.checks:
+                cdict = c.model_dump()
+                combined_checks.append(cdict)
+                seen_check_names.add(c.check_name)
+                
+            for c in output_envelope.checks:
+                cdict = c.model_dump()
+                if c.check_name not in seen_check_names:
+                    combined_checks.append(cdict)
+                elif c.score > 0: # overwrite 0.0 with non-zero if output triggered
+                    for idx, existing in enumerate(combined_checks):
+                        if existing.get("check_name") == c.check_name:
+                            combined_checks[idx] = cdict
+
+            combined_decision = Decision(
+                action=combined_action,
+                reason=combined_reason,
+                policy_version=output_envelope.decision.policy_version or envelope.decision.policy_version or "default",
+                decided_by="policy_engine",
+                confidence=max(envelope.decision.confidence, output_envelope.decision.confidence)
+            )
+
+            # If flagged, asynchronously create escalation item for human review
+            if combined_action == DecisionAction.FLAG:
+                is_output_flag = output_envelope.decision.action == DecisionAction.FLAG
+                escalation_direction = "output" if is_output_flag else "input"
+                escalation_payload = output_envelope.payload.model_dump() if is_output_flag else envelope.payload.model_dump()
+
+                asyncio.create_task(create_escalation_async({
+                    "interaction_id": interaction_id,
+                    "session_id": session_id,
+                    "direction": escalation_direction,
+                    "use_case": _enum_val(req.use_case),
+                    "geography": _enum_val(req.geography),
+                    "risk_tier": _enum_val(combined_tier),
+                    "escalation_reason": combined_reason,
+                    "checks": combined_checks,
+                    "payload": escalation_payload,
+                }))
 
             latency = (time.time() - start_time) * 1000
 
@@ -257,17 +311,17 @@ async def chat_completions(req: ChatRequest, token: str = Depends(optional_auth)
                 session_id=session_id,
                 content=final_content,
                 model_used=output_envelope.model.routed_to or routed_model,
-                decision=output_envelope.decision,
-                checks_summary=[c.model_dump() for c in output_envelope.checks],
-                risk=output_envelope.risk,
+                decision=combined_decision,
+                checks_summary=combined_checks,
+                risk=RiskAssessment(tier=combined_tier, confidence=combined_decision.confidence),
                 latency_ms=latency,
             )
 
-            # 6. Audit Logging (fire and forget)
+            # 7. Audit Logging (fire and forget) - Output event
             asyncio.create_task(log_audit_async({
                 "interaction_id": interaction_id,
                 "session_id": session_id,
-                "direction": "both",
+                "direction": "output",
                 "use_case": _enum_val(req.use_case),
                 "geography": _enum_val(req.geography),
                 "envelope": output_envelope.model_dump(),
@@ -321,6 +375,7 @@ async def get_interaction(interaction_id: str):
 async def get_audit_events(
     use_case: Optional[str] = None,
     action: Optional[str] = None,
+    direction: Optional[str] = None,
     since: Optional[str] = None,
     limit: int = 50,
 ):
@@ -329,6 +384,8 @@ async def get_audit_events(
         params["use_case"] = use_case
     if action:
         params["action"] = action
+    if direction:
+        params["direction"] = direction
     if since:
         params["since"] = since
     async with httpx.AsyncClient(timeout=5.0) as client:
@@ -517,6 +574,48 @@ async def get_alerts():
             "baseline_value": a.get("baseline_mean"),
             "timestamp": a.get("created_at"),
         } for a in resp.json()]
+
+
+@app.get("/v1/health/proposals")
+async def get_proposals():
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        try:
+            resp = await client.get(f"{IMMUNE_SYSTEM_URL}/proposals")
+            if resp.status_code == 200:
+                return resp.json()
+        except Exception as e:
+            logger.error(f"Failed to fetch proposals: {e}")
+    return []
+
+
+@app.post("/v1/health/proposals/{proposal_id}/accept")
+async def accept_proposal(proposal_id: str):
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        try:
+            resp = await client.post(f"{IMMUNE_SYSTEM_URL}/proposals/{proposal_id}/accept")
+            if resp.status_code == 200:
+                return resp.json()
+            raise HTTPException(status_code=resp.status_code, detail=resp.text)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to accept proposal: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/v1/health/proposals/{proposal_id}/dismiss")
+async def dismiss_proposal(proposal_id: str):
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        try:
+            resp = await client.post(f"{IMMUNE_SYSTEM_URL}/proposals/{proposal_id}/dismiss")
+            if resp.status_code == 200:
+                return resp.json()
+            raise HTTPException(status_code=resp.status_code, detail=resp.text)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to dismiss proposal: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 # ─── Proxy: Trust / Outcome Stats ────────────────────────────────────────────
