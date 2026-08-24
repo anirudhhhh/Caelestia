@@ -93,7 +93,16 @@ Every AI interaction passes through ControlPlane at the **perimeter boundary** (
 ### 5. High-Throughput Pooled HTTPX Architecture
 * Every microservice maintains a lifespan-scoped connection pool (`max_keepalive_connections=20, max_connections=100`), eliminating per-request TCP handshakes and ensuring sub-10ms inter-service hops under enterprise load.
 
-### 6. Zero DB Reads on Frontend Route Switching
+### 6. 1-Click Compliance Presets & YAML/JSON Policy Upload Engine
+* Provides 5 enterprise policy templates directly in the Policy Editor:
+  1. **General Starter Baseline**: Universal fallback across all 8 security checks with standard recommended thresholds for general workloads.
+  2. **Balanced Enterprise Baseline**: Multi-layer enterprise protection across all checks with moderate sensitivity.
+  3. **Strict Banking & Financial Compliance**: Zero-tolerance thresholds for financial services, credential leakage, and PII exposure.
+  4. **Internal Engineering Copilot**: Permissive thresholds optimized for coding, stack traces, and software debugging.
+  5. **Healthcare & HIPAA Privacy Focus**: Maximal entity detection for medical records, patient identifiers, and health data.
+* Operators can drag & drop custom `.yaml` / `.json` policy files or export the live policy configuration with 1 click.
+
+### 7. Zero DB Reads on Frontend Route Switching
 * Interactive session state, telemetry envelopes, and chat logs are managed via a client-side in-memory store (`PlaygroundContext.tsx`), guaranteeing **0 redundant database queries** and **0 storage thrashing** during operator navigation.
 
 ---

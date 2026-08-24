@@ -132,6 +132,11 @@ async def create_escalation_async(item_data: dict):
         resp = await client.post(f"{REVIEW_CONSOLE_URL}/escalations", json=item_data)
         if resp.status_code != 200:
             logger.error(f"Failed to create escalation: {resp.text}")
+        # Asynchronously notify Immune System of the flagged interaction milestone
+        try:
+            await client.post(f"{IMMUNE_SYSTEM_URL}/notify-flag", timeout=2.0)
+        except Exception:
+            pass
     except Exception as e:
         logger.error(f"Failed to reach Review Console: {e}")
 

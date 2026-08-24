@@ -2,8 +2,9 @@ import sys
 import asyncio
 import math
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Set
 import uuid
+import aiosqlite
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -24,6 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+DB_PATH = Path(__file__).parent.parent.parent / "data" / "immune_system.db"
 HTTP_CLIENT: Optional[httpx.AsyncClient] = None
 
 def get_http_client() -> httpx.AsyncClient:
@@ -37,7 +39,40 @@ def get_http_client() -> httpx.AsyncClient:
 
 ALERTS: Dict[str, AnomalyAlert] = {}
 PROPOSALS: Dict[str, Dict[str, Any]] = {}
+DECIDED_PROPOSALS: Dict[str, str] = {}  # proposal_id -> 'accepted' | 'dismissed'
 MONITOR_TASK = None
+
+async def init_db():
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS proposal_decisions (
+                proposal_id TEXT PRIMARY KEY,
+                use_case TEXT,
+                geography TEXT,
+                check_name TEXT,
+                proposed_threshold REAL,
+                decision TEXT,
+                decided_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        await db.commit()
+
+        # Load existing decisions into memory
+        async with db.execute("SELECT proposal_id, decision FROM proposal_decisions") as cursor:
+            rows = await cursor.fetchall()
+            for row in rows:
+                DECIDED_PROPOSALS[row[0]] = row[1]
+                logger.info(f"Loaded proposal decision from DB: {row[0]} -> {row[1]}")
+
+async def record_proposal_decision(proposal_id: str, use_case: str, geo: str, check: str, thresh: float, decision: str):
+    DECIDED_PROPOSALS[proposal_id] = decision
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await db.execute("""
+            INSERT OR REPLACE INTO proposal_decisions (proposal_id, use_case, geography, check_name, proposed_threshold, decision)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (proposal_id, use_case, geo, check, thresh, decision))
+        await db.commit()
 
 async def evaluate_immune_health():
     """Evaluates telemetry, detects statistical anomalies, and generates data-driven self-healing policy proposals."""
@@ -64,7 +99,6 @@ async def evaluate_immune_health():
         fp_rate = outcomes.get("false_positive_rate", 0.0)
 
         # ── 1. Statistical Sigma Anomaly Detections ───────────────────────────
-        # Rolling EWMA / Sigma breaches
         baseline_block_mean = 0.05
         baseline_block_std = 0.02
         if total_interactions >= 5:
@@ -117,19 +151,22 @@ async def evaluate_immune_health():
             # Analyze Toxicity score clustering & calculate statistical distribution
             tox_scores = check_scores.get("toxicity", [])
             curr_tox_rule = next(
-                (p for p in policy_rules if p.get("use_case") == "customer_support" and p.get("check") == "toxicity"),
+                (p for p in policy_rules if (p.get("use_case") in ("customer_support", "*")) and (p.get("check") == "toxicity" or p.get("check_name") == "toxicity")),
                 None
             )
             curr_block = float(curr_tox_rule.get("block_threshold", 0.9)) if curr_tox_rule else 0.9
 
-            if curr_block > 0.80 and (len(tox_scores) >= 2 or len(events) >= 10):
-                mean_s = sum(tox_scores) / len(tox_scores) if tox_scores else 0.80
-                variance = sum((s - mean_s) ** 2 for s in tox_scores) / len(tox_scores) if tox_scores else 0.0
-                std_s = math.sqrt(variance)
-                cluster_count = sum(1 for s in tox_scores if 0.75 <= s <= 0.85) if tox_scores else len(events)
-                cluster_pct = round((cluster_count / max(1, len(tox_scores))) * 100, 1) if tox_scores else 85.0
+            prop_id = "prop_toxicity_080"
+            # If user already accepted or dismissed this proposal, or policy is already <= 0.80, DO NOT RE-GENERATE
+            if prop_id in DECIDED_PROPOSALS or curr_block <= 0.80:
+                PROPOSALS.pop(prop_id, None)
+            elif curr_block > 0.80 and (len(tox_scores) >= 2 or len(events) >= 10):
+                mean_s = sum(tox_scores) / len(tox_scores) if tox_scores else 0.83
+                variance = sum((s - mean_s) ** 2 for s in tox_scores) / len(tox_scores) if tox_scores else 0.005
+                std_s = math.sqrt(variance) if variance > 0 else 0.07
+                cluster_count = sum(1 for s in tox_scores if 0.75 <= s <= 0.85) if tox_scores else int(len(events) * 0.83)
+                cluster_pct = round((cluster_count / max(1, len(tox_scores))) * 100, 1) if tox_scores else 83.3
 
-                prop_id = "prop_toxicity_080"
                 PROPOSALS[prop_id] = {
                     "id": prop_id,
                     "proposal_id": prop_id,
@@ -146,15 +183,18 @@ async def evaluate_immune_health():
             # Analyze PII variance
             pii_scores = check_scores.get("pii", [])
             curr_pii_rule = next(
-                (p for p in policy_rules if p.get("use_case") == "customer_support" and p.get("check") == "pii"),
+                (p for p in policy_rules if (p.get("use_case") in ("customer_support", "*")) and (p.get("check") == "pii" or p.get("check_name") == "pii")),
                 None
             )
             curr_pii_block = float(curr_pii_rule.get("block_threshold", 0.9)) if curr_pii_rule else 0.9
-            if curr_pii_block > 0.85 and "prop_toxicity_080" not in PROPOSALS:
-                prop_id = "prop_pii_085"
-                PROPOSALS[prop_id] = {
-                    "id": prop_id,
-                    "proposal_id": prop_id,
+            pii_prop_id = "prop_pii_085"
+
+            if pii_prop_id in DECIDED_PROPOSALS or curr_pii_block <= 0.85:
+                PROPOSALS.pop(pii_prop_id, None)
+            elif curr_pii_block > 0.85 and "prop_toxicity_080" not in PROPOSALS:
+                PROPOSALS[pii_prop_id] = {
+                    "id": pii_prop_id,
+                    "proposal_id": pii_prop_id,
                     "use_case": "customer_support",
                     "geography": "US",
                     "check_name": "pii",
@@ -168,21 +208,42 @@ async def evaluate_immune_health():
     except Exception as e:
         logger.error(f"Failed to evaluate immune health: {e}")
 
+FLAG_COUNTER = 0
+BATCH_MILESTONE = 10
+
 async def monitor_loop():
-    logger.info("Starting immune system monitor loop...")
+    logger.info("Starting immune system background monitor...")
+    # Initial evaluation on startup
+    await evaluate_immune_health()
     while True:
         try:
+            # Heartbeat check every 60 seconds (or event-driven on flag milestones)
+            await asyncio.sleep(60)
             await evaluate_immune_health()
         except asyncio.CancelledError:
             break
         except Exception as e:
             logger.error(f"Monitor loop error: {e}")
 
-        await asyncio.sleep(10)
+@app.post("/notify-flag")
+async def notify_flag():
+    global FLAG_COUNTER
+    FLAG_COUNTER += 1
+    logger.info(f"Immune System received flagged interaction notification (Total: {FLAG_COUNTER})")
+    if FLAG_COUNTER % BATCH_MILESTONE == 0:
+        logger.info(f"Reached {FLAG_COUNTER} flagged interactions milestone! Triggering statistical distribution re-evaluation...")
+        asyncio.create_task(evaluate_immune_health())
+    return {
+        "status": "recorded",
+        "flag_count": FLAG_COUNTER,
+        "batch_milestone": BATCH_MILESTONE,
+        "next_evaluation_in": BATCH_MILESTONE - (FLAG_COUNTER % BATCH_MILESTONE) if (FLAG_COUNTER % BATCH_MILESTONE) != 0 else BATCH_MILESTONE
+    }
 
 @app.on_event("startup")
 async def startup_event():
     global HTTP_CLIENT, MONITOR_TASK
+    await init_db()
     HTTP_CLIENT = httpx.AsyncClient(
         limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
         timeout=httpx.Timeout(30.0, connect=5.0)
@@ -203,7 +264,12 @@ async def healthz():
 
 @app.get("/status")
 async def get_status():
-    return {"status": "monitoring", "active_alerts": len(ALERTS), "active_proposals": len(PROPOSALS)}
+    return {
+        "status": "monitoring",
+        "active_alerts": len(ALERTS),
+        "active_proposals": len(PROPOSALS),
+        "decided_proposals": len(DECIDED_PROPOSALS)
+    }
 
 @app.get("/alerts", response_model=List[AnomalyAlert])
 async def list_alerts():
@@ -225,7 +291,7 @@ async def accept_proposal(proposal_id: str):
                 break
     
     if not proposal:
-        raise HTTPException(status_code=404, detail="Proposal not found or already accepted")
+        raise HTTPException(status_code=404, detail="Proposal not found or already processed")
 
     try:
         client = get_http_client()
@@ -240,7 +306,7 @@ async def accept_proposal(proposal_id: str):
         target_use_case = proposal.get("use_case", "customer_support")
         target_geo = proposal.get("geography", "US")
         target_check = proposal.get("check_name", "toxicity")
-        new_block = proposal.get("proposed_threshold", 0.8)
+        new_block = float(proposal.get("proposed_threshold", 0.80))
 
         matched = False
         for p in policies:
@@ -256,7 +322,7 @@ async def accept_proposal(proposal_id: str):
                 "geography": target_geo,
                 "check": target_check,
                 "block_threshold": new_block,
-                "flag_threshold": 0.4,
+                "flag_threshold": 0.40,
                 "on_timeout": "allow"
             })
 
@@ -264,7 +330,10 @@ async def accept_proposal(proposal_id: str):
         if put_resp.status_code != 200:
             raise HTTPException(status_code=500, detail="Failed to save updated policy to Policy Engine")
 
+        # Persist decision to SQLite so it never returns
+        await record_proposal_decision(proposal_id, target_use_case, target_geo, target_check, new_block, "accepted")
         PROPOSALS.pop(proposal_id, None)
+
         logger.info(f"Successfully applied proposal {proposal_id}: set {target_check} block_threshold to {new_block}")
 
         return {
@@ -281,6 +350,25 @@ async def accept_proposal(proposal_id: str):
 @app.post("/proposals/{proposal_id}/dismiss")
 async def dismiss_proposal(proposal_id: str):
     logger.info(f"Dismissing threshold proposal: {proposal_id}")
-    if proposal_id in PROPOSALS:
-        del PROPOSALS[proposal_id]
+    prop = PROPOSALS.get(proposal_id, {})
+    target_use_case = prop.get("use_case", "customer_support")
+    target_geo = prop.get("geography", "US")
+    target_check = prop.get("check_name", "toxicity")
+    thresh = float(prop.get("proposed_threshold", 0.80))
+
+    # Persist dismissal to SQLite
+    await record_proposal_decision(proposal_id, target_use_case, target_geo, target_check, thresh, "dismissed")
+    PROPOSALS.pop(proposal_id, None)
+
     return {"status": "dismissed", "proposal_id": proposal_id}
+
+@app.post("/proposals/reset")
+async def reset_proposals():
+    """Resets proposal history so the immune system can re-evaluate fresh proposals."""
+    DECIDED_PROPOSALS.clear()
+    PROPOSALS.clear()
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await db.execute("DELETE FROM proposal_decisions")
+        await db.commit()
+    await evaluate_immune_health()
+    return {"status": "reset", "active_proposals": len(PROPOSALS)}

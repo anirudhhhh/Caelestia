@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { 
   Save, Plus, AlertCircle, Info, Beaker, RotateCcw, Trash2, 
   CheckCircle2, Check, X, Upload, Download, FileText, Sparkles, 
-  Sliders, ShieldCheck, ShieldAlert
+  Sliders, Shield, ShieldCheck, ShieldAlert
 } from 'lucide-react';
 import { load as yamlLoad, dump as yamlDump } from 'js-yaml';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -27,6 +27,21 @@ const AVAILABLE_CHECKS = [
 ];
 
 const PRESETS: { name: string; description: string; icon: any; rules: PolicyRule[] }[] = [
+  {
+    name: 'General Starter Baseline',
+    description: 'Universal starter policy across all 8 security checks with standard recommended thresholds for general workloads.',
+    icon: Shield,
+    rules: [
+      { id: 'g_1', use_case: '*', geography: '*', check_name: 'toxicity', block_threshold: 0.80, flag_threshold: 0.40, on_timeout: 'allow' },
+      { id: 'g_2', use_case: '*', geography: '*', check_name: 'prompt_injection', block_threshold: 0.80, flag_threshold: 0.50, on_timeout: 'allow' },
+      { id: 'g_3', use_case: '*', geography: '*', check_name: 'secrets', block_threshold: 0.50, flag_threshold: 0.30, on_timeout: 'block' },
+      { id: 'g_4', use_case: '*', geography: '*', check_name: 'pii', block_threshold: 0.75, flag_threshold: 0.40, on_timeout: 'allow' },
+      { id: 'g_5', use_case: '*', geography: '*', check_name: 'sensitive_data', block_threshold: 0.50, flag_threshold: 0.30, on_timeout: 'block' },
+      { id: 'g_6', use_case: '*', geography: '*', check_name: 'system_prompt_leakage', block_threshold: 0.70, flag_threshold: 0.40, on_timeout: 'block' },
+      { id: 'g_7', use_case: '*', geography: '*', check_name: 'brand_safety', block_threshold: 0.75, flag_threshold: 0.40, on_timeout: 'allow' },
+      { id: 'g_8', use_case: '*', geography: '*', check_name: 'hallucination_risk', block_threshold: 0.65, flag_threshold: 0.40, on_timeout: 'block' },
+    ]
+  },
   {
     name: 'Balanced Enterprise Baseline',
     description: 'Standard multi-layer enterprise protection across all checks with moderate sensitivity.',
@@ -438,7 +453,7 @@ export default function PolicyEditor() {
           </CardTitle>
         </CardHeader>
         <CardContent className="px-4 pb-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2.5">
             {PRESETS.map((preset) => {
               const Icon = preset.icon;
               return (
