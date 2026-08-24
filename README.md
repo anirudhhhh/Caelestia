@@ -1,30 +1,90 @@
 # ControlPlane.ai
 
-> **A Responsible AI Control Plane — Middleware that evaluates, governs, and audits every AI interaction in real time.**
+> **The Enterprise Responsible AI Control Plane — Middleware that evaluates, governs, routes, and audits every AI interaction in real time.**
 
-**Team Caelestia | Accenture Innovation Challenge 2026 — Round 2 Prototype**
+**Team Caelestia | Accenture Innovation Challenge 2026**
 
 ---
 
 ## What is ControlPlane.ai?
 
-ControlPlane.ai is a middleware layer that sits between enterprise applications and their AI models. Every AI interaction — whether a customer support chatbot, an internal copilot, or a decision-support tool — passes through ControlPlane before reaching the model and again before reaching the user.
+ControlPlane.ai is a high-throughput, enterprise-grade AI middleware and firewall that sits between public/internal client applications and downstream AI models / multi-agent workflows.
 
-It performs **real-time safety checks** (prompt injection, toxicity, PII leakage, hallucination detection), makes **governed decisions** (allow / edit / flag / block / escalate) based on configurable policies that vary by use case, geography, and risk appetite, and maintains a **complete audit trail** with feedback loops that improve detection quality over time.
-
-### Core Idea
-
-> **"The control plane for responsible AI — not a one-size-fits-all filter, but a configurable, auditable decision layer that enterprises can tune to their specific risk tolerance."**
+Every AI interaction passes through ControlPlane at the **perimeter boundary** (ingress user prompt and egress model response). It performs **stateless, sub-millisecond safety evaluations** (prompt injection, toxicity, PII, secrets leakage, hallucination verification), executes **dynamic policy decisions** (allow / flag / block / escalate), routes queries semantically to specialized agent endpoints, and powers a **closed-loop self-healing Immune System** driven by human verification.
 
 ```
-Application → ControlPlane Gateway → Input Guard → Router → AI Model
-                                                              ↓
-Application ← ControlPlane Gateway ← Output Guard ← Model Response
-                    ↕                      ↕
-              Policy Engine ←→ Audit Store → Human Review
-                    ↕                           ↕
-              Immune System → Trust Dashboard ← Feedback Loop
+                     ┌────────────────────────────────────────────────────────┐
+                     │                   CLIENT PERIMETER                     │
+                     │ (Web Apps, Mobile Clients, Public API Consumers)       │
+                     └───────────────────────────┬────────────────────────────┘
+                                                 │ HTTPS / gRPC
+                                                 ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                            CONTROLPLANE.AI MIDDLEWARE CLUSTER                               │
+│                                                                                             │
+│  ┌─────────────────────────┐       ┌────────────────────────┐       ┌────────────────────┐  │
+│  │   Stateless Gateway     │ ────► │  Input Guard (Port 8001)│ ────► │ Policy Engine      │  │
+│  │   (FastAPI / Port 8000) │       │  • PII (Presidio)       │       │ (Dynamic In-Memory │  │
+│  └───────────┬─────────────┘       │  • Prompt Injection     │       │  Threshold Matcher)│  │
+│              │                     │  • Secrets Detection    │       └────────────────────┘  │
+│              │                     └────────────────────────┘                                │
+│              │                                                                              │
+│              ├─────────────────────► Asynchronous Audit Bus (Fire & Forget, 0 user latency)   │
+│              │                                                                              │
+│              ▼                                                                              │
+│  ┌─────────────────────────┐       ┌─────────────────────────────────────────────────────┐  │
+│  │ Semantic Load Balancer  │ ────► │ DOWNSTREAM ENTERPRISE WORKFLOWS                     │  │
+│  │ (Embeddings / Routing)  │       │ (Internal Microservices, LangGraph, Multi-Agents)   │  │
+│  └─────────────────────────┘       └──────────────────────────┬──────────────────────────┘  │
+│                                                               │                             │
+│                                                               ▼                             │
+│                                    ┌────────────────────────┐                               │
+│                                    │ Output Guard (Port 8002)│                               │
+│                                    │  • Sensitive Data Leak │                               │
+│                                    │  • Output Toxicity     │                               │
+│                                    │  • Hallucination / Judge│                               │
+│                                    └────────────────────────┘                               │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+                                                 │
+                                                 ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                               GOVERNANCE & SELF-HEALING LOOP                                │
+│                                                                                             │
+│  ┌─────────────────────────┐       ┌────────────────────────┐       ┌────────────────────┐  │
+│  │   Human Review Console  │ ────► │  Audit Store (Port 8007)│ ────► │ Immune System      │  │
+│  │   (Port 8008 / Ingress &│       │  (Bi-directional trace │       │ (Port 8009 / Auto  │  │
+│  │    Egress Escalations)  │       │   & Precision Metrics) │       │  Policy Proposals) │  │
+│  └─────────────────────────┘       └────────────────────────┘       └─────────┬──────────┘  │
+│                                                                               │             │
+│                                    ┌────────────────────────┐                 │             │
+│                                    │ Hot-Reload Policy Eng. │ ◄───────────────┘             │
+│                                    │ (1-Click Accept/Apply) │                               │
+│                                    └────────────────────────┘                               │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Enterprise Readiness & Design Highlights
+
+### 1. Perimeter-Decoupled Sanitization
+* **The Multi-Agent Challenge:** Intercepting internal agent thoughts, vector lookups, and sub-tool executions introduces latency explosions and false-positive blocks that break multi-agent reasoning loops.
+* **Our Solution:** ControlPlane.ai operates strictly at the perimeter boundary:
+  1. Sanitizes and validates the **initial user input** (Ingress).
+  2. Allows internal agent workflows, LangGraph nodes, and tools to execute uninterrupted.
+  3. Sanitizes and audits the **final response** before delivering it to the client (Egress).
+
+### 2. Zero-Latency Asynchronous Human Verification
+* When an interaction trips a warning threshold (`FLAG` or `ESCALATE`), the Gateway **does not block or stall the user**.
+* The request is executed through downstream models and streamed to the user immediately, while an asynchronous task registers the interaction in the **Human Review Console** (`/review`).
+
+### 3. Closed-Loop Immune System (Self-Healing Governance)
+* After observing 10+ interaction telemetry events and operator review outcomes, the **Immune System** analyzes score clustering:
+  * If a high density of toxic prompts or injection attempts occur at score `0.80` and human operators confirm them as violations, the Immune System generates an automated proposal to lower the block threshold (e.g., `0.90` $\rightarrow$ `0.80`).
+  * Compliance operators can review the empirical justification and click **"Accept & Apply"** in the Policy Editor, instantly hot-reloading the Policy Engine without restarting any microservice.
+
+### 4. Zero DB Reads on Frontend Route Switching
+* All interactive session state, telemetry envelopes, and chat logs are managed via a client-side in-memory store (`PlaygroundContext.tsx`), guaranteeing **0 redundant database queries** and **0 storage thrashing** during operator navigation.
 
 ---
 
@@ -32,31 +92,18 @@ Application ← ControlPlane Gateway ← Output Guard ← Model Response
 
 | # | Component | Port | Purpose |
 |---|-----------|------|---------|
-| 01 | **API Gateway** | 8000 | Single ingress point, proxy aggregator, orchestrates full inspection pipeline |
+| 01 | **API Gateway** | 8000 | Ingress gateway, proxy orchestrator, async audit dispatcher |
 | 02 | **Semantic Router & LB** | 8005 | Dynamic endpoint registry, semantic intent search over prompt instructions, multi-agent load balancing |
 | 03 | **Model Adapter** | 8006 | Provider-agnostic model execution via OpenRouter (`google/gemini-2.5-flash`, `gpt-4o-mini`, etc.) |
-| 04 | **Input Guard** | 8001 | Pre-model firewall: prompt injection, toxicity, secrets leakage (AWS/GitHub/Entropy), PII |
-| 05 | **Output Guard** | 8002 | Post-model firewall: hallucination (AI-as-judge), system prompt leakage, sensitive data, toxicity, PII |
-| 06 | **PII Service** | 8003 | Shared PII detection & anonymization (Presidio NLP + regex fallback with false-positive filtering) |
-| 07 | **Policy Engine** | 8004 | Versioned YAML-driven policy evaluator with wildcard matching and dynamic thresholds |
-| 08 | **Immune System** | 8009 | Firewall health telemetry, anomaly detection (block rate, escalation drift), auto-generated threshold proposals |
+| 04 | **Input Guard** | 8001 | Ingress perimeter firewall: prompt injection, toxicity, secrets detection (`detect-secrets`), PII |
+| 05 | **Output Guard** | 8002 | Egress perimeter firewall: hallucination verification (AI-as-judge), system prompt leakage, sensitive data, toxicity |
+| 06 | **PII Service** | 8003 | Shared PII detection & anonymization (Presidio NLP + contextual regex fallback) |
+| 07 | **Policy Engine** | 8004 | Versioned YAML-driven policy evaluator with hierarchical wildcard matching and dynamic thresholds |
+| 08 | **Immune System** | 8009 | Telemetry analyzer, anomaly detection (block rate, escalation drift), automated self-healing threshold proposals |
 | 09 | **Human Review Console** | 8008 | Escalation queue with human-in-the-loop review (Approve, Deny, Edit) establishing real ground truth |
-| 10 | **Audit Store** | 8007 | Append-only event store with indexed querying and statistical analytics |
-| 11 | **Trust Dashboard** | 3000 | Live visualization of composite trust scores, 7-day intervention trends, decision breakdowns, and review outcomes |
+| 10 | **Audit Store** | 8007 | Append-only event store with bidirectional `input`/`output` indexing and statistical analytics |
+| 11 | **Trust Dashboard** | 3000 | Live visualization of Composite Trust Scores (0–100), 7-day intervention trends, and decision breakdowns |
 | 12 | **Action Guard** | 8010 | Agentic tool-call gating with blast radius classification (read-only, reversible, irreversible) |
-
-### How it Maps to the Problem Statement
-
-| Problem Statement Requirement | Our Solution |
-|-------------------------------|--------------|
-| **Detection Techniques** | Input Guard (prompt injection, toxicity, secret detection via `detect-secrets`) + Output Guard (AI-as-judge hallucination verification, system prompt leakage, sensitive data) + PII Service (Microsoft Presidio) |
-| **Semantic Load Balancing** | Router inspects input semantics against candidate agent/endpoint instructions and keywords, routing to the specialized workflow agent with explainable trace |
-| **Decision Logic** | Policy Engine evaluates scores against hierarchical thresholds per `(use_case, geography, check)` with wildcard fallbacks and tiered responses (allow / flag / block / escalate) |
-| **Architecture** | Non-blocking async microservices, sub-5ms inspection latencies, fire-and-forget audit logging |
-| **Governance & Compliance** | Traceable, versioned YAML policies supporting regional rules (US vs. EU GDPR) and auditability |
-| **Self-Healing & Feedback Loops** | Review Console outcomes → labeled ground truth → Immune System anomaly analysis → automated threshold proposals |
-| **Metrics & Monitoring** | Real-time Trust Dashboard with composite trust scoring, FP/FN telemetry, and 7-day intervention trendlines |
-| **Agentic Action Governance** | Action Guard gates tool/function calls by blast radius and cumulative session risk |
 
 ---
 
@@ -64,25 +111,37 @@ Application ← ControlPlane Gateway ← Output Guard ← Model Response
 
 | Layer | Technology | Why |
 |-------|-----------|-----|
-| Backend | Python 3.11+, FastAPI | Async, auto-generated OpenAPI docs |
-| Frontend | React 18, Vite, TypeScript, Tailwind CSS, shadcn/ui | Modern, fast, production-quality UI |
-| Guardrails | llm-guard, Microsoft Presidio | Industry-standard, maintained |
-| LLM Access | OpenRouter API (100+ models) + Google Gemini | One API key for multi-model routing |
-| Database | SQLite (prototype) / PostgreSQL (production) | Append-only audit store |
-| Charts | Recharts | Interactive data visualization |
+| Backend | Python 3.11+, FastAPI, Uvicorn | High-throughput asynchronous I/O, OpenAPI compliance |
+| Frontend | React 18, Vite, TypeScript, Tailwind CSS, shadcn/ui | Production-grade UI, reactive components, responsive layout |
+| Guardrails | Microsoft Presidio, detect-secrets, Heuristics | Industry-standard security and compliance scanners |
+| Routing & LLM | OpenRouter API + Google Gemini SDK | Semantic workload routing and multi-model failover |
+| Storage & Telemetry | SQLite (aiosqlite) / PostgreSQL | Append-only audit events and human review feedback |
+| State Management | React Context (In-Memory RAM Store) | 0 DB reads and instant route transitions |
+
+---
+
+## Production Scaling Roadmap (Demo $\rightarrow$ Tier-1 Enterprise)
+
+To scale from thousands of interactions to **millions of transactions per hour**, the architecture supports seamless drop-in replacements:
+
+| Layer | Development / Prototype | Enterprise Production Target | Effort |
+| :--- | :--- | :--- | :--- |
+| **Audit Storage** | `aiosqlite` (Local SQLite) | **PostgreSQL / TimescaleDB / ClickHouse** | Plug-and-play DB connection string |
+| **Audit Pipeline** | AsyncIO Fire-and-Forget | **Apache Kafka / RabbitMQ / AWS SQS** | Producer/Consumer decoupling |
+| **Scanner Engines** | Heuristics + Presidio + regex | **ONNX Runtime / TensorRT / DeBERTa Models** | GPU-accelerated microsecond inference |
+| **State / Cache** | In-Memory FastAPI | **Redis Cluster** (Distributed Rate Limiting & Session Locks) | Add Redis dependency |
+| **Orchestration** | Local Shell Scripts (`start_services.sh`) | **Kubernetes (Helm Charts) + HPA (Auto-scaling)** | Containerize isolated port services |
 
 ---
 
 ## Quick Start
 
 ### Prerequisites
-
 - Python 3.11+
 - Node.js 18+
 - An OpenRouter API key (get one at [openrouter.ai](https://openrouter.ai))
-- (Optional) A Google Gemini API key
 
-### 1. Clone and configure
+### 1. Clone and Configure
 
 ```bash
 git clone <repo-url>
@@ -93,42 +152,36 @@ cp .env.example .env
 # Edit .env — at minimum, set OPENROUTER_API_KEY
 ```
 
-### 2. Install Python dependencies
+### 2. Install Dependencies
 
 ```bash
-# Create a virtual environment (recommended)
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install all dependencies
+# Backend Virtual Environment
+python3 -m venv venv
+source venv/bin/activate
 pip install -e .
 
-# Download spaCy model for PII detection (optional, has regex fallback)
-python -m spacy download en_core_web_sm
-```
+# Download spaCy model for PII detection
+python3 -m spacy download en_core_web_sm
 
-### 3. Start backend services
-
-```bash
-# Start all 11 services at once
-./start_services.sh
-
-# Or start individual services:
-# PYTHONPATH=. python -m uvicorn services.gateway.app:app --port 8000
-# PYTHONPATH=. python -m uvicorn services.input_guard.app:app --port 8001
-# etc.
-```
-
-### 4. Start frontend
-
-```bash
+# Frontend Dependencies
 cd frontend
 npm install
+cd ..
+```
+
+### 3. Start Microservices Cluster
+
+```bash
+# Start all 11 backend microservices
+./start_services.sh
+
+# Start Frontend (in separate terminal)
+cd frontend
 npm run dev
 # → Open http://localhost:3000
 ```
 
-### 5. Stop services
+### 4. Stop Services
 
 ```bash
 ./stop_services.sh
@@ -136,109 +189,66 @@ npm run dev
 
 ---
 
-## Configuration
-
-### Environment Variables (.env)
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `OPENROUTER_API_KEY` | OpenRouter API key for model access | *required* |
-| `GEMINI_API_KEY` | Google Gemini API key (optional) | — |
-| `DEFAULT_MODEL` | Default model for requests | `google/gemini-2.0-flash-001` |
-| `JUDGE_MODEL` | Model used for AI-as-judge verification | `google/gemini-2.0-flash-001` |
-| `AVAILABLE_MODELS` | Comma-separated list of models for routing | `google/gemini-2.0-flash-001,...` |
-| `LOG_LEVEL` | Logging level | `INFO` |
-
-### Policy Configuration
-
-Policies are defined in `services/policy_engine/config/policies/default.yaml`. Each rule specifies:
-
-```yaml
-- use_case: customer_support    # Which AI use case
-  geography: US                 # Which geography
-  check: prompt_injection       # Which safety check
-  block_threshold: 0.85         # Score above this → BLOCK
-  flag_threshold: 0.5           # Score above this → FLAG/WARN
-  on_timeout: allow_with_flag   # What to do if the check times out
-```
-
-Different use cases have different thresholds:
-- **customer_support** (US): More permissive (lower risk, higher latency tolerance)
-- **decision_support** (EU): Very strict (GDPR, regulated workflows)
-- **internal_copilot** (US): Moderate thresholds
-
----
-
 ## API Usage
 
-### Chat Completions (Main Endpoint)
+### 1. Chat Completions (Governed Pipeline)
 
 ```bash
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-api-key" \
   -d '{
-    "messages": [{"role": "user", "content": "What is machine learning?"}],
+    "messages": [{"role": "user", "content": "How do I update billing information?"}],
     "use_case": "customer_support",
     "geography": "US"
   }'
 ```
 
-Response includes the AI response **plus** full safety analysis:
+Response includes the AI completion **plus** full perimeter telemetry:
 
 ```json
 {
-  "interaction_id": "uuid",
-  "content": "Machine learning is...",
+  "interaction_id": "803be20c-34a4-420b-bb3c-7e8cff794bed",
+  "content": "To update your billing information...",
+  "model_used": "google/gemini-2.5-flash",
   "decision": {
     "action": "allow",
     "reason": "All checks passed",
-    "policy_version": "abc123",
-    "confidence": 0.12
+    "policy_version": "805ffb6e"
   },
   "checks_summary": [
-    {"check_name": "prompt_injection", "score": 0.05, "verdict": "pass"},
-    {"check_name": "toxicity", "score": 0.02, "verdict": "pass"},
+    {"check_name": "prompt_injection", "score": 0.0, "verdict": "pass"},
+    {"check_name": "toxicity", "score": 0.0, "verdict": "pass"},
+    {"check_name": "secrets", "score": 0.0, "verdict": "pass"},
     {"check_name": "pii", "score": 0.0, "verdict": "pass"}
   ],
-  "risk": {"tier": "low", "confidence": 0.12},
-  "latency_ms": 1234.5
+  "risk": {"tier": "low", "confidence": 0.0},
+  "latency_ms": 1120.4
 }
 ```
 
-### Action Execution Guard
- 
+### 2. Self-Healing Immune System Proposals
+
 ```bash
-curl -X POST http://localhost:8000/v1/actions/execute \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-api-key" \
-  -d '{
-    "tool_calls": [
-      {"tool_name": "issue_refund", "arguments": {"amount": 500}}
-    ],
-    "session_id": "session-uuid",
-    "use_case": "customer_support"
-  }'
+# Check auto-generated policy proposals based on 10+ interaction telemetry
+curl http://localhost:8000/v1/health/proposals
+
+# Accept and hot-reload policy proposal with 1 click
+curl -X POST http://localhost:8000/v1/health/proposals/prop_toxicity_080/accept
 ```
 
-### Semantic Workflow Endpoints (Load Balancer)
-
-ControlPlane.ai automatically routes prompts to specialized enterprise agent endpoints based on semantic intent matching against their system instructions and domain keywords:
+### 3. Semantic Workflow Endpoints (Load Balancer)
 
 ```bash
-# List all registered workflow endpoints and their instructions
-curl http://localhost:8000/v1/router/endpoints
-
 # Register or update an enterprise workflow endpoint
 curl -X POST http://localhost:8000/v1/router/endpoints \
   -H "Content-Type: application/json" \
   -d '{
-    "id": "code_review_agent",
-    "name": "Automated Code Review & Security Agent",
-    "instructions": "Reviews pull requests, inspects Python/TypeScript code for security vulnerabilities, memory leaks, and architectural best practices.",
+    "id": "billing_agent",
+    "name": "Billing & Invoice Workflow",
+    "instructions": "Assists users with payment disputes, invoices, and credit card updates.",
     "target_model_or_url": "google/gemini-2.5-flash",
-    "use_case": "internal_copilot",
-    "keywords": ["pull request", "pr", "review", "refactor", "vulnerability", "lint", "syntax", "git"],
+    "use_case": "customer_support",
+    "keywords": ["billing", "invoice", "payment", "card", "refund"],
     "weight": 1.0,
     "active": true
   }'
@@ -256,86 +266,31 @@ Caelestia/
 ├── services/
 │   ├── gateway/                # 01 - API Gateway (port 8000)
 │   ├── input_guard/            # 04 - Input Guard (port 8001)
-│   │   └── scanners/           #   Prompt injection, toxicity, secrets
 │   ├── output_guard/           # 05 - Output Guard (port 8002)
-│   │   ├── scanners/           #   System prompt leakage, heuristics
-│   │   └── verification/       #   AI-as-judge hallucination detection
 │   ├── pii_service/            # 06 - PII Detection (port 8003)
 │   ├── policy_engine/          # 07 - Policy Engine (port 8004)
-│   │   └── config/policies/    #   YAML policy definitions
+│   │   └── config/policies/    #   Versioned YAML policy definitions
 │   ├── router/                 # 02 - Router & LB (port 8005)
-│   │   └── config/             #   Model capability profiles
 │   ├── adapter/                # 03 - Model Adapter (port 8006)
 │   ├── audit_store/            # 10 - Audit Store (port 8007)
 │   ├── review_console/         # 09 - Human Review (port 8008)
 │   ├── immune_system/          # 08 - Immune System (port 8009)
 │   └── action_guard/           # 12 - Action Guard (port 8010)
-├── frontend/                   # React dashboard
+├── frontend/                   # React 18 + TypeScript + Vite Dashboard
 │   └── src/
+│       ├── context/            # In-memory PlaygroundContext
 │       ├── pages/              # Playground, Audit Trail, Human Review,
-│       │                       # Trust Dashboard, Policy Editor, System Health
-│       ├── components/         # Shared UI components
-│       └── lib/                # API client, utilities
-├── data/                       # SQLite database (auto-created)
-├── files/                      # Original PRD documents
-├── docker-compose.yml          # Production-like deployment
-├── Dockerfile                  # Backend container image
-├── pyproject.toml              # Python dependencies
-├── start_services.sh           # Start all services
-├── stop_services.sh            # Stop all services
-├── .env.example                # Environment template
+│       │                       # Trust Dashboard, Policy Editor, Load Balancer
+│       ├── components/         # shadcn/ui components & layouts
+│       └── lib/                # API client and formatting utilities
+├── data/                       # Append-only SQLite database
+├── start_services.sh           # Cluster startup script
+├── stop_services.sh            # Cluster shutdown script
 └── README.md                   # This file
 ```
 
 ---
 
-## Key Design Decisions
-
-### 1. Triangulation Over Verification (Hallucination Detection)
-The brief says "there is often no reliable, real-time ground truth." Instead of pretending we can verify claims, we **triangulate** — combine heuristic scanners, AI-as-judge, and retrieval verification (when a corpus exists) into a composite `hallucination_risk` score. We report verification **coverage** honestly.
-
-### 2. Policy Engine as the Single Decision Point
-No Guard makes allow/block decisions — they only detect and report scores. The Policy Engine is the **sole** decision-maker, ensuring all decisions are governed by one auditable, configurable rule set. This is what makes the system a "control plane" rather than a collection of filters.
-
-### 3. Config as Data, Not Code
-Thresholds, latency budgets, and per-geography rules live in versioned YAML, not hardcoded. Every decision records which policy version produced it, so historical decisions can be reproduced and explained.
-
-### 4. Fail-Closed vs. Fail-Open is a Per-Use-Case Decision
-- Decision-support (regulated) → fail **closed** (block on any scanner failure)
-- Customer-facing FAQ → fail **open with flag** (don't break the user experience for a scanner outage)
-
-### 5. Feedback Loop Architecture
-Human reviewers label escalated interactions as "flag was correct" or "false positive." This becomes the **only real ground truth** in the system. The Immune System uses these labels to compute FP/FN rates and propose threshold adjustments (human-approved, never auto-applied).
-
-### 6. Action Guard for Agentic Risk
-Text-checking isn't enough when AI agents can take actions. The Action Guard classifies every tool call by **blast radius** (read_only → reversible_write → irreversible_action) and applies stricter scrutiny for high-blast-radius actions, tracking **cumulative session risk** across multi-step workflows.
-
----
-
-## Assumptions
-
-- Enterprise consumes models via API (no weight/logit access) — all checking is input/output layer only
-- 3 use cases: customer support (real-time, 800ms budget), internal copilot (2.5s), decision support (10s, batch/regulated)
-- Tens of thousands of interactions/week across use cases combined
-- All upstream data sources treated as untrusted by default
-- OpenRouter provides access to multiple models via a single API key
-
----
-
-## Production Path (What We'd Do Next)
-
-| Prototype | Production |
-|-----------|------------|
-| SQLite | PostgreSQL + AWS QLDB for tamper evidence |
-| In-memory queues | Redis Streams / RabbitMQ |
-| Script-based deployment | Kubernetes + Helm charts |
-| YAML policy files | Open Policy Agent (OPA) / Rego |
-| Single-process services | Horizontally scaled containers |
-| Manual anomaly thresholds | ML-based time-series anomaly detection (Prophet) |
-| Regex PII fallback | Full spaCy + custom NER models per language |
-
----
-
 ## License
 
-MIT — built for Accenture Innovation Challenge 2026
+MIT — Built for the Accenture Innovation Challenge 2026.

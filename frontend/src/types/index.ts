@@ -82,6 +82,7 @@ export interface ChatResponse {
 export interface EscalationItem {
   interaction_id: string;
   session_id?: string;
+  direction?: Direction | string;
   use_case: UseCase;
   geography?: Geography;
   risk_tier: RiskTier;
@@ -89,6 +90,12 @@ export interface EscalationItem {
   time_in_queue?: number;
   created_at?: string;
   status: "pending" | "in_review" | "resolved";
+  resolution?: "approve" | "deny" | "edit_approve" | string;
+  resolved_by?: string;
+  resolved_at?: string;
+  resolution_reason?: string;
+  was_original_flag_correct?: boolean;
+  edited_content?: string;
   payload?: Payload;
   checks?: CheckResult[];
   interaction?: InteractionEnvelope;

@@ -43,8 +43,9 @@ export const api = {
   getEventStats: () => fetchApi<any>('/audit/stats'),
 
   // ── Escalations ───────────────────────────────────────────────────────────
-  getEscalations: async (): Promise<EscalationItem[]> => {
-    const data = await fetchApi<EscalationItem[] | any>('/escalations');
+  getEscalations: async (status?: string): Promise<EscalationItem[]> => {
+    const url = status && status !== 'all' ? `/escalations?status=${status}` : '/escalations';
+    const data = await fetchApi<EscalationItem[] | any>(url);
     return Array.isArray(data) ? data : data.escalations ?? [];
   },
 

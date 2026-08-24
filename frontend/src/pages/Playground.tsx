@@ -33,59 +33,40 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import type { UseCase, Geography, InteractionEnvelope, WorkflowEndpoint } from "@/types";
 import { api } from "@/lib/api";
 
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-  action?: "allow" | "block" | "flag" | "escalate";
-  reason?: string;
-}
-
-const STORAGE_KEY = "controlplane_playground_session";
-const DEFAULT_GREETING: Message = {
-  role: "assistant",
-  content:
-    "Hello! I am ready to assist you. My responses and your inputs are protected by ControlPlane.ai.",
-};
-
-function loadPersisted() {
-  try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-const persisted = loadPersisted();
+import { usePlayground, type PlaygroundMessage as Message } from "@/context/PlaygroundContext";
 
 export default function Playground() {
-  const [messages, setMessages] = useState<Message[]>(
-    persisted?.messages ?? [DEFAULT_GREETING],
-  );
-  const [input, setInput] = useState("");
-  const [useCase, setUseCase] = useState<UseCase>(
-    persisted?.useCase ?? "customer_support",
-  );
-  const [geography, setGeography] = useState<Geography>(
-    persisted?.geography ?? "US",
-  );
-  const [selectedEndpoint, setSelectedEndpoint] = useState<string>("auto");
-  const [endpoints, setEndpoints] = useState<WorkflowEndpoint[]>([]);
+  const {
+    messages,
+    setMessages,
+    input,
+    setInput,
+    useCase,
+    setUseCase,
+    geography,
+    setGeography,
+    selectedEndpoint,
+    setSelectedEndpoint,
+    latestInteraction,
+    setLatestInteraction,
+    sessionId,
+    setSessionId,
+    endpoints,
+    setEndpoints,
+    clearSession,
+  } = usePlayground();
+
   const [isApiModalOpen, setIsApiModalOpen] = useState(false);
   const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
-
   const [isLoading, setIsLoading] = useState(false);
-  const [latestInteraction, setLatestInteraction] =
-    useState<InteractionEnvelope | null>(persisted?.latestInteraction ?? null);
-  const [sessionId, setSessionId] = useState<string | null>(
-    persisted?.sessionId ?? null,
-  );
   const [error, setError] = useState<string | null>(null);
 
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    loadEndpoints();
+    if (endpoints.length === 0) {
+      loadEndpoints();
+    }
   }, []);
 
   const loadEndpoints = async () => {
@@ -98,21 +79,6 @@ export default function Playground() {
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
-  useEffect(() => {
-    try {
-      sessionStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          messages,
-          useCase,
-          geography,
-          latestInteraction,
-          sessionId,
-        }),
-      );
-    } catch {}
-  }, [messages, useCase, geography, latestInteraction, sessionId]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -224,10 +190,7 @@ export default function Playground() {
   };
 
   const handleClearSession = () => {
-    sessionStorage.removeItem(STORAGE_KEY);
-    setMessages([DEFAULT_GREETING]);
-    setLatestInteraction(null);
-    setSessionId(null);
+    clearSession();
     setError(null);
   };
 

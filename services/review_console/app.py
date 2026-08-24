@@ -35,9 +35,15 @@ async def add_escalation(item: EscalationItem):
     ESCALATIONS[item.interaction_id] = item
     return {"status": "added", "interaction_id": item.interaction_id}
 
+from datetime import datetime, timezone
+
 @app.get("/escalations", response_model=List[EscalationItem])
-async def list_escalations():
-    return list(ESCALATIONS.values())
+async def list_escalations(status: Optional[str] = None):
+    items = list(ESCALATIONS.values())
+    if status and status.lower() != "all":
+        items = [e for e in items if e.status.lower() == status.lower()]
+    # Return newest first
+    return sorted(items, key=lambda x: x.created_at, reverse=True)
 
 @app.get("/escalations/{interaction_id}", response_model=EscalationItem)
 async def get_escalation(interaction_id: str):
@@ -52,6 +58,13 @@ async def resolve_escalation(interaction_id: str, action: ReviewAction):
         
     item = ESCALATIONS[interaction_id]
     item.status = "resolved"
+    item.resolution = action.action
+    item.resolved_by = action.reviewer_id or "human_operator"
+    item.resolved_at = datetime.now(timezone.utc).isoformat()
+    item.resolution_reason = action.reason
+    item.was_original_flag_correct = action.was_original_flag_correct
+    if action.edited_content:
+        item.edited_content = action.edited_content
     
     # Write outcome to Audit Store
     outcome = HumanOutcome(
@@ -73,7 +86,7 @@ async def resolve_escalation(interaction_id: str, action: ReviewAction):
     except Exception as e:
         logger.error(f"Error calling Audit Store: {e}")
         
-    return {"status": "resolved"}
+    return {"status": "resolved", "item": item}
 
 @app.get("/stats")
 async def get_stats():

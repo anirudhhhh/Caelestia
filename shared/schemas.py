@@ -289,6 +289,12 @@ class EscalationItem(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
     status: str = "pending"  # pending | in_review | resolved
+    resolution: Optional[str] = None  # approve | deny | edit_approve
+    resolved_by: Optional[str] = None
+    resolved_at: Optional[str] = None
+    resolution_reason: Optional[str] = None
+    was_original_flag_correct: Optional[bool] = None
+    edited_content: Optional[str] = None
 
 
 class ReviewAction(BaseModel):

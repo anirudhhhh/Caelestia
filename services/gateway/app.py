@@ -428,9 +428,10 @@ def _to_frontend_audit_event(e: dict) -> dict:
 # ─── Proxy: Review Console ───────────────────────────────────────────────────
 
 @app.get("/v1/escalations")
-async def get_escalations():
+async def get_escalations(status: Optional[str] = None):
     async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.get(f"{REVIEW_CONSOLE_URL}/escalations")
+        params = {"status": status} if status else {}
+        resp = await client.get(f"{REVIEW_CONSOLE_URL}/escalations", params=params)
         return resp.json() if resp.status_code == 200 else []
 
 
