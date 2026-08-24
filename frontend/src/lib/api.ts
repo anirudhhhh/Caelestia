@@ -49,6 +49,9 @@ export const api = {
     return Array.isArray(data) ? data : data.escalations ?? [];
   },
 
+  getEscalation: (id: string): Promise<EscalationItem> =>
+    fetchApi<EscalationItem>(`/escalations/${id}`),
+
   resolveEscalation: (id: string, _action: ReviewAction, data: any) =>
     fetchApi<void>(`/escalations/${id}/resolve`, {
       method: 'POST',
@@ -75,7 +78,7 @@ export const api = {
   },
 
   updatePolicies: (policies: PolicyRule[]) =>
-    fetchApi<void>('/policies', {
+    fetchApi<{ status: string; version: string }>('/policies', {
       method: 'PUT',
       body: JSON.stringify({
         policies: policies.map((p) => ({
@@ -87,6 +90,13 @@ export const api = {
           on_timeout: p.on_timeout,
         })),
       }),
+    }),
+
+  uploadPolicyYaml: (yamlContent: string) =>
+    fetchApi<{ status: string; version: string; rule_count: number; policies: any[] }>('/policies/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: yamlContent,
     }),
 
   // ── System Health ─────────────────────────────────────────────────────────

@@ -2,8 +2,13 @@ import re
 import tempfile
 import time
 from shared.schemas import CheckResult, CheckVerdict
-from detect_secrets import SecretsCollection
-from detect_secrets.settings import default_settings
+
+try:
+    from detect_secrets import SecretsCollection
+    from detect_secrets.settings import default_settings
+    HAS_DETECT_SECRETS = True
+except ImportError:
+    HAS_DETECT_SECRETS = False
 
 # Full synchronized toxicity wordlists by severity
 SEVERE_WORDS = {"hate", "kill", "murder", "fuck", "shit", "bitch", "asshole"}

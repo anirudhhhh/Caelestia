@@ -2,7 +2,7 @@ import asyncio
 import sys
 import time
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -66,28 +66,53 @@ async def run_scanner_with_timeout(name: str, scanner, text: str, timeout: float
             latency_ms=0.0
         )
 
+HTTP_CLIENT: Optional[httpx.AsyncClient] = None
+
+def get_http_client() -> httpx.AsyncClient:
+    global HTTP_CLIENT
+    if HTTP_CLIENT is None or HTTP_CLIENT.is_closed:
+        HTTP_CLIENT = httpx.AsyncClient(
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
+            timeout=httpx.Timeout(30.0, connect=5.0)
+        )
+    return HTTP_CLIENT
+
+@app.on_event("startup")
+async def startup_event():
+    global HTTP_CLIENT
+    HTTP_CLIENT = httpx.AsyncClient(
+        limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
+        timeout=httpx.Timeout(30.0, connect=5.0)
+    )
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    global HTTP_CLIENT
+    if HTTP_CLIENT and not HTTP_CLIENT.is_closed:
+        await HTTP_CLIENT.aclose()
+
 async def check_pii(text: str, geography: str, timeout: float) -> CheckResult:
     start = time.time()
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{PII_SERVICE_URL}/detect",
-                json={"text": text, "geography": geography},
-                timeout=timeout
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            score = 0.0
-            if data.get("entities"):
-                # If entities found, score scales with max confidence
-                score = max((e.get("score", 0.0) for e in data["entities"]), default=0.0)
-            
-            return CheckResult(
-                check_name="pii",
-                engine="pii_service",
-                score=score,
-                latency_ms=(time.time() - start) * 1000
-            )
+        client = get_http_client()
+        resp = await client.post(
+            f"{PII_SERVICE_URL}/detect",
+            json={"text": text, "geography": geography},
+            timeout=timeout
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        score = 0.0
+        if data.get("entities"):
+            # If entities found, score scales with max confidence
+            score = max((e.get("score", 0.0) for e in data["entities"]), default=0.0)
+        
+        return CheckResult(
+            check_name="pii",
+            engine="pii_service",
+            score=score,
+            latency_ms=(time.time() - start) * 1000
+        )
     except httpx.TimeoutException:
         logger.warning(f"PII Service timed out after {timeout}s")
         return CheckResult(
@@ -144,19 +169,19 @@ async def scan_input(envelope: InteractionEnvelope):
     )
 
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{POLICY_ENGINE_URL}/decide",
-                json=policy_req.model_dump(mode='json'),
-                timeout=policy_timeout
-            )
-            resp.raise_for_status()
-            decision_data = resp.json()
-            envelope.decision = Decision(**decision_data["decision"])
-            envelope.risk = RiskAssessment(**decision_data["risk"])
-            if decision_data.get("checks"):
-                from shared.schemas import CheckResult
-                envelope.checks = [CheckResult(**c) for c in decision_data["checks"]]
+        client = get_http_client()
+        resp = await client.post(
+            f"{POLICY_ENGINE_URL}/decide",
+            json=policy_req.model_dump(mode='json'),
+            timeout=policy_timeout
+        )
+        resp.raise_for_status()
+        decision_data = resp.json()
+        envelope.decision = Decision(**decision_data["decision"])
+        envelope.risk = RiskAssessment(**decision_data["risk"])
+        if decision_data.get("checks"):
+            from shared.schemas import CheckResult
+            envelope.checks = [CheckResult(**c) for c in decision_data["checks"]]
     except Exception as e:
         logger.error(f"Failed to call Policy Engine: {e}")
         envelope.decision = Decision(action=DecisionAction.BLOCK, reason="Policy Engine unavailable", decided_by="input_guard")

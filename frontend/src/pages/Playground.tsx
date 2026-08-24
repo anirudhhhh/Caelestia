@@ -80,6 +80,33 @@ export default function Playground() {
     endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const pollForResolution = async (interactionId: string) => {
+    const maxAttempts = 60; // ~3 minutes at 3s intervals
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise((r) => setTimeout(r, 3000));
+      try {
+        const item = await api.getEscalation(interactionId);
+        if (item && item.status === "resolved") {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant" as const,
+              content:
+                item.resolution === "deny"
+                  ? "Human Review Outcome: A reviewer reviewed and denied this request. It will not be executed."
+                  : item.edited_content || "Human Review Outcome: A reviewer approved this request.",
+              action: item.resolution === "deny" ? "block" : "allow",
+              reason: item.resolution_reason || `Resolved by ${item.resolved_by || "reviewer"}`,
+            },
+          ]);
+          return;
+        }
+      } catch {
+        // Continue polling
+      }
+    }
+  };
+
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -147,6 +174,10 @@ export default function Playground() {
         latency_breakdown: { total: data.latency_ms || 0 },
         model_used: data.model_used,
       } as any);
+
+      if (data.decision?.action === "escalate" || data.decision?.action === "flag") {
+        pollForResolution(data.interaction_id);
+      }
     } catch (err: any) {
       setError(err.message || "An error occurred during communication.");
     } finally {

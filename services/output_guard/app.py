@@ -27,21 +27,48 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from typing import Optional
+
+HTTP_CLIENT: Optional[httpx.AsyncClient] = None
+
+def get_http_client() -> httpx.AsyncClient:
+    global HTTP_CLIENT
+    if HTTP_CLIENT is None or HTTP_CLIENT.is_closed:
+        HTTP_CLIENT = httpx.AsyncClient(
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
+            timeout=httpx.Timeout(30.0, connect=5.0)
+        )
+    return HTTP_CLIENT
+
+@app.on_event("startup")
+async def startup_event():
+    global HTTP_CLIENT
+    HTTP_CLIENT = httpx.AsyncClient(
+        limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
+        timeout=httpx.Timeout(30.0, connect=5.0)
+    )
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    global HTTP_CLIENT
+    if HTTP_CLIENT and not HTTP_CLIENT.is_closed:
+        await HTTP_CLIENT.aclose()
+
 async def scan_pii(text: str) -> 'CheckResult':
     from shared.schemas import CheckResult
     try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.post(f"{PII_SERVICE_URL}/detect", json={"text": text})
-            resp.raise_for_status()
-            entities = resp.json().get("entities", [])
-            score = max((e["score"] for e in entities), default=0.0)
-            return CheckResult(
-                check_name="pii",              # was "pii_leakage" — must match policy.yaml's "pii"
-                engine="pii_service",
-                score=score,
-                verdict=CheckVerdict.FAIL if score >= 0.7 else CheckVerdict.PASS,
-                details={"entities_found": len(entities)}
-            )
+        client = get_http_client()
+        resp = await client.post(f"{PII_SERVICE_URL}/detect", json={"text": text}, timeout=3.0)
+        resp.raise_for_status()
+        entities = resp.json().get("entities", [])
+        score = max((e["score"] for e in entities), default=0.0)
+        return CheckResult(
+            check_name="pii",
+            engine="pii_service",
+            score=score,
+            verdict=CheckVerdict.FAIL if score >= 0.7 else CheckVerdict.PASS,
+            details={"entities_found": len(entities)}
+        )
     except Exception as e:
         logger.error(f"PII service call failed: {e}")
         return CheckResult(check_name="pii", engine="pii_service", score=0.0, verdict=CheckVerdict.SKIPPED)
@@ -78,25 +105,25 @@ async def scan_output(envelope: InteractionEnvelope):
         
     # Call Policy Engine
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            pe_req = PolicyDecisionRequest(
-                interaction_id=envelope.interaction_id,
-                use_case=envelope.use_case,
-                geography=envelope.geography,
-                direction=Direction.OUTPUT,
-                checks=envelope.checks,
-                tool_calls=envelope.tool_calls
-            )
-            pe_resp = await client.post(f"{POLICY_ENGINE_URL}/decide", json=pe_req.model_dump())
-            if pe_resp.status_code == 200:
-                pe_data = pe_resp.json()
-                from shared.schemas import Decision, RiskAssessment, CheckResult
-                envelope.decision = Decision(**pe_data["decision"])
-                envelope.risk = RiskAssessment(**pe_data["risk"])
-                if pe_data.get("checks"):
-                    envelope.checks = [CheckResult(**c) for c in pe_data["checks"]]
-            else:
-                logger.error(f"[{envelope.interaction_id}] Policy Engine returned {pe_resp.status_code}")
+        client = get_http_client()
+        pe_req = PolicyDecisionRequest(
+            interaction_id=envelope.interaction_id,
+            use_case=envelope.use_case,
+            geography=envelope.geography,
+            direction=Direction.OUTPUT,
+            checks=envelope.checks,
+            tool_calls=envelope.tool_calls
+        )
+        pe_resp = await client.post(f"{POLICY_ENGINE_URL}/decide", json=pe_req.model_dump(), timeout=5.0)
+        if pe_resp.status_code == 200:
+            pe_data = pe_resp.json()
+            from shared.schemas import Decision, RiskAssessment, CheckResult
+            envelope.decision = Decision(**pe_data["decision"])
+            envelope.risk = RiskAssessment(**pe_data["risk"])
+            if pe_data.get("checks"):
+                envelope.checks = [CheckResult(**c) for c in pe_data["checks"]]
+        else:
+            logger.error(f"[{envelope.interaction_id}] Policy Engine returned {pe_resp.status_code}")
     except Exception as e:
         logger.error(f"[{envelope.interaction_id}] Failed to reach Policy Engine: {e}")
         

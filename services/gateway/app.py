@@ -34,6 +34,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+HTTP_CLIENT: Optional[httpx.AsyncClient] = None
+
+def get_http_client() -> httpx.AsyncClient:
+    global HTTP_CLIENT
+    if HTTP_CLIENT is None or HTTP_CLIENT.is_closed:
+        HTTP_CLIENT = httpx.AsyncClient(
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
+            timeout=httpx.Timeout(30.0, connect=5.0)
+        )
+    return HTTP_CLIENT
+
+@app.on_event("startup")
+async def startup_event():
+    global HTTP_CLIENT
+    HTTP_CLIENT = httpx.AsyncClient(
+        limits=httpx.Limits(max_keepalive_connections=20, max_connections=100),
+        timeout=httpx.Timeout(30.0, connect=5.0)
+    )
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    global HTTP_CLIENT
+    if HTTP_CLIENT and not HTTP_CLIENT.is_closed:
+        await HTTP_CLIENT.aclose()
+
 
 async def optional_auth(authorization: Optional[str] = Header(None)):
     """Auth is optional for dashboard/read endpoints."""
@@ -65,16 +90,16 @@ async def aggregate_health():
         "action_guard": ACTION_GUARD_URL,
     }
     results = {}
-    async with httpx.AsyncClient(timeout=3.0) as client:
-        for name, url in services.items():
-            try:
-                resp = await client.get(f"{url}/healthz")
-                results[name] = {
-                    "status": "healthy" if resp.status_code == 200 else "unhealthy",
-                    "latency_ms": round(resp.elapsed.total_seconds() * 1000, 1),
-                }
-            except Exception:
-                results[name] = {"status": "unhealthy", "latency_ms": 0}
+    client = get_http_client()
+    for name, url in services.items():
+        try:
+            resp = await client.get(f"{url}/healthz", timeout=3.0)
+            results[name] = {
+                "status": "healthy" if resp.status_code == 200 else "unhealthy",
+                "latency_ms": round(resp.elapsed.total_seconds() * 1000, 1),
+            }
+        except Exception:
+            results[name] = {"status": "unhealthy", "latency_ms": 0}
     results["gateway"] = {"status": "healthy", "latency_ms": 0}
     return results
 
@@ -95,18 +120,18 @@ async def system_health():
 
 async def log_audit_async(event_data: dict):
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            await client.post(f"{AUDIT_STORE_URL}/events", json=event_data)
+        client = get_http_client()
+        await client.post(f"{AUDIT_STORE_URL}/events", json=event_data)
     except Exception as e:
         logger.error(f"Failed to log audit event: {e}")
 
 
 async def create_escalation_async(item_data: dict):
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(f"{REVIEW_CONSOLE_URL}/escalations", json=item_data)
-            if resp.status_code != 200:
-                logger.error(f"Failed to create escalation: {resp.text}")
+        client = get_http_client()
+        resp = await client.post(f"{REVIEW_CONSOLE_URL}/escalations", json=item_data)
+        if resp.status_code != 200:
+            logger.error(f"Failed to create escalation: {resp.text}")
     except Exception as e:
         logger.error(f"Failed to reach Review Console: {e}")
 
@@ -141,40 +166,19 @@ async def chat_completions(req: ChatRequest, token: str = Depends(optional_auth)
     logger.info(f"[{interaction_id}] Processing | use_case={req.use_case} geo={req.geography}")
 
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            # 2. Input Guard
-            try:
-                resp = await client.post(f"{INPUT_GUARD_URL}/scan", json=envelope.model_dump())
-                if resp.status_code == 200:
-                    envelope = InteractionEnvelope(**resp.json())
-            except Exception as e:
-                logger.error(f"[{interaction_id}] Input Guard failed: {e}")
-                if req.use_case == UseCase.DECISION_SUPPORT:
-                    raise HTTPException(status_code=503, detail="Input Guard unavailable")
+        client = get_http_client()
+        # 2. Input Guard
+        try:
+            resp = await client.post(f"{INPUT_GUARD_URL}/scan", json=envelope.model_dump())
+            if resp.status_code == 200:
+                envelope = InteractionEnvelope(**resp.json())
+        except Exception as e:
+            logger.error(f"[{interaction_id}] Input Guard failed: {e}")
+            if req.use_case == UseCase.DECISION_SUPPORT:
+                raise HTTPException(status_code=503, detail="Input Guard unavailable")
 
-            if envelope.decision.action == DecisionAction.BLOCK:
-                latency = (time.time() - start_time) * 1000
-                asyncio.create_task(log_audit_async({
-                    "interaction_id": interaction_id,
-                    "session_id": session_id,
-                    "direction": "input",
-                    "use_case": _enum_val(req.use_case),
-                    "geography": _enum_val(req.geography),
-                    "envelope": envelope.model_dump(),
-                    "decision_action": _enum_val(envelope.decision.action),
-                    "policy_version": envelope.decision.policy_version,
-                }))
-                return ChatResponse(
-                    interaction_id=interaction_id,
-                    session_id=session_id,
-                    content=envelope.decision.reason or "Request blocked by safety policy.",
-                    decision=envelope.decision,
-                    checks_summary=[c.model_dump() for c in envelope.checks],
-                    risk=envelope.risk,
-                    latency_ms=latency,
-                )
-
-            # Log Input Audit Event
+        if envelope.decision.action == DecisionAction.BLOCK:
+            latency = (time.time() - start_time) * 1000
             asyncio.create_task(log_audit_async({
                 "interaction_id": interaction_id,
                 "session_id": session_id,
@@ -185,151 +189,172 @@ async def chat_completions(req: ChatRequest, token: str = Depends(optional_auth)
                 "decision_action": _enum_val(envelope.decision.action),
                 "policy_version": envelope.decision.policy_version,
             }))
-
-            # If flagged or escalated for human verification, enqueue review asynchronously without blocking execution!
-            if envelope.decision.action in (DecisionAction.FLAG, DecisionAction.ESCALATE):
-                asyncio.create_task(create_escalation_async({
-                    "interaction_id": interaction_id,
-                    "session_id": session_id,
-                    "direction": "input",
-                    "use_case": _enum_val(req.use_case),
-                    "geography": _enum_val(req.geography),
-                    "risk_tier": _enum_val(envelope.risk.tier),
-                    "escalation_reason": envelope.decision.reason or "Flagged for human verification",
-                    "checks": [c.model_dump() for c in envelope.checks],
-                    "payload": envelope.payload.model_dump(),
-                }))
-
-            # 3. Router
-            try:
-                resp = await client.post(f"{ROUTER_URL}/route", json=envelope.model_dump())
-                if resp.status_code == 200:
-                    envelope = InteractionEnvelope(**resp.json())
-            except Exception as e:
-                logger.error(f"[{interaction_id}] Router failed: {e}")
-
-            routed_model = envelope.model.routed_to or req.model or "google/gemini-2.0-flash-001"
-
-            # 4. Model Adapter
-            max_tokens = req.max_tokens or get_default_max_tokens(req.use_case)
-            adapter_req = {
-                "model": routed_model,
-                "messages": [{"role": "system", "content": CONTROLPLANE_SYSTEM_PROMPT}]
-                            + [m.model_dump() for m in req.messages],
-                "max_tokens": max_tokens,
-            }
-            
-            resp = await client.post(f"{ADAPTER_URL}/complete", json=adapter_req)
-            resp.raise_for_status()
-            adapter_resp = resp.json()
-
-            # 5. Output Guard
-            output_envelope = InteractionEnvelope(
+            return ChatResponse(
                 interaction_id=interaction_id,
                 session_id=session_id,
-                use_case=req.use_case,
-                geography=req.geography,
-                direction=Direction.OUTPUT,
-                payload=Payload(role=PayloadRole.ASSISTANT, content=adapter_resp.get("content") or "Action executed successfully."),
-                model=envelope.model,
-            )
-
-            try:
-                resp = await client.post(f"{OUTPUT_GUARD_URL}/scan", json=output_envelope.model_dump())
-                if resp.status_code == 200:
-                    output_envelope = InteractionEnvelope(**resp.json())
-            except Exception as e:
-                logger.error(f"[{interaction_id}] Output Guard failed: {e}")
-
-            # 6. Combined Governance Logic (Merge Input & Output Decisions)
-            if output_envelope.decision.action == DecisionAction.BLOCK:
-                combined_action = DecisionAction.BLOCK
-                combined_reason = output_envelope.decision.reason or "Response blocked by output safety policy"
-                combined_tier = RiskTier.HIGH
-                final_content = "Response blocked by safety policy."
-            elif envelope.decision.action == DecisionAction.FLAG or output_envelope.decision.action == DecisionAction.FLAG:
-                combined_action = DecisionAction.FLAG
-                flag_reason = envelope.decision.reason if envelope.decision.action == DecisionAction.FLAG else output_envelope.decision.reason
-                combined_reason = f"Warning flagged: {flag_reason}"
-                combined_tier = RiskTier.MEDIUM
-                final_content = output_envelope.payload.content
-            else:
-                combined_action = DecisionAction.ALLOW
-                combined_reason = "All checks passed"
-                combined_tier = RiskTier.LOW
-                final_content = output_envelope.payload.content
-
-            # Combine checks from input guard and output guard
-            combined_checks = []
-            seen_check_names = set()
-            
-            # Prioritize checks with actual non-zero scores or warnings
-            for c in envelope.checks:
-                cdict = c.model_dump()
-                combined_checks.append(cdict)
-                seen_check_names.add(c.check_name)
-                
-            for c in output_envelope.checks:
-                cdict = c.model_dump()
-                if c.check_name not in seen_check_names:
-                    combined_checks.append(cdict)
-                elif c.score > 0: # overwrite 0.0 with non-zero if output triggered
-                    for idx, existing in enumerate(combined_checks):
-                        if existing.get("check_name") == c.check_name:
-                            combined_checks[idx] = cdict
-
-            combined_decision = Decision(
-                action=combined_action,
-                reason=combined_reason,
-                policy_version=output_envelope.decision.policy_version or envelope.decision.policy_version or "default",
-                decided_by="policy_engine",
-                confidence=max(envelope.decision.confidence, output_envelope.decision.confidence)
-            )
-
-            # If flagged, asynchronously create escalation item for human review
-            if combined_action == DecisionAction.FLAG:
-                is_output_flag = output_envelope.decision.action == DecisionAction.FLAG
-                escalation_direction = "output" if is_output_flag else "input"
-                escalation_payload = output_envelope.payload.model_dump() if is_output_flag else envelope.payload.model_dump()
-
-                asyncio.create_task(create_escalation_async({
-                    "interaction_id": interaction_id,
-                    "session_id": session_id,
-                    "direction": escalation_direction,
-                    "use_case": _enum_val(req.use_case),
-                    "geography": _enum_val(req.geography),
-                    "risk_tier": _enum_val(combined_tier),
-                    "escalation_reason": combined_reason,
-                    "checks": combined_checks,
-                    "payload": escalation_payload,
-                }))
-
-            latency = (time.time() - start_time) * 1000
-
-            response = ChatResponse(
-                interaction_id=interaction_id,
-                session_id=session_id,
-                content=final_content,
-                model_used=output_envelope.model.routed_to or routed_model,
-                decision=combined_decision,
-                checks_summary=combined_checks,
-                risk=RiskAssessment(tier=combined_tier, confidence=combined_decision.confidence),
+                content=envelope.decision.reason or "Request blocked by safety policy.",
+                decision=envelope.decision,
+                checks_summary=[c.model_dump() for c in envelope.checks],
+                risk=envelope.risk,
                 latency_ms=latency,
             )
 
-            # 7. Audit Logging (fire and forget) - Output event
-            asyncio.create_task(log_audit_async({
+        # Log Input Audit Event
+        asyncio.create_task(log_audit_async({
+            "interaction_id": interaction_id,
+            "session_id": session_id,
+            "direction": "input",
+            "use_case": _enum_val(req.use_case),
+            "geography": _enum_val(req.geography),
+            "envelope": envelope.model_dump(),
+            "decision_action": _enum_val(envelope.decision.action),
+            "policy_version": envelope.decision.policy_version,
+        }))
+
+        # If flagged or escalated for human verification, enqueue review asynchronously without blocking execution!
+        if envelope.decision.action in (DecisionAction.FLAG, DecisionAction.ESCALATE):
+            asyncio.create_task(create_escalation_async({
                 "interaction_id": interaction_id,
                 "session_id": session_id,
-                "direction": "output",
+                "direction": "input",
                 "use_case": _enum_val(req.use_case),
                 "geography": _enum_val(req.geography),
-                "envelope": output_envelope.model_dump(),
-                "decision_action": _enum_val(output_envelope.decision.action),
-                "policy_version": output_envelope.decision.policy_version,
+                "risk_tier": _enum_val(envelope.risk.tier),
+                "escalation_reason": envelope.decision.reason or "Flagged for human verification",
+                "checks": [c.model_dump() for c in envelope.checks],
+                "payload": envelope.payload.model_dump(),
             }))
 
-            return response
+        # 3. Router
+        try:
+            resp = await client.post(f"{ROUTER_URL}/route", json=envelope.model_dump())
+            if resp.status_code == 200:
+                envelope = InteractionEnvelope(**resp.json())
+        except Exception as e:
+            logger.error(f"[{interaction_id}] Router failed: {e}")
+
+        routed_model = envelope.model.routed_to or req.model or "google/gemini-2.0-flash-001"
+
+        # 4. Model Adapter
+        max_tokens = req.max_tokens or get_default_max_tokens(req.use_case)
+        adapter_req = {
+            "model": routed_model,
+            "messages": [{"role": "system", "content": CONTROLPLANE_SYSTEM_PROMPT}]
+                        + [m.model_dump() for m in req.messages],
+            "max_tokens": max_tokens,
+        }
+        
+        resp = await client.post(f"{ADAPTER_URL}/complete", json=adapter_req)
+        resp.raise_for_status()
+        adapter_resp = resp.json()
+
+        # 5. Output Guard
+        output_envelope = InteractionEnvelope(
+            interaction_id=interaction_id,
+            session_id=session_id,
+            use_case=req.use_case,
+            geography=req.geography,
+            direction=Direction.OUTPUT,
+            payload=Payload(role=PayloadRole.ASSISTANT, content=adapter_resp.get("content") or "Action executed successfully."),
+            model=envelope.model,
+        )
+
+        try:
+            resp = await client.post(f"{OUTPUT_GUARD_URL}/scan", json=output_envelope.model_dump())
+            if resp.status_code == 200:
+                output_envelope = InteractionEnvelope(**resp.json())
+        except Exception as e:
+            logger.error(f"[{interaction_id}] Output Guard failed: {e}")
+
+        # 6. Combined Governance Logic (Merge Input & Output Decisions)
+        if output_envelope.decision.action == DecisionAction.BLOCK:
+            combined_action = DecisionAction.BLOCK
+            combined_reason = output_envelope.decision.reason or "Response blocked by output safety policy"
+            combined_tier = RiskTier.HIGH
+            final_content = "Response blocked by safety policy."
+        elif envelope.decision.action == DecisionAction.FLAG or output_envelope.decision.action == DecisionAction.FLAG:
+            combined_action = DecisionAction.FLAG
+            flag_reason = envelope.decision.reason if envelope.decision.action == DecisionAction.FLAG else output_envelope.decision.reason
+            combined_reason = f"Warning flagged: {flag_reason}"
+            combined_tier = RiskTier.MEDIUM
+            final_content = output_envelope.payload.content
+        else:
+            combined_action = DecisionAction.ALLOW
+            combined_reason = "All checks passed"
+            combined_tier = RiskTier.LOW
+            final_content = output_envelope.payload.content
+
+        # Combine checks from input guard and output guard
+        combined_checks = []
+        seen_check_names = set()
+        
+        # Prioritize checks with actual non-zero scores or warnings
+        for c in envelope.checks:
+            cdict = c.model_dump()
+            combined_checks.append(cdict)
+            seen_check_names.add(c.check_name)
+            
+        for c in output_envelope.checks:
+            cdict = c.model_dump()
+            if c.check_name not in seen_check_names:
+                combined_checks.append(cdict)
+            elif c.score > 0:
+                for idx, existing in enumerate(combined_checks):
+                    if existing.get("check_name") == c.check_name:
+                        combined_checks[idx] = cdict
+
+        combined_decision = Decision(
+            action=combined_action,
+            reason=combined_reason,
+            policy_version=output_envelope.decision.policy_version or envelope.decision.policy_version or "default",
+            decided_by="policy_engine",
+            confidence=max(envelope.decision.confidence, output_envelope.decision.confidence)
+        )
+
+        # If flagged, asynchronously create escalation item for human review
+        if combined_action == DecisionAction.FLAG:
+            is_output_flag = output_envelope.decision.action == DecisionAction.FLAG
+            escalation_direction = "output" if is_output_flag else "input"
+            escalation_payload = output_envelope.payload.model_dump() if is_output_flag else envelope.payload.model_dump()
+
+            asyncio.create_task(create_escalation_async({
+                "interaction_id": interaction_id,
+                "session_id": session_id,
+                "direction": escalation_direction,
+                "use_case": _enum_val(req.use_case),
+                "geography": _enum_val(req.geography),
+                "risk_tier": _enum_val(combined_tier),
+                "escalation_reason": combined_reason,
+                "checks": combined_checks,
+                "payload": escalation_payload,
+            }))
+
+        latency = (time.time() - start_time) * 1000
+
+        response = ChatResponse(
+            interaction_id=interaction_id,
+            session_id=session_id,
+            content=final_content,
+            model_used=output_envelope.model.routed_to or routed_model,
+            decision=combined_decision,
+            checks_summary=combined_checks,
+            risk=RiskAssessment(tier=combined_tier, confidence=combined_decision.confidence),
+            latency_ms=latency,
+        )
+
+        # 7. Audit Logging (fire and forget) - Output event
+        asyncio.create_task(log_audit_async({
+            "interaction_id": interaction_id,
+            "session_id": session_id,
+            "direction": "output",
+            "use_case": _enum_val(req.use_case),
+            "geography": _enum_val(req.geography),
+            "envelope": output_envelope.model_dump(),
+            "decision_action": _enum_val(output_envelope.decision.action),
+            "policy_version": output_envelope.decision.policy_version,
+        }))
+
+        return response
 
     except HTTPException:
         raise
@@ -345,16 +370,16 @@ async def execute_actions(req: Dict[str, Any], token: str = Depends(optional_aut
     interaction_id = str(uuid.uuid4())
     session_id = req.get("session_id", str(uuid.uuid4()))
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            guard_req = {
-                "tool_calls": req.get("tool_calls", []),
-                "session_id": session_id,
-                "use_case": req.get("use_case", "customer_support"),
-                "interaction_id": interaction_id,
-            }
-            resp = await client.post(f"{ACTION_GUARD_URL}/guard", json=guard_req)
-            resp.raise_for_status()
-            return resp.json()
+        client = get_http_client()
+        guard_req = {
+            "tool_calls": req.get("tool_calls", []),
+            "session_id": session_id,
+            "use_case": req.get("use_case", "customer_support"),
+            "interaction_id": interaction_id,
+        }
+        resp = await client.post(f"{ACTION_GUARD_URL}/guard", json=guard_req)
+        resp.raise_for_status()
+        return resp.json()
     except Exception as e:
         logger.error(f"Action Guard error: {e}")
         raise HTTPException(status_code=500, detail="Action Guard unavailable")
@@ -364,11 +389,11 @@ async def execute_actions(req: Dict[str, Any], token: str = Depends(optional_aut
 
 @app.get("/v1/interactions/{interaction_id}")
 async def get_interaction(interaction_id: str):
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.get(f"{AUDIT_STORE_URL}/events/{interaction_id}")
-        if resp.status_code == 200:
-            return resp.json()
-        raise HTTPException(status_code=404, detail="Interaction not found")
+    client = get_http_client()
+    resp = await client.get(f"{AUDIT_STORE_URL}/events/{interaction_id}")
+    if resp.status_code == 200:
+        return resp.json()
+    raise HTTPException(status_code=404, detail="Interaction not found")
 
 
 @app.get("/v1/audit/events")
@@ -388,11 +413,11 @@ async def get_audit_events(
         params["direction"] = direction
     if since:
         params["since"] = since
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.get(f"{AUDIT_STORE_URL}/events", params=params)
-        if resp.status_code != 200:
-            return []
-        return [_to_frontend_audit_event(e) for e in resp.json().get("events", [])]
+    client = get_http_client()
+    resp = await client.get(f"{AUDIT_STORE_URL}/events", params=params)
+    if resp.status_code != 200:
+        return []
+    return [_to_frontend_audit_event(e) for e in resp.json().get("events", [])]
 
 def _to_frontend_audit_event(e: dict) -> dict:
     envelope = e.get("envelope") or {}
@@ -429,39 +454,48 @@ def _to_frontend_audit_event(e: dict) -> dict:
 
 @app.get("/v1/escalations")
 async def get_escalations(status: Optional[str] = None):
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        params = {"status": status} if status else {}
-        resp = await client.get(f"{REVIEW_CONSOLE_URL}/escalations", params=params)
-        return resp.json() if resp.status_code == 200 else []
+    client = get_http_client()
+    params = {"status": status} if status else {}
+    resp = await client.get(f"{REVIEW_CONSOLE_URL}/escalations", params=params)
+    return resp.json() if resp.status_code == 200 else []
+
+
+@app.get("/v1/escalations/{interaction_id}")
+async def get_single_escalation(interaction_id: str):
+    client = get_http_client()
+    resp = await client.get(f"{REVIEW_CONSOLE_URL}/escalations/{interaction_id}")
+    if resp.status_code == 200:
+        return resp.json()
+    raise HTTPException(status_code=resp.status_code, detail=resp.text)
 
 
 @app.post("/v1/escalations/{interaction_id}/resolve")
 async def resolve_escalation(interaction_id: str, body: Dict[str, Any]):
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.post(
-            f"{REVIEW_CONSOLE_URL}/escalations/{interaction_id}/resolve", json=body
-        )
-        return resp.json() if resp.status_code == 200 else {}
+    client = get_http_client()
+    resp = await client.post(
+        f"{REVIEW_CONSOLE_URL}/escalations/{interaction_id}/resolve", json=body
+    )
+    return resp.json() if resp.status_code == 200 else {}
 
 
 # ─── Proxy: Policy Engine ────────────────────────────────────────────────────
 
 @app.get("/v1/policies")
 async def get_policies():
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.get(f"{POLICY_ENGINE_URL}/policies")
-        if resp.status_code != 200:
-            return []
-        rules = (resp.json().get("config") or {}).get("policies", [])
-        return [{
-            "id": f"{r.get('use_case')}:{r.get('geography')}:{r.get('check')}",
-            "use_case": r.get("use_case"),
-            "geography": r.get("geography"),
-            "check_name": r.get("check"),
-            "block_threshold": r.get("block_threshold"),
-            "flag_threshold": r.get("flag_threshold"),
-            "on_timeout": "block" if r.get("on_timeout") == "block" else "allow",
-        } for r in rules]
+    client = get_http_client()
+    resp = await client.get(f"{POLICY_ENGINE_URL}/policies")
+    if resp.status_code != 200:
+        return []
+    rules = (resp.json().get("config") or {}).get("policies", [])
+    return [{
+        "id": f"{r.get('use_case')}:{r.get('geography')}:{r.get('check')}",
+        "use_case": r.get("use_case"),
+        "geography": r.get("geography"),
+        "check_name": r.get("check"),
+        "block_threshold": r.get("block_threshold"),
+        "flag_threshold": r.get("flag_threshold"),
+        "on_timeout": "block" if r.get("on_timeout") == "block" else "allow",
+    } for r in rules]
 
 @app.put("/v1/policies")
 async def update_policies(request: Request):
@@ -491,24 +525,79 @@ async def update_policies(request: Request):
         "policies": policy_list,
         "defaults": {"block_threshold": 0.7, "flag_threshold": 0.4, "on_timeout": "block"},
     }
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.put(f"{POLICY_ENGINE_URL}/policies", json=config)
-        return resp.json() if resp.status_code == 200 else {}
+    client = get_http_client()
+    resp = await client.put(f"{POLICY_ENGINE_URL}/policies", json=config)
+    return resp.json() if resp.status_code == 200 else {}
+
+
+@app.post("/v1/policies/upload")
+async def upload_policy_file(request: Request):
+    import yaml
+    content_type = request.headers.get("content-type", "")
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        file_obj = form.get("file")
+        if not file_obj:
+            raise HTTPException(status_code=400, detail="No file uploaded")
+        content = (await file_obj.read()).decode("utf-8")
+    else:
+        content = (await request.body()).decode("utf-8")
+
+    try:
+        data = yaml.safe_load(content)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid YAML/JSON syntax: {str(e)}")
+
+    if isinstance(data, list):
+        raw_rules = data
+    elif isinstance(data, dict):
+        raw_rules = data.get("policies") or data.get("rules") or []
+    else:
+        raise HTTPException(status_code=400, detail="Policy file must contain a list of rules or a 'policies' root key")
+
+    policy_list = []
+    for r in raw_rules:
+        if not isinstance(r, dict):
+            continue
+        policy_list.append({
+            "use_case": r.get("use_case", "*"),
+            "geography": r.get("geography", "*"),
+            "check": r.get("check_name") or r.get("check", ""),
+            "block_threshold": float(r.get("block_threshold", 0.7)),
+            "flag_threshold": float(r.get("flag_threshold", 0.4)),
+            "on_timeout": "block" if r.get("on_timeout") == "block" else "allow_with_flag",
+        })
+
+    config = {
+        "policies": policy_list,
+        "defaults": {"block_threshold": 0.7, "flag_threshold": 0.4, "on_timeout": "block"},
+    }
+    client = get_http_client()
+    resp = await client.put(f"{POLICY_ENGINE_URL}/policies", json=config)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=500, detail="Failed to apply policy to Policy Engine")
+
+    return {
+        "status": "uploaded_and_applied",
+        "rule_count": len(policy_list),
+        "version": resp.json().get("version", "active"),
+        "policies": policy_list
+    }
 
 # ─── Proxy: Router ────────────────────────────────────────────────────────────
 
 @app.get("/v1/models")
 async def get_models():
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.get(f"{ROUTER_URL}/models")
-        return resp.json() if resp.status_code == 200 else []
+    client = get_http_client()
+    resp = await client.get(f"{ROUTER_URL}/models")
+    return resp.json() if resp.status_code == 200 else []
 
 
 @app.get("/v1/audit/stats")
 async def get_audit_stats():
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.get(f"{AUDIT_STORE_URL}/stats")
-        data = resp.json() if resp.status_code == 200 else {}
+    client = get_http_client()
+    resp = await client.get(f"{AUDIT_STORE_URL}/stats")
+    data = resp.json() if resp.status_code == 200 else {}
     
     total = data.get("total_interactions", 0)
     action_counts = data.get("action_counts", {})
@@ -531,106 +620,106 @@ async def get_audit_stats():
 
 @app.get("/v1/router/endpoints")
 async def get_router_endpoints():
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.get(f"{ROUTER_URL}/endpoints")
-        return resp.json() if resp.status_code == 200 else []
+    client = get_http_client()
+    resp = await client.get(f"{ROUTER_URL}/endpoints")
+    return resp.json() if resp.status_code == 200 else []
 
 
 @app.post("/v1/router/endpoints")
 async def register_router_endpoint(endpoint: Dict[str, Any]):
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.post(f"{ROUTER_URL}/endpoints", json=endpoint)
-        return resp.json() if resp.status_code == 200 else {}
+    client = get_http_client()
+    resp = await client.post(f"{ROUTER_URL}/endpoints", json=endpoint)
+    return resp.json() if resp.status_code == 200 else {}
 
 
 @app.delete("/v1/router/endpoints/{endpoint_id}")
 async def delete_router_endpoint(endpoint_id: str):
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.delete(f"{ROUTER_URL}/endpoints/{endpoint_id}")
-        if resp.status_code == 200:
-            return resp.json()
-        raise HTTPException(status_code=resp.status_code, detail="Failed to delete endpoint")
+    client = get_http_client()
+    resp = await client.delete(f"{ROUTER_URL}/endpoints/{endpoint_id}")
+    if resp.status_code == 200:
+        return resp.json()
+    raise HTTPException(status_code=resp.status_code, detail="Failed to delete endpoint")
 
 
 @app.post("/v1/router/match")
 async def test_router_match(body: Dict[str, Any]):
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.post(f"{ROUTER_URL}/match", json=body)
-        return resp.json() if resp.status_code == 200 else {}
+    client = get_http_client()
+    resp = await client.post(f"{ROUTER_URL}/match", json=body)
+    return resp.json() if resp.status_code == 200 else {}
 
 
 # ─── Proxy: Immune System ────────────────────────────────────────────────────
 
 @app.get("/v1/health/alerts")
 async def get_alerts():
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.get(f"{IMMUNE_SYSTEM_URL}/alerts")
-        if resp.status_code != 200:
-            return []
-        return [{
-            "id": a.get("alert_id"),
-            "severity": "high" if a.get("severity") == "critical" else "medium",
-            "metric": a.get("metric_name"),
-            "current_value": a.get("current_value"),
-            "baseline_value": a.get("baseline_mean"),
-            "timestamp": a.get("created_at"),
-        } for a in resp.json()]
+    client = get_http_client()
+    resp = await client.get(f"{IMMUNE_SYSTEM_URL}/alerts")
+    if resp.status_code != 200:
+        return []
+    return [{
+        "id": a.get("alert_id"),
+        "severity": "high" if a.get("severity") == "critical" else "medium",
+        "metric": a.get("metric_name"),
+        "current_value": a.get("current_value"),
+        "baseline_value": a.get("baseline_mean"),
+        "timestamp": a.get("created_at"),
+    } for a in resp.json()]
 
 
 @app.get("/v1/health/proposals")
 async def get_proposals():
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        try:
-            resp = await client.get(f"{IMMUNE_SYSTEM_URL}/proposals")
-            if resp.status_code == 200:
-                return resp.json()
-        except Exception as e:
-            logger.error(f"Failed to fetch proposals: {e}")
+    client = get_http_client()
+    try:
+        resp = await client.get(f"{IMMUNE_SYSTEM_URL}/proposals")
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception as e:
+        logger.error(f"Failed to fetch proposals: {e}")
     return []
 
 
 @app.post("/v1/health/proposals/{proposal_id}/accept")
 async def accept_proposal(proposal_id: str):
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        try:
-            resp = await client.post(f"{IMMUNE_SYSTEM_URL}/proposals/{proposal_id}/accept")
-            if resp.status_code == 200:
-                return resp.json()
-            raise HTTPException(status_code=resp.status_code, detail=resp.text)
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Failed to accept proposal: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+    client = get_http_client()
+    try:
+        resp = await client.post(f"{IMMUNE_SYSTEM_URL}/proposals/{proposal_id}/accept")
+        if resp.status_code == 200:
+            return resp.json()
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to accept proposal: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/v1/health/proposals/{proposal_id}/dismiss")
 async def dismiss_proposal(proposal_id: str):
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        try:
-            resp = await client.post(f"{IMMUNE_SYSTEM_URL}/proposals/{proposal_id}/dismiss")
-            if resp.status_code == 200:
-                return resp.json()
-            raise HTTPException(status_code=resp.status_code, detail=resp.text)
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Failed to dismiss proposal: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+    client = get_http_client()
+    try:
+        resp = await client.post(f"{IMMUNE_SYSTEM_URL}/proposals/{proposal_id}/dismiss")
+        if resp.status_code == 200:
+            return resp.json()
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to dismiss proposal: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ─── Proxy: Trust / Outcome Stats ────────────────────────────────────────────
 
 @app.get("/v1/trust/outcomes")
 async def get_outcome_stats():
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        outcomes_resp, stats_resp = await asyncio.gather(
-            client.get(f"{AUDIT_STORE_URL}/outcomes/stats"),
-            client.get(f"{AUDIT_STORE_URL}/stats"),
-            return_exceptions=True,
-        )
-        outcomes = outcomes_resp.json() if not isinstance(outcomes_resp, Exception) and outcomes_resp.status_code == 200 else {}
-        stats = stats_resp.json() if not isinstance(stats_resp, Exception) and stats_resp.status_code == 200 else {}
+    client = get_http_client()
+    outcomes_resp, stats_resp = await asyncio.gather(
+        client.get(f"{AUDIT_STORE_URL}/outcomes/stats"),
+        client.get(f"{AUDIT_STORE_URL}/stats"),
+        return_exceptions=True,
+    )
+    outcomes = outcomes_resp.json() if not isinstance(outcomes_resp, Exception) and outcomes_resp.status_code == 200 else {}
+    stats = stats_resp.json() if not isinstance(stats_resp, Exception) and stats_resp.status_code == 200 else {}
 
     total = stats.get("total_interactions", 0)
     raw_action_counts = stats.get("action_counts", {})
@@ -685,9 +774,9 @@ async def get_audit_trend():
         days.append(d.strftime("%Y-%m-%d"))
 
     # Fetch recent events (up to 1000 to compute 7-day trend)
-    async with httpx.AsyncClient(timeout=8.0) as client:
-        resp = await client.get(f"{AUDIT_STORE_URL}/events", params={"limit": 1000})
-        events = resp.json().get("events", []) if resp.status_code == 200 else []
+    client = get_http_client()
+    resp = await client.get(f"{AUDIT_STORE_URL}/events", params={"limit": 1000})
+    events = resp.json().get("events", []) if resp.status_code == 200 else []
 
     # Bucket by day
     from collections import defaultdict
@@ -716,6 +805,6 @@ async def get_audit_trend():
 
 @app.post("/v1/guard")
 async def guard_action(body: Dict[str, Any]):
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.post(f"{ACTION_GUARD_URL}/guard", json=body)
-        return resp.json() if resp.status_code == 200 else {}
+    client = get_http_client()
+    resp = await client.post(f"{ACTION_GUARD_URL}/guard", json=body)
+    return resp.json() if resp.status_code == 200 else {}
