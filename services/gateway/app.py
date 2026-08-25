@@ -483,6 +483,53 @@ async def resolve_escalation(interaction_id: str, body: Dict[str, Any]):
     return resp.json() if resp.status_code == 200 else {}
 
 
+@app.post("/v1/escalations/appeal")
+async def appeal_blocked_request(body: Dict[str, Any]):
+    interaction_id = body.get("interaction_id") or str(uuid.uuid4())
+    session_id = body.get("session_id") or ""
+    content = body.get("content") or ""
+    reason = body.get("reason") or "User requested appeal for blocked message"
+    use_case = body.get("use_case") or "customer_support"
+    geography = body.get("geography") or "US"
+    checks = body.get("checks_summary") or body.get("checks") or []
+    sanitized_checks = []
+    for c in checks:
+        if isinstance(c, dict):
+            sanitized_checks.append({
+                "check_name": c.get("check_name", "toxicity"),
+                "engine": c.get("engine", "heuristic"),
+                "engine_version": c.get("engine_version", "1.0.0"),
+                "score": float(c.get("score", 0.0)),
+                "verdict": c.get("verdict", "fail"),
+                "latency_ms": float(c.get("latency_ms", 0.0)),
+                "details": c.get("details", {})
+            })
+
+    item_data = {
+        "interaction_id": interaction_id,
+        "session_id": session_id,
+        "direction": "input",
+        "use_case": use_case,
+        "geography": geography,
+        "risk_tier": "high",
+        "escalation_reason": f"Manual User Appeal (Blocked): {reason}",
+        "checks": sanitized_checks,
+        "payload": {"role": "user", "content": content},
+    }
+    client = get_http_client()
+    resp = await client.post(f"{REVIEW_CONSOLE_URL}/escalations", json=item_data)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=500, detail=f"Failed to register user appeal in Review Console: {resp.text}")
+
+    # Notify immune system of user appeal / escalation
+    try:
+        await client.post(f"{IMMUNE_SYSTEM_URL}/notify-flag", timeout=2.0)
+    except Exception:
+        pass
+
+    return {"status": "escalated_for_review", "interaction_id": interaction_id}
+
+
 # ─── Proxy: Policy Engine ────────────────────────────────────────────────────
 
 @app.get("/v1/policies")

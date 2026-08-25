@@ -134,10 +134,22 @@ async def complete(req: AdapterRequest):
                 if role == "system":
                     system_instruction = {"parts": [{"text": text}]}
                 else:
-                    gemini_contents.append({
-                        "role": "user" if role == "user" else "model",
-                        "parts": [{"text": text}]
-                    })
+                    mapped_role = "user" if role == "user" else "model"
+                    # Merge adjacent turns with identical role if any
+                    if gemini_contents and gemini_contents[-1]["role"] == mapped_role:
+                        gemini_contents[-1]["parts"][0]["text"] += f"\n\n{text}"
+                    else:
+                        gemini_contents.append({
+                            "role": mapped_role,
+                            "parts": [{"text": text}]
+                        })
+            
+            # Gemini API requires the first turn to be 'user'
+            while gemini_contents and gemini_contents[0]["role"] == "model":
+                gemini_contents.pop(0)
+
+            if not gemini_contents:
+                gemini_contents = [{"role": "user", "parts": [{"text": "Hello"}]}]
             
             gemini_body: Dict[str, Any] = {"contents": gemini_contents}
             if system_instruction:

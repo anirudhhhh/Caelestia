@@ -52,6 +52,20 @@ export const api = {
   getEscalation: (id: string): Promise<EscalationItem> =>
     fetchApi<EscalationItem>(`/escalations/${id}`),
 
+  appealBlockedRequest: (data: {
+    interaction_id: string;
+    session_id?: string;
+    content: string;
+    reason?: string;
+    use_case?: string;
+    geography?: string;
+    checks_summary?: any[];
+  }) =>
+    fetchApi<{ status: string; interaction_id: string }>('/escalations/appeal', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   resolveEscalation: (id: string, _action: ReviewAction, data: any) =>
     fetchApi<void>(`/escalations/${id}/resolve`, {
       method: 'POST',

@@ -6,11 +6,14 @@ export interface PlaygroundMessage {
   content: string;
   action?: 'allow' | 'block' | 'flag' | 'escalate';
   reason?: string;
+  interaction_id?: string;
+  isGreeting?: boolean;
 }
 
 const DEFAULT_GREETING: PlaygroundMessage = {
   role: 'assistant',
   content: 'Hello! I am ready to assist you. My responses and your inputs are protected by ControlPlane.ai.',
+  isGreeting: true,
 };
 
 interface PlaygroundContextType {

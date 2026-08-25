@@ -118,6 +118,7 @@ export interface ThresholdProposal {
   use_case?: string;
   geography?: string;
   check_name: string;
+  target_threshold_type?: "block_threshold" | "flag_threshold";
   current_threshold: number;
   proposed_threshold: number;
   reason?: string;

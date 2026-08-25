@@ -10,7 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Adjust path to import shared modules and local modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-sys.path.insert(0, str(Path(__file__).parent))
 
 from shared.config import setup_logging, get_env
 from shared.schemas import (
@@ -19,9 +18,9 @@ from shared.schemas import (
     Decision, RiskAssessment, DecisionAction, RiskTier
 )
 
-from scanners.prompt_injection import PromptInjectionScanner
-from scanners.toxicity import ToxicityScanner
-from scanners.secrets import SecretsScanner
+from services.input_guard.scanners.prompt_injection import PromptInjectionScanner
+from services.input_guard.scanners.toxicity import ToxicityScanner
+from services.input_guard.scanners.secrets import SecretsScanner
 
 logger = setup_logging("input_guard")
 
@@ -137,9 +136,6 @@ async def scan_input(envelope: InteractionEnvelope):
     text = envelope.payload.content
     budget_ms = get_latency_budget(envelope.use_case, "input_guard")
 
-    # Local scanners (in-process, sub-ms) use the latency budget.
-    # PII is a remote HTTP call — give it a generous fixed timeout so a
-    # cold-start or slow machine doesn't immediately mark every request as SKIPPED.
     scanner_timeout = budget_ms / 1000.0          # e.g. 0.15s for customer_support
     pii_timeout = max(scanner_timeout, 5.0)       # always at least 5 seconds
     policy_timeout = max(scanner_timeout, 3.0)    # always at least 3 seconds
@@ -188,7 +184,6 @@ async def scan_input(envelope: InteractionEnvelope):
         envelope.risk = RiskAssessment(tier=RiskTier.HIGH, confidence=1.0)
 
     return envelope
-
 
 @app.get("/healthz")
 async def healthz():

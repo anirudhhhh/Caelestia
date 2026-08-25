@@ -196,17 +196,20 @@ export default function PolicyEditor() {
     const propId = proposal.id || proposal.proposal_id;
     if (!propId) return;
 
+    const threshLabel = proposal.target_threshold_type === 'flag_threshold' ? 'flag' : 'block';
+    const targetField = proposal.target_threshold_type === 'flag_threshold' ? 'flag_threshold' : 'block_threshold';
+
     try {
       const resp = await api.acceptProposal(propId);
       await loadPoliciesData();
       await loadProposalsOnly();
-      setPublishedSuccess(resp?.message || `Immune system proposal accepted: Updated ${proposal.check_name} block threshold to ${proposal.proposed_threshold}! Policy hot-reloaded.`);
+      setPublishedSuccess(resp?.message || `Immune system proposal accepted: Updated ${proposal.check_name} ${threshLabel} threshold to ${proposal.proposed_threshold}! Policy hot-reloaded.`);
       setTimeout(() => setPublishedSuccess(null), 5000);
     } catch (e) {
       console.error('Failed to accept proposal', e);
       const updated = policies.map(p => {
         if (p.check_name === proposal.check_name) {
-          return { ...p, block_threshold: proposal.proposed_threshold };
+          return { ...p, [targetField]: proposal.proposed_threshold };
         }
         return p;
       });
@@ -214,7 +217,7 @@ export default function PolicyEditor() {
       await api.updatePolicies(updated);
       setOriginalPolicies(JSON.parse(JSON.stringify(updated)));
       setProposals(prev => prev.filter(p => (p.id || p.proposal_id) !== propId));
-      setPublishedSuccess(`Updated ${proposal.check_name} block threshold to ${proposal.proposed_threshold}! Policy saved.`);
+      setPublishedSuccess(`Updated ${proposal.check_name} ${threshLabel} threshold to ${proposal.proposed_threshold}! Policy saved.`);
       setTimeout(() => setPublishedSuccess(null), 5000);
     }
   };
@@ -503,7 +506,7 @@ export default function PolicyEditor() {
                           {useCase} ({geo})
                         </Badge>
                         <p className="font-mono text-xs">
-                          Check: <span className="font-bold text-foreground">{prop.check_name}</span> | Proposed Block Threshold: <span className="text-rose-500 line-through font-mono">{prop.current_threshold}</span> &rarr; <span className="text-emerald-500 font-bold font-mono">{prop.proposed_threshold}</span>
+                          Check: <span className="font-bold text-foreground">{prop.check_name}</span> | Proposed {prop.target_threshold_type === 'flag_threshold' ? 'Flag' : 'Block'} Threshold: <span className="text-rose-500 line-through font-mono">{prop.current_threshold}</span> &rarr; <span className="text-emerald-500 font-bold font-mono">{prop.proposed_threshold}</span>
                         </p>
                       </div>
                       <p className="text-[11px] text-muted-foreground leading-relaxed">{reasonText}</p>

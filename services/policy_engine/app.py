@@ -17,7 +17,7 @@ from shared.schemas import (
     DecisionAction, RiskAssessment, RiskTier, ThresholdProposal
 )
 
-from evaluator import PolicyEvaluator, load_policies
+from services.policy_engine.evaluator import PolicyEvaluator, load_policies
 
 logger = setup_logging("policy_engine")
 CONFIG_DIR = Path(__file__).parent / "config"

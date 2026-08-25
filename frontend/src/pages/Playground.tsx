@@ -13,7 +13,8 @@ import {
   Sparkles,
   ArrowRight,
   Bot,
-  AlertTriangle
+  AlertTriangle,
+  UserCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -117,9 +118,9 @@ export default function Playground() {
     setError(null);
 
     try {
-      // Only send real conversation turns (filter out firewall-blocked system messages)
+      // Only send real conversation turns (filter out UI greeting placeholders & firewall-blocked system messages)
       const requestMessages = messages
-        .filter((m) => m.action !== "block" && !m.content.startsWith("Failed "))
+        .filter((m) => !m.isGreeting && m.action !== "block" && !m.content.startsWith("Failed ") && !m.content.includes("ready to assist you"))
         .concat(userMessage)
         .map((m) => ({
           role: m.role,
@@ -143,6 +144,7 @@ export default function Playground() {
           content: data.content || "No response received.",
           action: data.decision?.action || "allow",
           reason: data.decision?.reason || "",
+          interaction_id: data.interaction_id,
         },
       ]);
       setLatestInteraction({
@@ -182,6 +184,42 @@ export default function Playground() {
       setError(err.message || "An error occurred during communication.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const [appealingId, setAppealingId] = useState<string | null>(null);
+
+  const handleAppealBlock = async (msgIdx: number, interactionId?: string) => {
+    const userMsg = messages[msgIdx - 1]?.content || "";
+    const targetId = interactionId || messages[msgIdx]?.interaction_id || latestInteraction?.interaction_id;
+    if (!targetId) return;
+
+    setAppealingId(targetId);
+    try {
+      await api.appealBlockedRequest({
+        interaction_id: targetId,
+        session_id: sessionId || undefined,
+        content: userMsg,
+        reason: "User requested human appeal for perimeter-blocked request",
+        use_case: useCase,
+        geography: geography,
+        checks_summary: latestInteraction?.checks || [],
+      });
+
+      const updated = [...messages];
+      updated[msgIdx] = {
+        ...updated[msgIdx],
+        action: "escalate",
+        content: "Blocked request has been escalated to Human Review for operator appeal. Waiting for reviewer verdict...",
+      };
+      setMessages(updated);
+
+      pollForResolution(targetId);
+    } catch (err: any) {
+      console.error("Failed to appeal block", err);
+      setError(err.message || "Failed to submit appeal to human review.");
+    } finally {
+      setAppealingId(null);
     }
   };
 
@@ -332,9 +370,12 @@ export default function Playground() {
               const isEscalated = msg.action === "escalate";
               
               if (msg.role === "assistant" && isBlocked) {
+                const targetInteractionId = msg.interaction_id || latestInteraction?.interaction_id;
+                const isCurrentlyAppealing = appealingId === targetInteractionId;
+
                 return (
                   <div key={idx} className="flex w-full justify-start">
-                    <div className="max-w-[85%] rounded-lg p-3.5 bg-rose-500/10 border border-rose-500/30 text-foreground rounded-bl-sm space-y-1.5 shadow-sm">
+                    <div className="max-w-[85%] rounded-lg p-3.5 bg-rose-500/10 border border-rose-500/30 text-foreground rounded-bl-sm space-y-2.5 shadow-sm">
                       <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-500">
                         <ShieldAlert className="h-4 w-4 text-rose-500 shrink-0" />
                         <span>Blocked by ControlPlane.ai Firewall</span>
@@ -342,9 +383,33 @@ export default function Playground() {
                           Input Blocked
                         </Badge>
                       </div>
-                      <p className="whitespace-pre-wrap text-xs text-foreground/90 font-mono bg-background/60 p-2 rounded border border-rose-500/20">
+                      <p className="whitespace-pre-wrap text-xs text-foreground/90 font-mono bg-background/60 p-2.5 rounded border border-rose-500/20">
                         {msg.content}
                       </p>
+                      <div className="pt-1.5 flex flex-wrap items-center justify-between gap-2 border-t border-rose-500/20">
+                        <span className="text-[11px] text-muted-foreground">
+                          Believe this was an over-strict block?
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs border-rose-500/40 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 font-medium"
+                          disabled={isCurrentlyAppealing}
+                          onClick={() => handleAppealBlock(idx, targetInteractionId)}
+                        >
+                          {isCurrentlyAppealing ? (
+                            <>
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              Escalating...
+                            </>
+                          ) : (
+                            <>
+                              <UserCheck className="h-3.5 w-3.5 mr-1" />
+                              Appeal to Human Review
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 );

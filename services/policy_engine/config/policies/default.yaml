@@ -3,7 +3,7 @@ defaults:
   flag_threshold: 0.4
   on_timeout: block
 policies:
-- block_threshold: 0.85
+- block_threshold: 0.9
   check: toxicity
   flag_threshold: 0.4
   geography: US
