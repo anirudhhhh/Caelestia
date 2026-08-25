@@ -1,6 +1,6 @@
 # ControlPlane.ai
 
-> **The Enterprise Responsible AI Control Plane — Real-time Middleware that Evaluates, Governs, Routes, and Audits Every AI Interaction.**
+> **The Enterprise Responsible AI Control Plane — Real-time Middleware that Evaluates, Governs, Routes, and Audits Every AI Interaction.** 
 
 **Team Caelestia | Accenture Innovation Challenge 2026**
 
