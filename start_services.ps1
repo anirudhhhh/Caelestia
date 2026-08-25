@@ -44,6 +44,7 @@ try {
     Start-ControlService "Audit Store" "audit_store" 8007
     Start-ControlService "PII Service" "pii_service" 8003
     Start-ControlService "Policy Engine" "policy_engine" 8004
+    Start-ControlService "Guardrails ML" "guardrails_ml" 8011
     Start-Sleep -Seconds 1
 
     Write-Host "`nPhase 2: Guards" -ForegroundColor Blue

@@ -107,22 +107,78 @@ Every AI interaction passes through ControlPlane at the **perimeter boundary** (
 
 ---
 
-## 3. Microservice Architecture (12 Components)
+## 3. Microservice Architecture & Grand Guardrails (12 Backend Microservices)
 
 | # | Component | Port | Purpose |
 |---|-----------|------|---------|
 | 01 | **API Gateway** | `8000` | Ingress gateway, proxy orchestrator, async audit dispatcher |
 | 02 | **Semantic Router & LB** | `8005` | Dynamic endpoint registry, semantic intent search over prompt instructions, multi-agent load balancing |
 | 03 | **Model Adapter** | `8006` | Dual-provider model execution (Direct Google Gemini API + OpenRouter multi-model gateway) |
-| 04 | **Input Guard** | `8001` | Ingress perimeter firewall: prompt injection, toxicity, secrets detection (`detect-secrets` + regex), PII |
-| 05 | **Output Guard** | `8002` | Egress perimeter firewall: hallucination verification (AI-as-judge), system prompt leakage, sensitive data, toxicity |
+| 04 | **Input Guard** | `8001` | Ingress perimeter firewall orchestrating L0 Normalization, L1 Lexicon, L2 ML Classifiers, L3 Vector Search |
+| 05 | **Output Guard** | `8002` | Egress perimeter firewall: hallucination verification (L4 AI-as-judge), system prompt leakage, sensitive data, L2 toxicity |
 | 06 | **PII Service** | `8003` | Shared PII detection & anonymization (Presidio NLP + contextual regex fallback) |
 | 07 | **Policy Engine** | `8004` | Versioned YAML-driven policy evaluator with hierarchical wildcard matching and dynamic thresholds |
-| 08 | **Immune System** | `8009` | Telemetry analyzer, statistical $\sigma$-anomaly detection, automated self-healing threshold proposals |
-| 09 | **Human Review Console** | `8008` | Durable SQLite escalation queue with human-in-the-loop review (Approve, Deny, Edit) establishing ground truth |
-| 10 | **Audit Store** | `8007` | Append-only event store with bidirectional `input`/`output` indexing and statistical analytics |
-| 11 | **Action Guard** | `8010` | Agentic tool-call gating with cumulative session risk tracking and blast radius classification |
-| 12 | **Trust Dashboard** | `3000` | Live visualization of Composite Trust Scores (0–100), 7-day intervention trends, and decision breakdowns |
+| 08 | **Guardrails ML** | `8011` | Contextual ML classifiers (toxicity/injection) & L3 attack corpus semantic vector search store |
+| 09 | **Immune System** | `8009` | Telemetry analyzer, statistical $\sigma$-anomaly detection, automated self-healing threshold proposals |
+| 10 | **Human Review Console** | `8008` | Durable SQLite escalation queue with human-in-the-loop review (Approve, Deny, Edit) establishing ground truth |
+| 11 | **Audit Store** | `8007` | Append-only event store with bidirectional `input`/`output` indexing and statistical analytics |
+| 12 | **Action Guard** | `8010` | Agentic tool-call gating with cumulative session risk tracking and blast radius classification |
+| 13 | **Trust Dashboard** | `3000` | Live visualization of Composite Trust Scores (0–100), 7-day intervention trends, and decision breakdowns |
+
+---
+
+### Grand Guardrails Defense-in-Depth Pipeline
+
+```
+                                INCOMING RAW PAYLOAD
+                                         │
+                                         ▼
+ ┌──────────────────────────────────────────────────────────────────────────────┐
+ │ L0: CANONICAL NORMALIZATION (shared/text_normalize.py)                       │
+ │ • Unicode NFKC normalization                                                 │
+ │ • Homoglyph folding (Cyrillic/Greek lookalikes ──► Latin)                    │
+ │ • Leetspeak canonical copy (b4dw0rd ──► badword, 0→o, 1→i, 3→e, $→s, @→a)    │
+ │ • Delimiter & spacing collapse (b.a.d.w.o.r.d, b_a_d ──► badword)            │
+ │ • Base64 & URL-encoding detection & 1-level recursive unwrap                 │
+ │ • Target Latency: < 1ms (100% traffic)                                       │
+ └──────────────────────────────────────┬───────────────────────────────────────┘
+                                         │
+                                         ▼
+ ┌──────────────────────────────────────────────────────────────────────────────┐
+ │ L1: HIGH-PERFORMANCE LEXICON ENGINE (services/guardrails_fast/lexicon.py)   │
+ │ • Curated multi-lingual open-source wordlists (LDNOOBW + better_profanity)   │
+ │ • Fast Aho-Corasick automaton (O(N) single-pass scan across 50,000+ words)  │
+ │ • Multi-tier severity categorization (Severe: 0.90+, Mod: 0.75+, Mild: 0.5)  │
+ │ • Word boundary verification eliminating substring false-positives           │
+ │ • Target Latency: P99 < 3ms (100% traffic)                                   │
+ └──────────────────────────────────────┬───────────────────────────────────────┘
+                                         │
+                                         ▼
+ ┌──────────────────────────────────────────────────────────────────────────────┐
+ │ L2: CONTEXTUAL ML CLASSIFIERS (services/guardrails_ml/ - Port 8011)         │
+ │ • Contextual Toxicity Classifier                                             │
+ │   - Detects hate/harassment without explicit banned words                    │
+ │   - Disambiguates technical context ("kill deployment" vs "kill him")       │
+ │ • Prompt Injection & Jailbreak Neural Classifier                             │
+ │   - Detects DAN, role reversal, delimiter escaping, system prompt bypass     │
+ │ • Target Latency: 20-50ms (runs across standard traffic)                     │
+ └──────────────────────────────────────┬───────────────────────────────────────┘
+                                         │
+                                         ▼
+ ┌──────────────────────────────────────────────────────────────────────────────┐
+ │ L3: ATTACK CORPUS SEMANTIC VECTOR SIMILARITY (services/guardrails_ml/)       │
+ │ • 384-dimensional dense semantic embeddings                                 │
+ │ • Seed attack corpus (known jailbreak templates, prompt exfiltration)       │
+ │ • Continuous Feedback Loop: Auto-ingests confirmed human review attacks      │
+ │ • Target Latency: 15-30ms (Gated to Medium/High Risk Tiers)                  │
+ └──────────────────────────────────────┬───────────────────────────────────────┘
+                                         │
+                                         ▼
+ ┌──────────────────────────────────────────────────────────────────────────────┐
+ │ L4: LLM-AS-JUDGE (services/output_guard/verification/judge.py)               │
+ │ • Deep contextual verification for highest-risk or ambiguous cases           │
+ └──────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 

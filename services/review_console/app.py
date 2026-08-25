@@ -194,6 +194,29 @@ async def resolve_escalation(interaction_id: str, action: ReviewAction):
         ))
         await db.commit()
 
+        # Ingest confirmed true positive attack into L3 Vector Store
+        if action.was_original_flag_correct or action.action in ("deny", "block"):
+            try:
+                payload_content = ""
+                if row and row["payload"]:
+                    p_data = json.loads(row["payload"])
+                    payload_content = p_data.get("content", "")
+                
+                if payload_content:
+                    client = get_http_client()
+                    await client.post(
+                        f"{GUARDRAILS_ML_URL}/corpus/add",
+                        json={
+                            "text": payload_content,
+                            "pattern_type": "confirmed_human_review",
+                            "source": "review_console"
+                        },
+                        timeout=2.0
+                    )
+                    logger.info(f"Ingested confirmed attack payload from interaction {interaction_id} into L3 vector store")
+            except Exception as e:
+                logger.warning(f"Failed to ingest attack payload into vector store: {e}")
+
         # Re-fetch updated row
         cursor = await db.execute("SELECT * FROM escalations WHERE interaction_id = ?", (interaction_id,))
         updated_row = await cursor.fetchone()

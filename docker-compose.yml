@@ -55,6 +55,13 @@ services:
       - "8004:8004"
     env_file: .env
 
+  guardrails-ml:
+    build: .
+    command: python -m uvicorn services.guardrails_ml.app:app --host 0.0.0.0 --port 8011
+    ports:
+      - "8011:8011"
+    env_file: .env
+
   input-guard:
     build: .
     command: python -m uvicorn services.input_guard.app:app --host 0.0.0.0 --port 8001

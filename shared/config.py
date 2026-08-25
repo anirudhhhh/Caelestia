@@ -45,6 +45,7 @@ AUDIT_STORE_URL = get_env("AUDIT_STORE_URL", "http://localhost:8007")
 REVIEW_CONSOLE_URL = get_env("REVIEW_CONSOLE_URL", "http://localhost:8008")
 IMMUNE_SYSTEM_URL = get_env("IMMUNE_SYSTEM_URL", "http://localhost:8009")
 ACTION_GUARD_URL = get_env("ACTION_GUARD_URL", "http://localhost:8010")
+GUARDRAILS_ML_URL = get_env("GUARDRAILS_ML_URL", "http://localhost:8011")
 
 # ─── LLM Configuration ───────────────────────────────────────────────────────
 

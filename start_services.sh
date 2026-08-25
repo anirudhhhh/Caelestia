@@ -55,6 +55,7 @@ echo -e "\n${BLUE}Phase 1: Core Infrastructure${NC}"
 start_service "Audit Store"       "audit_store"     8007
 start_service "PII Service"       "pii_service"     8003
 start_service "Policy Engine"     "policy_engine"   8004
+start_service "Guardrails ML"     "guardrails_ml"   8011
 sleep 1
 
 echo -e "\n${BLUE}Phase 2: Guards${NC}"

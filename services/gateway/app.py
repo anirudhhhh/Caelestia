@@ -20,7 +20,7 @@ from shared.config import (
     setup_logging, INPUT_GUARD_URL, ROUTER_URL, ADAPTER_URL,
     OUTPUT_GUARD_URL, AUDIT_STORE_URL, ACTION_GUARD_URL,
     REVIEW_CONSOLE_URL, POLICY_ENGINE_URL, IMMUNE_SYSTEM_URL,
-    CONTROLPLANE_SYSTEM_PROMPT
+    GUARDRAILS_ML_URL, CONTROLPLANE_SYSTEM_PROMPT
 )
 
 logger = setup_logging("gateway")
@@ -88,6 +88,7 @@ async def aggregate_health():
         "review_console": REVIEW_CONSOLE_URL,
         "immune_system": IMMUNE_SYSTEM_URL,
         "action_guard": ACTION_GUARD_URL,
+        "guardrails_ml": GUARDRAILS_ML_URL,
     }
     results = {}
     client = get_http_client()
