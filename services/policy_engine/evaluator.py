@@ -99,27 +99,39 @@ class PolicyEvaluator:
             logger.info(f"[{req.interaction_id}] Policy evaluated: use_case={req.use_case.value} geo={req.geography.value} check={check.check_name} (score={score:.2f}, block_thresh={block_thresh}, verdict={check.verdict.value})")
 
             if check.verdict == CheckVerdict.FAIL:
-                return self._create_response(DecisionAction.BLOCK, f"Failed {check.check_name} check (score: {score:.2f} >= {block_thresh})", RiskTier.HIGH, score, checks=req.checks)
+                trigger_layer = check.layer or check.engine or "L1_lexicon"
+                return self._create_response(
+                    DecisionAction.BLOCK,
+                    f"Failed {check.check_name} check (score: {score:.2f} >= {block_thresh})",
+                    RiskTier.HIGH,
+                    score,
+                    checks=req.checks,
+                    blocked_by_layer=trigger_layer
+                )
             
             if check.verdict == CheckVerdict.WARN:
                 warn_count += 1
-                reasons.append(f"Warning on {check.check_name} (score: {score:.2f})")
+                warn_layer = check.layer or check.engine or "L1_lexicon"
+                reasons.append((f"Warning on {check.check_name} (score: {score:.2f})", warn_layer))
         
         # Compound logic
         if warn_count > 1:
-            return self._create_response(DecisionAction.ESCALATE, f"Multiple warnings: {', '.join(reasons)}", RiskTier.MEDIUM, highest_score, checks=req.checks)
+            layers_str = ", ".join(r[1] for r in reasons)
+            reasons_str = ", ".join(r[0] for r in reasons)
+            return self._create_response(DecisionAction.ESCALATE, f"Multiple warnings: {reasons_str}", RiskTier.MEDIUM, highest_score, checks=req.checks, blocked_by_layer=reasons[0][1])
         elif warn_count == 1:
-            return self._create_response(DecisionAction.FLAG, reasons[0], RiskTier.MEDIUM, highest_score, checks=req.checks)
+            return self._create_response(DecisionAction.FLAG, reasons[0][0], RiskTier.MEDIUM, highest_score, checks=req.checks, blocked_by_layer=reasons[0][1])
         
         return self._create_response(DecisionAction.ALLOW, "All checks passed", RiskTier.LOW, highest_score, checks=req.checks)
 
-    def _create_response(self, action: DecisionAction, reason: str, tier: RiskTier, confidence: float, checks: list = None) -> PolicyDecisionResponse:
+    def _create_response(self, action: DecisionAction, reason: str, tier: RiskTier, confidence: float, checks: list = None, blocked_by_layer: str = None) -> PolicyDecisionResponse:
         return PolicyDecisionResponse(
             decision=Decision(
                 action=action,
                 reason=reason,
                 policy_version=self.version,
                 decided_by="policy_engine",
+                blocked_by_layer=blocked_by_layer,
                 confidence=confidence
             ),
             risk=RiskAssessment(

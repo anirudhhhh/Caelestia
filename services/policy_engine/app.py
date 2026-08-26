@@ -1,8 +1,10 @@
 import hashlib
 import sys
+import uuid
 import yaml
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from pydantic import BaseModel
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -82,6 +84,92 @@ async def receive_threshold_proposal(proposal: ThresholdProposal):
     logger.info(f"Received proposal: {proposal.proposal_id} for {proposal.check_name}")
     # In a real system, this would be persisted to a DB and evaluated by humans/immune system
     return {"status": "received", "proposal_id": proposal.proposal_id}
+
+class PolicyExtractRequest(BaseModel):
+    text: str
+    title: Optional[str] = None
+
+@app.post("/v1/policies/extract")
+async def extract_structured_policy_rule(req: PolicyExtractRequest):
+    """
+    Extracts structured rule (entities, prohibited actions, destination, action)
+    from plain language enterprise policy text (§3.8 & §5).
+    """
+    raw_text = req.text.strip()
+    if not raw_text:
+        raise HTTPException(status_code=400, detail="Policy text cannot be empty")
+    
+    text_lower = raw_text.lower()
+    
+    # 1. Extract Entities
+    entities = []
+    entity_keywords = {
+        "EMAIL": ["email", "e-mail", "inbox"],
+        "SSN": ["ssn", "social security", "national id", "tax id"],
+        "CREDIT_CARD": ["credit card", "debit card", "cvv", "payment card", "pan"],
+        "PHONE": ["phone", "telephone", "mobile number"],
+        "API_KEY": ["api key", "apikey", "secret", "token", "password", "credential"],
+        "FINANCIAL_DATA": ["revenue", "salary", "earnings", "financial report", "quarterly results"],
+        "SOURCE_CODE": ["source code", "proprietary code", "git repository", "intellectual property"],
+        "CUSTOMER_DATA": ["customer record", "client data", "patient record", "medical record"]
+    }
+    for etype, kws in entity_keywords.items():
+        if any(kw in text_lower for kw in kws):
+            entities.append(etype)
+    if not entities:
+        entities = ["CONFIDENTIAL_DATA"]
+
+    # 2. Extract Prohibited Actions
+    prohibited_actions = []
+    action_keywords = {
+        "share": ["share", "sharing", "distribute"],
+        "send": ["send", "sending", "transmit"],
+        "upload": ["upload", "export", "paste"],
+        "disclose": ["disclose", "reveal", "leak"],
+        "store": ["store", "save", "persist"]
+    }
+    for act, kws in action_keywords.items():
+        if any(kw in text_lower for kw in kws):
+            prohibited_actions.append(act)
+    if not prohibited_actions:
+        prohibited_actions = ["share", "send", "upload"]
+
+    # 3. Extract Destination
+    destination = ["EXTERNAL_AI"]
+    if "third party" in text_lower or "vendor" in text_lower:
+        destination.append("THIRD_PARTY")
+    if "public" in text_lower or "internet" in text_lower:
+        destination.append("PUBLIC_WEB")
+
+    # 4. Action Outcome
+    action = "BLOCK"
+    if "redact" in text_lower or "mask" in text_lower:
+        action = "REDACT"
+    elif "escalate" in text_lower or "review" in text_lower or "human" in text_lower:
+        action = "ESCALATE"
+
+    policy_id = f"pol_{uuid.uuid4().hex[:8]}"
+    short_desc = req.title or (raw_text[:80] + ("..." if len(raw_text) > 80 else ""))
+
+    # 5. Compute 384-d Embedding
+    from services.router.vector_router import vector_db_router
+    embedding = vector_db_router.compute_embedding(raw_text)
+
+    structured_rule = {
+        "entities": entities,
+        "prohibited_actions": prohibited_actions,
+        "destination": destination,
+        "action": action
+    }
+
+    return {
+        "policy_id": policy_id,
+        "short_description": short_desc,
+        "raw_text": raw_text,
+        "structured_rule": structured_rule,
+        "embedding": embedding,
+        "status": "draft"
+    }
 
 @app.get("/healthz")
 async def healthz():

@@ -150,13 +150,25 @@ def _enum_val(v):
 # ─── Chat Completions (main endpoint) ─────────────────────────────────────────
 
 @app.post("/v1/chat/completions")
-async def chat_completions(req: ChatRequest, token: str = Depends(optional_auth)):
+async def chat_completions(
+    req: ChatRequest,
+    x_use_case: Optional[str] = Header(None, alias="X-ControlPlane-UseCase"),
+    x_geo: Optional[str] = Header(None, alias="X-ControlPlane-Geo"),
+    token: str = Depends(optional_auth)
+):
     start_time = time.time()
+
+    # Honor enterprise X-ControlPlane headers if provided by caller
+    if x_use_case and x_use_case.lower() in [u.value for u in UseCase]:
+        req.use_case = UseCase(x_use_case.lower())
+    if x_geo and x_geo.upper() in [g.value for g in Geography]:
+        req.geography = Geography(x_geo.upper())
 
     interaction_id = str(uuid.uuid4())
     session_id = req.session_id or str(uuid.uuid4())
     last_message = req.messages[-1]
 
+    pii_decl = req.pii or req.allowed_pii or []
     envelope = InteractionEnvelope(
         interaction_id=interaction_id,
         session_id=session_id,
@@ -164,6 +176,7 @@ async def chat_completions(req: ChatRequest, token: str = Depends(optional_auth)
         geography=req.geography,
         direction=Direction.INPUT,
         payload=Payload(role=PayloadRole(last_message.role), content=last_message.content),
+        pii_declaration=pii_decl,
     )
 
     if req.model:
@@ -180,11 +193,8 @@ async def chat_completions(req: ChatRequest, token: str = Depends(optional_auth)
                 envelope = InteractionEnvelope(**resp.json())
         except Exception as e:
             logger.error(f"[{interaction_id}] Input Guard failed: {e}")
-            if req.use_case == UseCase.DECISION_SUPPORT:
-                raise HTTPException(status_code=503, detail="Input Guard unavailable")
-
+        latency = (time.time() - start_time) * 1000
         if envelope.decision.action == DecisionAction.BLOCK:
-            latency = (time.time() - start_time) * 1000
             asyncio.create_task(log_audit_async({
                 "interaction_id": interaction_id,
                 "session_id": session_id,
@@ -195,6 +205,7 @@ async def chat_completions(req: ChatRequest, token: str = Depends(optional_auth)
                 "decision_action": _enum_val(envelope.decision.action),
                 "policy_version": envelope.decision.policy_version,
             }))
+            sanitizer_data = envelope.metadata.get("sanitizer_output", {})
             return ChatResponse(
                 interaction_id=interaction_id,
                 session_id=session_id,
@@ -202,6 +213,9 @@ async def chat_completions(req: ChatRequest, token: str = Depends(optional_auth)
                 decision=envelope.decision,
                 checks_summary=[c.model_dump() for c in envelope.checks],
                 risk=envelope.risk,
+                warnings=[{"type": "PII", "message": w} for w in envelope.metadata.get("warnings", [])],
+                detected_pii=sanitizer_data.get("detected_pii", []),
+                blocked_pii=envelope.decision.blocked_entities or sanitizer_data.get("blocked_pii", []),
                 latency_ms=latency,
             )
 
@@ -335,8 +349,8 @@ async def chat_completions(req: ChatRequest, token: str = Depends(optional_auth)
                 "payload": escalation_payload,
             }))
 
-        latency = (time.time() - start_time) * 1000
-
+        all_warnings = envelope.metadata.get("warnings", []) + output_envelope.metadata.get("warnings", [])
+        sanitizer_data = envelope.metadata.get("sanitizer_output", {})
         response = ChatResponse(
             interaction_id=interaction_id,
             session_id=session_id,
@@ -345,6 +359,9 @@ async def chat_completions(req: ChatRequest, token: str = Depends(optional_auth)
             decision=combined_decision,
             checks_summary=combined_checks,
             risk=RiskAssessment(tier=combined_tier, confidence=combined_decision.confidence),
+            warnings=[{"type": "PII", "message": w} for w in all_warnings],
+            detected_pii=sanitizer_data.get("detected_pii", []),
+            blocked_pii=[],
             latency_ms=latency,
         )
 
@@ -493,6 +510,58 @@ async def appeal_blocked_request(body: Dict[str, Any]):
     use_case = body.get("use_case") or "customer_support"
     geography = body.get("geography") or "US"
     checks = body.get("checks_summary") or body.get("checks") or []
+    
+    direction = body.get("direction") or "input"
+    payload = body.get("payload") or {"role": "user" if direction == "input" else "assistant", "content": content}
+    risk_tier = body.get("risk_tier") or "high"
+
+    client = get_http_client()
+    
+    # Check if request has already been reviewed and denied by a human operator
+    try:
+        ex_resp = await client.get(f"{REVIEW_CONSOLE_URL}/escalations/{interaction_id}", timeout=2.0)
+        if ex_resp.status_code == 200:
+            ex_data = ex_resp.json()
+            if ex_data.get("status") == "resolved" and ex_data.get("resolution") == "deny":
+                raise HTTPException(status_code=400, detail="This request has already been reviewed and denied by a human reviewer. Additional appeals are disabled.")
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+
+    # Query Audit Store for exact blocked event (preserves blocked assistant output payload & checks)
+    try:
+        audit_resp = await client.get(f"{AUDIT_STORE_URL}/events/{interaction_id}", timeout=2.0)
+        if audit_resp.status_code == 200:
+            a_json = audit_resp.json()
+            events = a_json.get("events") if isinstance(a_json, dict) and "events" in a_json else ([a_json] if isinstance(a_json, dict) and "interaction_id" in a_json else [])
+            if events and isinstance(events, list) and len(events) > 0:
+                ev = events[0]
+                direction = ev.get("direction") or direction
+                env = ev.get("envelope") or {}
+                if env.get("payload"):
+                    payload = env["payload"]
+                if env.get("checks"):
+                    checks = env["checks"]
+                risk = env.get("risk", {}) or {}
+                if risk.get("tier"):
+                    risk_tier = risk["tier"]
+    except Exception as e:
+        logger.warning(f"Could not fetch audit event for interaction {interaction_id}: {e}")
+
+    # Normalize payload format to valid dict for EscalationItem model validation
+    if isinstance(payload, str):
+        payload = {"role": "user" if direction == "input" else "assistant", "content": payload}
+    elif isinstance(payload, dict):
+        p_dict = dict(payload)
+        if "role" not in p_dict or not p_dict["role"]:
+            p_dict["role"] = "user" if direction == "input" else "assistant"
+        if "content" not in p_dict:
+            p_dict["content"] = content or ""
+        payload = p_dict
+    else:
+        payload = {"role": "user" if direction == "input" else "assistant", "content": content or ""}
+
     sanitized_checks = []
     for c in checks:
         if isinstance(c, dict):
@@ -503,21 +572,22 @@ async def appeal_blocked_request(body: Dict[str, Any]):
                 "score": float(c.get("score", 0.0)),
                 "verdict": c.get("verdict", "fail"),
                 "latency_ms": float(c.get("latency_ms", 0.0)),
+                "layer": c.get("layer"),
                 "details": c.get("details", {})
             })
 
     item_data = {
         "interaction_id": interaction_id,
         "session_id": session_id,
-        "direction": "input",
+        "direction": direction,
         "use_case": use_case,
         "geography": geography,
-        "risk_tier": "high",
+        "risk_tier": risk_tier,
         "escalation_reason": f"Manual User Appeal (Blocked): {reason}",
         "checks": sanitized_checks,
-        "payload": {"role": "user", "content": content},
+        "payload": payload,
     }
-    client = get_http_client()
+    
     resp = await client.post(f"{REVIEW_CONSOLE_URL}/escalations", json=item_data)
     if resp.status_code != 200:
         raise HTTPException(status_code=500, detail=f"Failed to register user appeal in Review Console: {resp.text}")
@@ -861,3 +931,79 @@ async def guard_action(body: Dict[str, Any]):
     client = get_http_client()
     resp = await client.post(f"{ACTION_GUARD_URL}/guard", json=body)
     return resp.json() if resp.status_code == 200 else {}
+
+# ─── Proxy: Secrets, Policy Library, Configs & Vault (§4 & §5) ────────────────
+
+@app.post("/v1/secrets/register")
+async def proxy_register_secret(body: Dict[str, Any]):
+    client = get_http_client()
+    resp = await client.post(f"{AUDIT_STORE_URL}/v1/secrets/register", json=body)
+    return resp.json() if resp.status_code == 200 else {}
+
+@app.get("/v1/secrets")
+async def proxy_list_secrets():
+    client = get_http_client()
+    resp = await client.get(f"{AUDIT_STORE_URL}/v1/secrets")
+    return resp.json() if resp.status_code == 200 else {"secrets": []}
+
+@app.post("/v1/secrets/{secret_id}/revoke")
+async def proxy_revoke_secret(secret_id: str):
+    client = get_http_client()
+    resp = await client.post(f"{AUDIT_STORE_URL}/v1/secrets/{secret_id}/revoke")
+    return resp.json() if resp.status_code == 200 else {}
+
+@app.post("/v1/policies/extract")
+async def proxy_extract_policy(body: Dict[str, Any]):
+    client = get_http_client()
+    resp = await client.post(f"{POLICY_ENGINE_URL}/v1/policies/extract", json=body)
+    return resp.json() if resp.status_code == 200 else {}
+
+@app.post("/v1/policies/structured")
+async def proxy_save_structured_policy(body: Dict[str, Any]):
+    client = get_http_client()
+    resp = await client.post(f"{AUDIT_STORE_URL}/v1/policies", json=body)
+    return resp.json() if resp.status_code == 200 else {}
+
+@app.get("/v1/policies/structured")
+async def proxy_list_structured_policies(status: Optional[str] = None):
+    client = get_http_client()
+    params = {"status": status} if status else {}
+    resp = await client.get(f"{AUDIT_STORE_URL}/v1/policies", params=params)
+    return resp.json() if resp.status_code == 200 else {"policies": []}
+
+@app.get("/v1/policies/structured/{policy_id}/history")
+async def proxy_get_policy_history(policy_id: str):
+    client = get_http_client()
+    resp = await client.get(f"{AUDIT_STORE_URL}/v1/policies/{policy_id}/history")
+    return resp.json() if resp.status_code == 200 else {"history": []}
+
+@app.post("/v1/policies/structured/{policy_id}/archive")
+async def proxy_archive_policy(policy_id: str):
+    client = get_http_client()
+    resp = await client.post(f"{AUDIT_STORE_URL}/v1/policies/{policy_id}/archive")
+    return resp.json() if resp.status_code == 200 else {}
+
+@app.get("/v1/configs/{use_case_id}")
+async def proxy_get_use_case_config(use_case_id: str):
+    client = get_http_client()
+    resp = await client.get(f"{AUDIT_STORE_URL}/v1/configs/{use_case_id}")
+    return resp.json() if resp.status_code == 200 else {}
+
+@app.post("/v1/configs/{use_case_id}")
+async def proxy_save_use_case_config(use_case_id: str, body: Dict[str, Any]):
+    client = get_http_client()
+    resp = await client.post(f"{AUDIT_STORE_URL}/v1/configs/{use_case_id}", json=body)
+    return resp.json() if resp.status_code == 200 else {}
+
+@app.get("/v1/configs/{use_case_id}/history")
+async def proxy_get_use_case_config_history(use_case_id: str):
+    client = get_http_client()
+    resp = await client.get(f"{AUDIT_STORE_URL}/v1/configs/{use_case_id}/history")
+    return resp.json() if resp.status_code == 200 else {"history": []}
+
+@app.post("/v1/vault/{interaction_id}/reveal")
+async def proxy_reveal_vault(interaction_id: str, body: Dict[str, Any]):
+    client = get_http_client()
+    resp = await client.post(f"{AUDIT_STORE_URL}/v1/vault/{interaction_id}/reveal", params={"placeholder_id": body.get("placeholder_id", "")})
+    return resp.json() if resp.status_code == 200 else {}
+

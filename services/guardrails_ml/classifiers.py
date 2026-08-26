@@ -24,6 +24,18 @@ TECHNICAL_SAFE_CONTEXTS = [
     r'\bkillall\b'
 ]
 
+POP_CULTURE_SAFE_CONTEXTS = [
+    r'\bkiller\s+bunnies\b',
+    r'\bkiller\s+whale\b',
+    r'\bkill\s+bill\b',
+    r'\bto\s+kill\s+a\s+mockingbird\b',
+    r'\bkill\s+switch\b',
+    r'\bkiller\s+app\b',
+    r'\bkiller\s+instinct\b',
+    r'\brabbit\s+of\s+caerbannog\b',
+    r'\bmonty\s+python\b'
+]
+
 # Reframed Hostility Patterns (No explicit profanity, but hateful/harassing framing)
 REFRAMED_HOSTILITY_PATTERNS = [
     (r'\bpeople\s+like\s+you\s+(?:shouldn\'t|should\s+not)\s+be\s+allowed\b', 0.85, "marginalization"),
@@ -44,7 +56,7 @@ PROMPT_INJECTION_NEURAL_PATTERNS = [
 ]
 
 class ContextualToxicityClassifier:
-    """Evaluates contextual toxicity with technical context filtering."""
+    """Evaluates contextual toxicity with technical and pop-culture context filtering."""
 
     def predict(self, text: str) -> Dict[str, Any]:
         start = time.time()
@@ -58,6 +70,16 @@ class ContextualToxicityClassifier:
                     "score": 0.05,
                     "verdict": "safe_technical_context",
                     "reason": "Matched technical command context (e.g. process/thread/table operation)",
+                    "latency_ms": (time.time() - start) * 1000
+                }
+
+        # 2. Check Pop-Culture / Media / Gaming Safe Contexts
+        for pattern in POP_CULTURE_SAFE_CONTEXTS:
+            if re.search(pattern, text_lower):
+                return {
+                    "score": 0.05,
+                    "verdict": "safe_pop_culture_context",
+                    "reason": "Matched pop-culture, media, or gaming title context (e.g. Killer Bunnies, Monty Python)",
                     "latency_ms": (time.time() - start) * 1000
                 }
 

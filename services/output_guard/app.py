@@ -56,18 +56,54 @@ async def shutdown_event():
     if HTTP_CLIENT and not HTTP_CLIENT.is_closed:
         await HTTP_CLIENT.aclose()
 
-async def scan_pii(text: str) -> CheckResult:
+def normalize_pii_type(etype: str) -> str:
+    etype_upper = etype.upper()
+    if "EMAIL" in etype_upper:
+        return "EMAIL"
+    if "PHONE" in etype_upper:
+        return "PHONE"
+    if "LOCATION" in etype_upper or "ADDRESS" in etype_upper:
+        return "ADDRESS"
+    if "SSN" in etype_upper or "SOCIAL_SECURITY" in etype_upper:
+        return "SSN"
+    if "PAN" in etype_upper:
+        return "PAN"
+    if "CREDIT_CARD" in etype_upper or "CARD" in etype_upper:
+        return "CREDIT_CARD"
+    if "AADHAAR" in etype_upper:
+        return "AADHAAR"
+    if "BANK" in etype_upper or "ACCOUNT" in etype_upper:
+        return "BANK_ACCOUNT"
+    return etype_upper
+
+async def scan_pii(text: str, pii_permissions: dict = None) -> CheckResult:
+    if pii_permissions is None:
+        pii_permissions = {"EMAIL": "allow", "PHONE": "allow", "ADDRESS": "allow"}
     try:
         client = get_http_client()
         resp = await client.post(f"{PII_SERVICE_URL}/detect", json={"text": text}, timeout=3.0)
         resp.raise_for_status()
         entities = resp.json().get("entities", [])
-        score = max((e["score"] for e in entities), default=0.0)
+        
+        blocked = []
+        for e in entities:
+            norm_type = normalize_pii_type(e.get("entity_type", ""))
+            if pii_permissions.get(norm_type, "block") != "allow":
+                blocked.append(norm_type)
+                
+        if blocked:
+            return CheckResult(
+                check_name="pii",
+                engine="pii_service",
+                score=1.0,
+                verdict=CheckVerdict.FAIL,
+                details={"blocked_pii": blocked, "entities_found": len(entities)}
+            )
         return CheckResult(
             check_name="pii",
             engine="pii_service",
-            score=score,
-            verdict=CheckVerdict.FAIL if score >= 0.7 else CheckVerdict.PASS,
+            score=0.0,
+            verdict=CheckVerdict.PASS,
             details={"entities_found": len(entities)}
         )
     except Exception as e:
@@ -81,32 +117,53 @@ async def healthz():
 @app.post("/scan", response_model=InteractionEnvelope)
 async def scan_output(envelope: InteractionEnvelope):
     text = envelope.payload.content
-    logger.info(f"[{envelope.interaction_id}] Scanning output payload")
+    content_type = envelope.metadata.get("content_type", "prose")
+    logger.info(f"[{envelope.interaction_id}] Scanning output payload (content_type={content_type})")
     
     start_time = time.time()
 
     # ── L0 Normalization & L1 Lexicon Scanning ──────────────────────────────
     norm = normalize_text(text)
-    l1_res = lexicon_scanner.scan_text(text)
+    
+    if content_type in ("json", "code", "opaque"):
+        # Skip conversational toxicity for structured formats
+        toxicity_result = CheckResult(
+            check_name="toxicity",
+            engine="aho_corasick_and_contextual_ml",
+            score=0.0,
+            verdict=CheckVerdict.NOT_APPLICABLE,
+            layer="L0_normalization",
+            details={"reason": f"Skipped for {content_type} content_type"}
+        )
+    else:
+        l1_res = lexicon_scanner.scan_text(text)
 
-    # ── L2 Contextual Toxicity Call ─────────────────────────────────────────
-    ml_toxicity_score = 0.0
-    try:
-        client = get_http_client()
-        ml_resp = await client.post(f"{GUARDRAILS_ML_URL}/classify/toxicity", json={"text": text}, timeout=3.0)
-        if ml_resp.status_code == 200:
-            ml_toxicity_score = float(ml_resp.json().get("score", 0.0))
-    except Exception:
-        pass
+        # ── L2 Contextual Toxicity Call ─────────────────────────────────────────
+        ml_toxicity_score = 0.0
+        ml_verdict = ""
+        try:
+            client = get_http_client()
+            ml_resp = await client.post(f"{GUARDRAILS_ML_URL}/classify/toxicity", json={"text": text}, timeout=3.0)
+            if ml_resp.status_code == 200:
+                ml_data = ml_resp.json()
+                ml_toxicity_score = float(ml_data.get("score", 0.0))
+                ml_verdict = ml_data.get("verdict", "")
+        except Exception:
+            pass
 
-    final_toxicity_score = max(l1_res["score"], ml_toxicity_score)
-    toxicity_result = CheckResult(
-        check_name="toxicity",
-        engine="aho_corasick_and_contextual_ml",
-        score=final_toxicity_score,
-        verdict=CheckVerdict.FAIL if final_toxicity_score >= 0.80 else CheckVerdict.PASS,
-        details={"matches": l1_res["all_matches"]}
-    )
+        final_toxicity_score = max(l1_res["score"], ml_toxicity_score)
+        if ml_verdict in ("safe_technical_context", "safe_pop_culture_context"):
+            final_toxicity_score = 0.05
+
+        toxicity_layer = "L2_contextual_ml" if ml_toxicity_score > l1_res["score"] else "L1_lexicon"
+        toxicity_result = CheckResult(
+            check_name="toxicity",
+            engine="aho_corasick_and_contextual_ml",
+            score=final_toxicity_score,
+            verdict=CheckVerdict.FAIL if final_toxicity_score >= 0.80 else CheckVerdict.PASS,
+            layer=toxicity_layer,
+            details={"matches": l1_res["all_matches"], "ml_verdict": ml_verdict}
+        )
 
     tasks = [
         asyncio.to_thread(scan_sensitive_data, text),
@@ -114,8 +171,8 @@ async def scan_output(envelope: InteractionEnvelope):
         scan_pii(text)
     ]
     
-    # L4 AI-as-judge only for medium/high risk tiers
-    if envelope.risk.tier in (RiskTier.MEDIUM, RiskTier.HIGH):
+    # L4 AI-as-judge for medium/high/critical risk tiers
+    if envelope.risk.tier in (RiskTier.MEDIUM, RiskTier.HIGH, RiskTier.CRITICAL):
         tasks.append(verify_hallucination(text))
         
     results = await asyncio.gather(*tasks)
@@ -123,6 +180,14 @@ async def scan_output(envelope: InteractionEnvelope):
     envelope.checks.append(toxicity_result)
     for r in results:
         r.latency_ms = (time.time() - start_time) * 1000
+        if r.check_name == "sensitive_data":
+            r.layer = "detect_secrets"
+        elif r.check_name == "system_prompt_leakage":
+            r.layer = "L1_fast_patterns"
+        elif r.check_name == "pii":
+            r.layer = "pii_service"
+        elif r.check_name == "hallucination":
+            r.layer = "L4_llm_judge"
         envelope.checks.append(r)
         
     # Call Policy Engine

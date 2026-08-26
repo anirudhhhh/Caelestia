@@ -4,10 +4,13 @@ import type { UseCase, Geography, InteractionEnvelope, WorkflowEndpoint } from '
 export interface PlaygroundMessage {
   role: 'user' | 'assistant';
   content: string;
-  action?: 'allow' | 'block' | 'flag' | 'escalate';
+  action?: 'allow' | 'block' | 'flag' | 'escalate' | 'deny';
   reason?: string;
   interaction_id?: string;
   isGreeting?: boolean;
+  payload?: any;
+  direction?: string;
+  isHumanDenied?: boolean;
 }
 
 const DEFAULT_GREETING: PlaygroundMessage = {

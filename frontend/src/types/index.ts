@@ -42,6 +42,9 @@ export interface Decision {
   reason: string;
   confidence: number;
   policy_version: string;
+  blocked_entities?: string[];
+  blocked_by_layer?: string;
+  details?: Record<string, any>;
 }
 
 export interface InteractionEnvelope {
@@ -56,6 +59,9 @@ export interface InteractionEnvelope {
   decision: Decision;
   latency_breakdown: Record<string, number>;
   model_used?: string;
+  warnings?: Array<{ type: string; message: string }>;
+  detected_pii?: string[];
+  blocked_pii?: string[];
 }
 
 export interface ChatRequest {
@@ -65,6 +71,8 @@ export interface ChatRequest {
   model?: string;
   session_id?: string;
   max_tokens?: number;
+  pii?: string[];
+  allowed_pii?: string[];
 }
 
 export interface ChatResponse {
@@ -75,6 +83,9 @@ export interface ChatResponse {
   decision: Decision;
   checks_summary: CheckResult[];
   risk: Pick<RiskAssessment, "tier" | "confidence">;
+  warnings?: Array<{ type: string; message: string }>;
+  detected_pii?: string[];
+  blocked_pii?: string[];
   latency_ms: number;
   tool_results: Record<string, any>[];
 }

@@ -1,0 +1,101 @@
+# ControlPlane.ai — Enterprise Safety & Governance Policy
+# Version: 1.0.0
+# Description: Default Enterprise Baseline Security & Privacy Configuration
+
+version: "1.0.0"
+author: "security_admin"
+updated_at: "2026-08-26T00:00:00Z"
+
+# ─── 1. Enterprise Global PII Permissions Matrix ─────────────────────────────
+# Rule: Default is DENY/BLOCK for any PII type not explicitly marked 'allow'.
+pii_permissions:
+  customer_support:
+    EMAIL: allow           # Permitted for customer communication & dispatch
+    PHONE: allow           # Permitted for account verification
+    ADDRESS: allow         # Permitted for shipping / service dispatch
+    SSN: block             # STRICT BLOCK: Social Security numbers never allowed in support
+    CREDIT_CARD: block     # STRICT BLOCK: Payment card numbers prohibited
+    PAN: block             # STRICT BLOCK: Indian PAN cards prohibited
+    AADHAAR: block         # STRICT BLOCK: Indian Aadhaar numbers prohibited
+    BANK_ACCOUNT: block    # STRICT BLOCK: Bank account numbers prohibited
+    GOVERNMENT_ID: block   # STRICT BLOCK: Driver license & Passports prohibited
+
+  internal_copilot:
+    EMAIL: allow
+    PHONE: allow
+    ADDRESS: allow
+    SSN: block
+    CREDIT_CARD: block
+    PAN: block
+    AADHAAR: block
+    BANK_ACCOUNT: block
+    GOVERNMENT_ID: block
+
+  decision_support:
+    EMAIL: allow
+    PHONE: allow
+    ADDRESS: allow
+    SSN: block
+    CREDIT_CARD: block
+    PAN: block
+    AADHAAR: block
+    BANK_ACCOUNT: block
+    GOVERNMENT_ID: block
+
+# ─── 2. Threshold Rules per Security Check ────────────────────────────────────
+policies:
+  - use_case: "*"
+    geography: "*"
+    check: prompt_injection
+    block_threshold: 0.80
+    flag_threshold: 0.50
+    on_timeout: allow
+
+  - use_case: "*"
+    geography: "*"
+    check: secrets
+    block_threshold: 0.50
+    flag_threshold: 0.30
+    on_timeout: block
+
+  - use_case: "*"
+    geography: "*"
+    check: toxicity
+    block_threshold: 0.80
+    flag_threshold: 0.40
+    on_timeout: allow
+
+  - use_case: "*"
+    geography: "*"
+    check: pii
+    block_threshold: 0.75
+    flag_threshold: 0.40
+    on_timeout: allow
+
+  - use_case: "*"
+    geography: "*"
+    check: sensitive_data
+    block_threshold: 0.50
+    flag_threshold: 0.30
+    on_timeout: block
+
+  - use_case: "*"
+    geography: "*"
+    check: system_prompt_leakage
+    block_threshold: 0.70
+    flag_threshold: 0.40
+    on_timeout: block
+
+  - use_case: "*"
+    geography: "*"
+    check: brand_safety
+    block_threshold: 0.75
+    flag_threshold: 0.40
+    on_timeout: allow
+
+  - use_case: "*"
+    geography: "*"
+    check: hallucination_risk
+    block_threshold: 0.65
+    flag_threshold: 0.40
+    on_timeout: block

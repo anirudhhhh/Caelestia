@@ -14,7 +14,8 @@ import {
   ArrowRight,
   Bot,
   AlertTriangle,
-  UserCheck
+  UserCheck,
+  XCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -88,18 +89,35 @@ export default function Playground() {
       try {
         const item = await api.getEscalation(interactionId);
         if (item && item.status === "resolved") {
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "assistant" as const,
-              content:
-                item.resolution === "deny"
+          const isDenied = item.resolution === "deny";
+          setMessages((prev) => {
+            const updated = prev.map((m) => {
+              if (
+                m.interaction_id === interactionId ||
+                (m.action === "escalate" && m.content.includes("escalated"))
+              ) {
+                return {
+                  ...m,
+                  action: isDenied ? ("deny" as const) : ("allow" as const),
+                  isHumanDenied: isDenied,
+                };
+              }
+              return m;
+            });
+            return [
+              ...updated,
+              {
+                role: "assistant" as const,
+                content: isDenied
                   ? "Human Review Outcome: A reviewer reviewed and denied this request. It will not be executed."
                   : item.edited_content || "Human Review Outcome: A reviewer approved this request.",
-              action: item.resolution === "deny" ? "block" : "allow",
-              reason: item.resolution_reason || `Resolved by ${item.resolved_by || "reviewer"}`,
-            },
-          ]);
+                action: isDenied ? ("deny" as const) : ("allow" as const),
+                isHumanDenied: isDenied,
+                interaction_id: interactionId,
+                reason: item.resolution_reason || `Resolved by ${item.resolved_by || "reviewer"}`,
+              },
+            ];
+          });
           return;
         }
       } catch {
@@ -196,10 +214,14 @@ export default function Playground() {
 
     setAppealingId(targetId);
     try {
+      const targetMsg = messages[msgIdx];
+      const isOutputBlock = targetMsg?.role === "assistant";
       await api.appealBlockedRequest({
         interaction_id: targetId,
         session_id: sessionId || undefined,
-        content: userMsg,
+        content: targetMsg?.content || latestInteraction?.payload?.content || userMsg,
+        direction: isOutputBlock ? "output" : "input",
+        payload: targetMsg?.payload || latestInteraction?.payload || { role: isOutputBlock ? "assistant" : "user", content: userMsg },
         reason: "User requested human appeal for perimeter-blocked request",
         use_case: useCase,
         geography: geography,
@@ -366,8 +388,28 @@ export default function Playground() {
         <div className="flex-1 overflow-y-auto p-4">
           <div className="space-y-4 max-w-3xl mx-auto">
             {messages.map((msg, idx) => {
-              const isBlocked = msg.action === "block";
-              const isEscalated = msg.action === "escalate";
+              const isDenied = msg.action === "deny" || msg.isHumanDenied || msg.content.includes("reviewed and denied");
+              const isBlocked = msg.action === "block" && !isDenied;
+              const isEscalated = msg.action === "escalate" && !isDenied;
+
+              if (msg.role === "assistant" && isDenied) {
+                return (
+                  <div key={idx} className="flex w-full justify-start">
+                    <div className="max-w-[85%] rounded-lg p-3.5 bg-rose-500/10 border border-rose-500/40 text-foreground rounded-bl-sm space-y-2 shadow-sm">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-500">
+                        <XCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                        <span>Human Review Verdict: Request Denied</span>
+                        <Badge variant="outline" className="ml-auto text-[10px] text-rose-500 border-rose-500/40 font-mono bg-rose-500/10">
+                          Denied (Final)
+                        </Badge>
+                      </div>
+                      <p className="whitespace-pre-wrap text-xs text-foreground/90 font-mono bg-background/60 p-2.5 rounded border border-rose-500/20">
+                        {msg.content}
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
               
               if (msg.role === "assistant" && isBlocked) {
                 const targetInteractionId = msg.interaction_id || latestInteraction?.interaction_id;
@@ -386,6 +428,16 @@ export default function Playground() {
                       <p className="whitespace-pre-wrap text-xs text-foreground/90 font-mono bg-background/60 p-2.5 rounded border border-rose-500/20">
                         {msg.content}
                       </p>
+                      {latestInteraction?.decision?.blocked_entities && latestInteraction.decision.blocked_entities.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          <span className="text-[11px] font-medium text-rose-500">Prohibited PII Detected:</span>
+                          {latestInteraction.decision.blocked_entities.map((etype, eidx) => (
+                            <Badge key={eidx} variant="outline" className="text-[10px] font-mono bg-rose-500/10 border-rose-500/30 text-rose-400 font-bold">
+                              {etype}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                       <div className="pt-1.5 flex flex-wrap items-center justify-between gap-2 border-t border-rose-500/20">
                         <span className="text-[11px] text-muted-foreground">
                           Believe this was an over-strict block?
@@ -443,9 +495,15 @@ export default function Playground() {
                     className={`max-w-[80%] rounded-lg p-3 ${
                       msg.role === "user"
                         ? "bg-primary text-primary-foreground rounded-br-sm"
-                        : "bg-muted rounded-bl-sm border border-border text-foreground"
+                        : "bg-muted rounded-bl-sm border border-border text-foreground space-y-2"
                     }`}
                   >
+                    {msg.role === "assistant" && idx === messages.length - 1 && latestInteraction?.warnings && latestInteraction.warnings.length > 0 && (
+                      <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-500 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-md">
+                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                        <span>PII Policy Notice: Permitted PII detected and passed raw without redaction.</span>
+                      </div>
+                    )}
                     <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
                   </div>
                 </div>
@@ -564,38 +622,102 @@ export default function Playground() {
                 <TabsTrigger value="json">Raw JSON</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="checks" className="mt-4 space-y-4">
-                {latestInteraction.checks.map((check, idx) => (
-                  <Card key={idx} className="border-border shadow-none">
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between mb-2">
+              <TabsContent value="checks" className="mt-3 space-y-2.5">
+                {latestInteraction.checks.map((check, idx) => {
+                  const isInput = ["prompt_injection", "secrets"].includes(check.check_name);
+                  const isOutput = ["sensitive_data", "system_prompt_leakage"].includes(check.check_name);
+                  const boundaryLabel = isInput ? "Input" : (isOutput ? "Output" : "Ingress/Egress");
+
+                  const friendlyNames: Record<string, string> = {
+                    prompt_injection: "Prompt Injection Defense",
+                    toxicity: "Toxicity & Harassment",
+                    secrets: "Secret Credentials Scanner",
+                    sensitive_data: "Secret Leakage Guard",
+                    system_prompt_leakage: "System Prompt Leakage",
+                    pii: "PII & Privacy Engine",
+                    brand_safety: "Brand Safety Filter",
+                    hallucination: "Hallucination Risk"
+                  };
+
+                  const engineLabels: Record<string, string> = {
+                    aho_corasick_vector_deberta: "DeBERTa + Vector Index",
+                    aho_corasick_and_contextual_ml: "Neural Context Classifier",
+                    gitleaks_entropy_hmac: "Entropy & Gitleaks HMAC",
+                    detect_secrets_heuristic: "Shannon Entropy Scanner",
+                    pii_service: "Presidio NER + Global Rules",
+                    heuristic: "Structural Heuristic"
+                  };
+
+                  const displayName = friendlyNames[check.check_name] || check.check_name.replace(/_/g, " ");
+                  const displayEngine = engineLabels[check.engine] || check.engine;
+                  const scorePercent = (check.score * 100).toFixed(1);
+                  const isPassed = check.verdict === "pass" || (!check.verdict && check.score < 0.4);
+                  const isWarn = check.verdict === "warn" || (check.score >= 0.4 && check.score < 0.7);
+                  const isFail = check.verdict === "fail" || check.score >= 0.7;
+
+                  return (
+                    <div 
+                      key={idx} 
+                      className="p-3 rounded-lg border border-border/80 bg-card/80 hover:bg-accent/20 transition-all space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span
-                            className={`w-2 h-2 rounded-full ${getVerdictColor(check.verdict)}`}
+                          <span 
+                            className={`w-2 h-2 rounded-full shrink-0 ${
+                              isFail ? "bg-rose-500" : (isWarn ? "bg-amber-500" : "bg-emerald-500")
+                            }`} 
                           />
-                          <span className="text-sm font-medium">
-                            {check.check_name}
+                          <span className="text-xs font-semibold text-foreground">
+                            {displayName}
                           </span>
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 text-muted-foreground font-mono">
+                            {boundaryLabel}
+                          </Badge>
                         </div>
                         <Badge
                           variant="outline"
-                          className="text-[10px] bg-muted/50 font-mono"
+                          className={`text-[9px] font-bold px-1.5 py-0 uppercase ${
+                            isFail
+                              ? "border-rose-500/50 text-rose-500 bg-rose-500/10"
+                              : isWarn
+                              ? "border-amber-500/50 text-amber-500 bg-amber-500/10"
+                              : "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
+                          }`}
                         >
-                          {check.engine}
+                          {isFail ? "FAIL" : (isWarn ? "FLAG" : "PASS")}
                         </Badge>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Progress
-                          value={check.score * 100}
-                          className="h-1.5 flex-1"
-                        />
-                        <span className="text-xs text-muted-foreground w-8 text-right font-mono">
-                          {check.score.toFixed(2)}
-                        </span>
+
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground font-mono">
+                        <span className="truncate max-w-[190px]">{displayEngine}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`font-semibold ${
+                            isFail ? "text-rose-500" : (isWarn ? "text-amber-500" : "text-emerald-500")
+                          }`}>
+                            {scorePercent}%
+                          </span>
+                          <span className="text-[10px] text-muted-foreground/70">
+                            ({check.score.toFixed(2)})
+                          </span>
+                        </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
+
+                      {/* Custom Pixel-Perfect Progress Bar */}
+                      <div className="w-full bg-secondary/80 h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ease-out ${
+                            isFail
+                              ? "bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.6)]"
+                              : isWarn
+                              ? "bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.5)]"
+                              : "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]"
+                          }`}
+                          style={{ width: `${Math.max(check.score * 100, 2)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
               </TabsContent>
 
               <TabsContent value="trace" className="mt-4 space-y-4">

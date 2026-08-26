@@ -16,7 +16,7 @@ SEVERE_WORDLIST: Set[str] = {
 
 # Moderate Violations: Harassment, vulgarity, offensive profanity
 MODERATE_WORDLIST: Set[str] = {
-    "badword1", "badword2", "fuck", "shit", "bitch", "cunt", "bastard", "dick",
+    "fuck", "shit", "bitch", "cunt", "bastard", "dick",
     "pussy", "whore", "slut", "motherfucker", "cock", "asshole", "dumbass", "jackass",
     "retard", "crap", "bullshit", "dipshit", "piss", "prick", "twat", "wanker"
 }

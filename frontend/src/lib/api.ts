@@ -53,9 +53,11 @@ export const api = {
     fetchApi<EscalationItem>(`/escalations/${id}`),
 
   appealBlockedRequest: (data: {
-    interaction_id: string;
+    interaction_id?: string;
     session_id?: string;
-    content: string;
+    content?: string;
+    direction?: string;
+    payload?: any;
     reason?: string;
     use_case?: string;
     geography?: string;
@@ -164,9 +166,74 @@ export const api = {
       body: JSON.stringify({ prompt }),
     }),
 
+  // ── Secrets Registration (§4) ──────────────────────────────────────────
+  registerSecret: (rawSecret: string, secretType: string = 'api_key', actionOnMatch: string = 'block') =>
+    fetchApi<{ status: string; secret_id: string; secret_type: string; action_on_match: string; date_registered: string }>('/secrets/register', {
+      method: 'POST',
+      body: JSON.stringify({ raw_secret: rawSecret, secret_type: secretType, action_on_match: actionOnMatch }),
+    }),
+
+  getSecrets: async () => {
+    const data = await fetchApi<{ secrets: any[] }>('/secrets');
+    return data.secrets || [];
+  },
+
+  revokeSecret: (secretId: string) =>
+    fetchApi<{ status: string; secret_id: string }>(`/secrets/${secretId}/revoke`, {
+      method: 'POST',
+    }),
+
+  // ── Structured Policies (§3 & §5) ────────────────────────────────────────
+  extractPolicyRule: (text: string, title?: string) =>
+    fetchApi<any>('/policies/extract', {
+      method: 'POST',
+      body: JSON.stringify({ text, title }),
+    }),
+
+  saveStructuredPolicy: (policyRecord: any) =>
+    fetchApi<{ status: string; policy_id: string; version: number }>('/policies/structured', {
+      method: 'POST',
+      body: JSON.stringify(policyRecord),
+    }),
+
+  getStructuredPolicies: async (status?: string) => {
+    const url = status ? `/policies/structured?status=${status}` : '/policies/structured';
+    const data = await fetchApi<{ policies: any[] }>(url);
+    return data.policies || [];
+  },
+
+  getPolicyHistory: (policyId: string) =>
+    fetchApi<{ policy_id: string; history: any[] }>(`/policies/structured/${policyId}/history`),
+
+  archivePolicy: (policyId: string) =>
+    fetchApi<{ status: string; policy_id: string }>(`/policies/structured/${policyId}/archive`, {
+      method: 'POST',
+    }),
+
+  // ── Use-Case Configuration (§5 & §9) ─────────────────────────────────────
+  getUseCaseConfig: (useCaseId: string) =>
+    fetchApi<any>(`/configs/${useCaseId}`),
+
+  saveUseCaseConfig: (useCaseId: string, config: any) =>
+    fetchApi<{ status: string; use_case_id: string; version: number }>(`/configs/${useCaseId}`, {
+      method: 'POST',
+      body: JSON.stringify(config),
+    }),
+
+  getUseCaseConfigHistory: (useCaseId: string) =>
+    fetchApi<{ use_case_id: string; history: any[] }>(`/configs/${useCaseId}/history`),
+
+  // ── Redaction Vault (§3.10) ──────────────────────────────────────────────
+  revealVaultEntity: (interactionId: string, placeholderId: string) =>
+    fetchApi<{ placeholder_id: string; raw_value: string }>(`/vault/${interactionId}/reveal`, {
+      method: 'POST',
+      body: JSON.stringify({ placeholder_id: placeholderId }),
+    }),
+
   guardAction: (request: any) =>
     fetchApi<any>('/guard', {
       method: 'POST',
       body: JSON.stringify(request),
     }),
 };
+

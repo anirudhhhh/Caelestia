@@ -100,7 +100,7 @@ async def guard_tools(req: GuardRequest):
         pe_req = PolicyDecisionRequest(
             interaction_id=req.interaction_id,
             use_case=req.use_case,
-            geography="US",
+            geography=Geography.US,
             direction=Direction.OUTPUT,
             checks=[],
             tool_calls=req.tool_calls

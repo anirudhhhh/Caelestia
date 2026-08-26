@@ -93,6 +93,18 @@ const PRESETS: { name: string; description: string; icon: any; rules: PolicyRule
   }
 ];
 
+const PII_ENTITIES = [
+  { key: 'EMAIL', name: 'Email Addresses', desc: 'customer@company.com, user@domain.org' },
+  { key: 'PHONE', name: 'Phone Numbers', desc: '+1 (555) 019-2834, mobile & landlines' },
+  { key: 'ADDRESS', name: 'Physical Addresses', desc: 'Street addresses, zip codes, physical locations' },
+  { key: 'SSN', name: 'US Social Security Numbers', desc: '9-digit SSN (123-45-6789, ssn is ...)' },
+  { key: 'CREDIT_CARD', name: 'Payment Cards (PAN)', desc: 'Credit & debit card numbers (Visa, MC, Amex)' },
+  { key: 'PAN', name: 'Indian PAN Tax ID', desc: '10-character alphanumeric PAN cards' },
+  { key: 'AADHAAR', name: 'Indian Aadhaar Numbers', desc: '12-digit UIDAI biometric card numbers' },
+  { key: 'BANK_ACCOUNT', name: 'Bank Accounts & IBAN', desc: 'Account numbers, routing codes, and IBANs' },
+  { key: 'GOVERNMENT_ID', name: 'Passports & Licenses', desc: 'Driver licenses, national IDs, and passports' },
+];
+
 export default function PolicyEditor() {
   const [policies, setPolicies] = useState<PolicyRule[]>([]);
   const [originalPolicies, setOriginalPolicies] = useState<PolicyRule[]>([]);
@@ -100,6 +112,20 @@ export default function PolicyEditor() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [publishedSuccess, setPublishedSuccess] = useState<string | null>(null);
+
+  // PII Governance Matrix state
+  const [selectedUseCase, setSelectedUseCase] = useState<string>('customer_support');
+  const [piiPermissions, setPiiPermissions] = useState<Record<string, 'allow' | 'block'>>({
+    EMAIL: 'allow',
+    PHONE: 'allow',
+    ADDRESS: 'allow',
+    SSN: 'block',
+    CREDIT_CARD: 'block',
+    PAN: 'block',
+    AADHAAR: 'block',
+    BANK_ACCOUNT: 'block',
+    GOVERNMENT_ID: 'block'
+  });
 
   // Upload modal state
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -118,9 +144,41 @@ export default function PolicyEditor() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      await Promise.all([loadPoliciesData(), loadProposalsOnly()]);
+      await Promise.all([loadPoliciesData(), loadProposalsOnly(), loadUseCaseConfig(selectedUseCase)]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadUseCaseConfig = async (uc: string) => {
+    try {
+      const cfg = await api.getUseCaseConfig(uc);
+      if (cfg?.pii_permissions) {
+        setPiiPermissions(cfg.pii_permissions);
+      }
+    } catch (e) {
+      console.error('Failed to load use case config', e);
+    }
+  };
+
+  const handleTogglePii = async (key: string, newAction: 'allow' | 'block') => {
+    const updated = { ...piiPermissions, [key]: newAction };
+    setPiiPermissions(updated);
+    try {
+      await api.saveUseCaseConfig(selectedUseCase, {
+        use_case_id: selectedUseCase,
+        name: selectedUseCase.replace('_', ' ').toUpperCase(),
+        version: 1,
+        latency_tier: 'real_time',
+        detectors: {},
+        pii_permissions: updated,
+        strict_pii_declaration: false,
+        change_note: `Updated ${key} to ${newAction}`
+      });
+      setPublishedSuccess(`Updated ${key} permission to ${newAction.toUpperCase()} for ${selectedUseCase}! Hot-reloaded.`);
+      setTimeout(() => setPublishedSuccess(null), 3000);
+    } catch (e) {
+      console.error('Failed to save PII permission', e);
     }
   };
 
@@ -286,13 +344,55 @@ export default function PolicyEditor() {
       try {
         const rules = parsePolicyString(text);
         setPreviewRules(rules);
-        setUploadError(null);
       } catch (err: any) {
         setUploadError(err.message || 'Failed to parse policy file.');
         setPreviewRules(null);
       }
     };
     reader.readAsText(file);
+  };
+
+  const [isExtracting, setIsExtracting] = useState(false);
+
+  const handleExtractFromText = async () => {
+    if (!uploadText.trim()) return;
+    setIsExtracting(true);
+    setUploadError(null);
+    try {
+      const extracted = await api.extractPolicyRule(uploadText);
+      if (extracted?.structured_rule) {
+        const ent = extracted.structured_rule.entities || [];
+        const isBlock = extracted.structured_rule.action === 'BLOCK';
+        const generatedRules: PolicyRule[] = [
+          {
+            id: `extracted_${Date.now()}_1`,
+            use_case: '*',
+            geography: '*',
+            check_name: ent.includes('EMAIL') || ent.includes('SSN') || ent.includes('PHONE') ? 'pii' : 'secrets',
+            block_threshold: isBlock ? 0.50 : 0.75,
+            flag_threshold: 0.30,
+            on_timeout: isBlock ? 'block' : 'allow'
+          }
+        ];
+        if (ent.includes('CREDIT_CARD') || ent.includes('FINANCIAL_DATA') || ent.includes('API_KEY')) {
+          generatedRules.push({
+            id: `extracted_${Date.now()}_2`,
+            use_case: '*',
+            geography: '*',
+            check_name: 'sensitive_data',
+            block_threshold: 0.40,
+            flag_threshold: 0.20,
+            on_timeout: 'block'
+          });
+        }
+        setPreviewRules(generatedRules);
+        setUploadText(yamlDump({ policies: generatedRules }));
+      }
+    } catch (e: any) {
+      setUploadError(e.message || 'Failed to extract policy rules with AI');
+    } finally {
+      setIsExtracting(false);
+    }
   };
 
   const handleUploadTextChange = (text: string) => {
@@ -475,6 +575,105 @@ export default function PolicyEditor() {
                   <Button size="sm" variant="secondary" className="h-6 text-[11px] w-full">
                     Apply Preset
                   </Button>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Enterprise PII Governance Matrix */}
+      <Card className="border-border/70 shadow-sm">
+        <CardHeader className="py-3 px-4 flex flex-row items-center justify-between border-b border-border/40 bg-muted/20">
+          <div>
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Shield className="h-3.5 w-3.5 text-primary" />
+              Enterprise PII Governance Matrix (Interactive Allow / Block)
+            </CardTitle>
+            <CardDescription className="text-[11px] text-muted-foreground mt-0.5">
+              Default is DENY / BLOCK for any unlisted PII types. Permitted types pass raw without redaction to downstream LLMs.
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-muted-foreground">Scope:</label>
+            <Select 
+              value={selectedUseCase} 
+              onValueChange={(val) => {
+                setSelectedUseCase(val);
+                loadUseCaseConfig(val);
+              }}
+            >
+              <SelectTrigger className="h-7 text-xs w-44 font-mono">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="customer_support">customer_support</SelectItem>
+                <SelectItem value="internal_copilot">internal_copilot</SelectItem>
+                <SelectItem value="decision_support">decision_support</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent className="p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {PII_ENTITIES.map((entity) => {
+              const currentAction = piiPermissions[entity.key] || 'block';
+              const isAllowed = currentAction === 'allow';
+
+              return (
+                <div 
+                  key={entity.key}
+                  className={`p-3 rounded-lg border transition-all ${
+                    isAllowed 
+                      ? 'border-emerald-500/30 bg-emerald-500/5' 
+                      : 'border-rose-500/30 bg-rose-500/5'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-2 h-2 rounded-full ${isAllowed ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                      <span className="text-xs font-semibold">{entity.name}</span>
+                    </div>
+                    <Badge 
+                      variant="outline" 
+                      className={`text-[10px] font-mono font-bold uppercase ${
+                        isAllowed 
+                          ? 'border-emerald-500/40 text-emerald-500 bg-emerald-500/10' 
+                          : 'border-rose-500/40 text-rose-500 bg-rose-500/10'
+                      }`}
+                    >
+                      {currentAction}
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground font-mono mb-3 truncate" title={entity.desc}>
+                    {entity.desc}
+                  </p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <Button
+                      size="sm"
+                      variant={isAllowed ? 'default' : 'outline'}
+                      className={`h-6 text-[10px] ${
+                        isAllowed 
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
+                          : 'border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10'
+                      }`}
+                      onClick={() => handleTogglePii(entity.key, 'allow')}
+                    >
+                      <Check className="h-3 w-3 mr-1" /> Allow Raw
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={!isAllowed ? 'destructive' : 'outline'}
+                      className={`h-6 text-[10px] ${
+                        !isAllowed 
+                          ? 'bg-rose-600 hover:bg-rose-700 text-white' 
+                          : 'border-rose-500/30 text-rose-500 hover:bg-rose-500/10'
+                      }`}
+                      onClick={() => handleTogglePii(entity.key, 'block')}
+                    >
+                      <X className="h-3 w-3 mr-1" /> Strict Block
+                    </Button>
+                  </div>
                 </div>
               );
             })}
@@ -709,14 +908,24 @@ export default function PolicyEditor() {
 
               {/* Text / Paste Area */}
               <div className="space-y-1.5">
-                <label className="text-xs font-medium flex items-center justify-between">
-                  <span>Or paste YAML / JSON definition:</span>
-                  <span className="text-[10px] text-muted-foreground font-mono">policies: [...]</span>
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium">Paste YAML, JSON, or Plain English Policy:</label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px] gap-1 text-primary border-primary/30 hover:bg-primary/10"
+                    disabled={isExtracting || !uploadText.trim()}
+                    onClick={handleExtractFromText}
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    {isExtracting ? 'Extracting...' : 'AI Extract Rules'}
+                  </Button>
+                </div>
                 <textarea
                   value={uploadText}
                   onChange={(e) => handleUploadTextChange(e.target.value)}
-                  placeholder={`policies:\n  - use_case: customer_support\n    geography: US\n    check: toxicity\n    block_threshold: 0.80\n    flag_threshold: 0.40\n    on_timeout: allow\n  - use_case: decision_support\n    geography: US\n    check: secrets\n    block_threshold: 0.40\n    flag_threshold: 0.20\n    on_timeout: block`}
+                  placeholder={`Example plain English:\n"Do not allow sharing customer SSNs and financial reports to external AI."\n\nOr YAML/JSON:\npolicies:\n  - use_case: customer_support\n    geography: US\n    check: toxicity\n    block_threshold: 0.80\n    flag_threshold: 0.40\n    on_timeout: allow`}
                   className="w-full h-40 font-mono text-xs p-3 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>

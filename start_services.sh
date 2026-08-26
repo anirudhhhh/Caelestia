@@ -41,13 +41,9 @@ start_service() {
     echo $! >> /tmp/controlplane_pids.txt
 }
 
-if [ -f /tmp/controlplane_pids.txt ]; then
-    echo -e "${YELLOW}Stopping previous services...${NC}"
-    while read pid; do
-        kill "$pid" 2>/dev/null || true
-    done < /tmp/controlplane_pids.txt
-    rm /tmp/controlplane_pids.txt
-fi
+echo -e "${YELLOW}Stopping any lingering services on ports 8000-8011...${NC}"
+lsof -ti:8000,8001,8002,8003,8004,8005,8006,8007,8008,8009,8010,8011 | xargs kill -9 2>/dev/null || true
+sleep 1
 
 touch /tmp/controlplane_pids.txt
 

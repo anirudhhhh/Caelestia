@@ -48,12 +48,30 @@ class RiskTier(str, Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+    CRITICAL = "critical"
 
 
 class CheckVerdict(str, Enum):
     PASS = "pass"
     WARN = "warn"
     FAIL = "fail"
+    SKIPPED = "skipped"
+    NOT_APPLICABLE = "not_applicable"
+
+
+class FindingType(str, Enum):
+    SECRET = "SECRET"
+    PII = "PII"
+    TOXICITY = "TOXICITY"
+    INJECTION = "INJECTION"
+    POLICY = "POLICY"
+
+
+class FindingVerdict(str, Enum):
+    PASS = "pass"
+    FLAG = "flag"
+    FAIL = "fail"
+    NOT_APPLICABLE = "not_applicable"
     SKIPPED = "skipped"
 
 
@@ -119,6 +137,10 @@ class CheckResult(BaseModel):
     score: float = Field(0.0, ge=0.0, le=1.0)
     verdict: CheckVerdict = CheckVerdict.PASS
     latency_ms: float = 0.0
+    layer: Optional[str] = Field(
+        None,
+        description="Guardrails Architecture layer: 'L0_normalization' | 'L1_lexicon' | 'L2_contextual_ml' | 'L3_vector_store' | 'L4_llm_judge' | 'pii_service' | 'detect_secrets'"
+    )
     details: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -134,7 +156,16 @@ class Decision(BaseModel):
         "policy_engine",
         description="'policy_engine' or 'human:<user_id>'"
     )
+    blocked_by_layer: Optional[str] = Field(
+        None,
+        description="Guardrails Architecture layer that triggered block/flag: 'L0_normalization' | 'L1_lexicon' | 'L2_contextual_ml' | 'L3_vector_store' | 'L4_llm_judge' | 'pii_service' | 'detect_secrets'"
+    )
     confidence: float = 0.0
+    blocked_entities: list[str] = Field(
+        default_factory=list,
+        description="Explicit list of detected PII or sensitive entity types that caused the block (e.g. ['SSN', 'ADDRESS'])"
+    )
+    details: dict[str, Any] = Field(default_factory=dict)
 
 
 class ToolCall(BaseModel):
@@ -191,6 +222,7 @@ class InteractionEnvelope(BaseModel):
 
     # Extensible metadata
     metadata: dict[str, Any] = Field(default_factory=dict)
+    pii_declaration: list[str] = Field(default_factory=list)
 
 
 # ─── API Request/Response Models ─────────────────────────────────────────────
@@ -210,6 +242,8 @@ class ChatRequest(BaseModel):
     stream: bool = False
     max_tokens: Optional[int] = None
     tool_calls: list[ToolCall] = Field(default_factory=list)
+    pii: Optional[list[str]] = None
+    allowed_pii: Optional[list[str]] = None
 
 class ChatResponse(BaseModel):
     """Response from the Gateway API."""
@@ -220,6 +254,9 @@ class ChatResponse(BaseModel):
     decision: Decision
     checks_summary: list[dict[str, Any]] = Field(default_factory=list)
     risk: RiskAssessment = Field(default_factory=RiskAssessment)
+    warnings: list[dict[str, Any]] = Field(default_factory=list)
+    detected_pii: list[str] = Field(default_factory=list, description="All PII entity types detected in the request")
+    blocked_pii: list[str] = Field(default_factory=list, description="Prohibited PII entity types that caused the block")
     latency_ms: float = 0.0
     tool_results: list[dict[str, Any]] = Field(default_factory=list)
 
@@ -265,6 +302,9 @@ class PolicyDecisionRequest(BaseModel):
     direction: Direction
     checks: list[CheckResult]
     tool_calls: list[ToolCall] = Field(default_factory=list)
+    pii_declaration: list[str] = Field(default_factory=list)
+    detected_pii: list[dict[str, Any]] = Field(default_factory=list)
+    strict_pii: bool = False
 
 
 class PolicyDecisionResponse(BaseModel):
@@ -408,3 +448,108 @@ def get_default_max_tokens(use_case: UseCase) -> int:
 def get_latency_budget(use_case: UseCase, stage: str) -> int:
     """Get the latency budget in ms for a specific pipeline stage."""
     return LATENCY_BUDGETS.get(use_case, LATENCY_BUDGETS[UseCase.CUSTOMER_SUPPORT]).get(stage, 100)
+
+
+# ─── Technical Specification Data Contracts (§4 & §5) ─────────────────────────
+
+class Span(BaseModel):
+    start: int
+    end: int
+
+
+class Finding(BaseModel):
+    """Standardized finding produced by any detector or policy engine."""
+    type: str = Field(..., description="SECRET | PII | TOXICITY | INJECTION | POLICY")
+    subtype: str = Field(..., description="GITHUB_TOKEN | EMAIL | PROFANITY | JAILBREAK_ATTEMPT | <policy_id>")
+    confidence: float = Field(0.0, ge=0.0, le=1.0)
+    span: Span = Field(default_factory=lambda: Span(start=0, end=0))
+    engine: str = Field(..., description="gitleaks_rules | presidio | toxicity_classifier | injection_classifier | policy_reasoner")
+    verdict: str = Field("pass", description="pass | flag | fail | not_applicable | skipped")
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class RawEntity(BaseModel):
+    id: str = Field(..., description="Unique per-instance placeholder e.g. EMAIL_1, API_KEY_1")
+    type: str = Field(..., description="EMAIL | SECRET | PHONE | SSN etc.")
+    value: str = Field(..., description="The raw unredacted value")
+
+
+class SanitizerOutput(BaseModel):
+    """Destination-agnostic sanitizer output."""
+    clean_text: str  # Preserves exact original data (no forced redaction)
+    vault_ref: Optional[str] = None
+    detected_pii: list[str] = Field(default_factory=list)
+    blocked_pii: list[str] = Field(default_factory=list)
+    allowed_pii: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    raw_entities: list[RawEntity] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
+
+
+class StructuredRule(BaseModel):
+    entities: list[str] = Field(default_factory=list)
+    prohibited_actions: list[str] = Field(default_factory=list)
+    destination: list[str] = Field(default_factory=list)
+    action: str = "BLOCK"
+
+
+class PolicyRecord(BaseModel):
+    policy_id: str
+    version: int = 1
+    raw_text: str
+    short_description: str = ""
+    structured_rule: StructuredRule
+    embedding: list[float] = Field(default_factory=list)
+    status: str = "active"  # draft | active | archived
+    author: str = "compliance_admin"
+    created_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    updated_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+
+
+class RegisteredSecret(BaseModel):
+    secret_id: str
+    fingerprint: str  # HMAC-SHA256(server_key, secret)
+    secret_type: str  # api_key | database_credential | private_key | other
+    action_on_match: str = "block"  # block | block_escalate
+    status: str = "active"  # active | revoked
+    date_registered: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    date_last_matched: Optional[str] = None
+    created_by: str = "security_admin"
+
+
+class DetectorConfig(BaseModel):
+    enabled: bool = True
+    flag_threshold: float = 0.4
+    block_threshold: float = 0.8
+    fail_behavior: str = "fail_closed"  # fail_closed | fail_open_with_flag
+    is_locked: bool = False  # Secrets & Injection locked on by default
+
+
+class UseCaseConfig(BaseModel):
+    use_case_id: str
+    name: str
+    description: str = ""
+    version: int = 1
+    latency_tier: str = "real_time"  # real_time | standard | batch
+    detectors: dict[str, DetectorConfig] = Field(default_factory=dict)
+    pii_permissions: dict[str, str] = Field(
+        default_factory=lambda: {
+            "EMAIL": "allow",
+            "PHONE": "allow",
+            "ADDRESS": "allow"
+        },
+        description="Explicitly permitted PII types. Default is block/deny for unlisted types."
+    )
+    strict_pii_declaration: bool = False
+    change_note: str = "Initial configuration"
+    updated_by: str = "security_admin"
+    updated_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+

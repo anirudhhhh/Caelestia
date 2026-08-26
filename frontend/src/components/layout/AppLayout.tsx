@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { 
-  MessageSquare, FileText, UserCheck, BarChart3, Settings, Activity, ShieldCheck, Network
+  MessageSquare, FileText, UserCheck, BarChart3, Settings, Activity, ShieldCheck, Network, KeyRound
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -14,6 +14,7 @@ export default function AppLayout() {
     { name: 'Trust Dashboard', path: '/trust', icon: BarChart3 },
     { name: 'Audit Trail', path: '/audit', icon: FileText },
     { name: 'Policy Editor', path: '/policies', icon: Settings },
+    { name: 'Secret Registration', path: '/secrets', icon: KeyRound },
     { name: 'System Health', path: '/health', icon: Activity },
   ];
 

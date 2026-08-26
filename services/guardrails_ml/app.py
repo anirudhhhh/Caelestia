@@ -73,6 +73,21 @@ async def similarity_attack_corpus(req: ClassificationRequest):
     result = vector_store.search_similar_attacks(req.text, top_k=3)
     return result
 
+@app.post("/similarity/toxicity")
+async def similarity_toxicity(req: ClassificationRequest):
+    result = vector_store.search_similar_toxicity(req.text, top_k=3)
+    return result
+
+@app.post("/similarity/secrets")
+async def similarity_secrets(req: ClassificationRequest):
+    result = vector_store.search_similar_secrets(req.text, top_k=3)
+    return result
+
+@app.post("/similarity/policy")
+async def similarity_policy(req: ClassificationRequest):
+    result = vector_store.search_similar_policy(req.text, top_k=3)
+    return result
+
 @app.post("/corpus/add")
 async def add_to_corpus(req: CorpusAddRequest):
     if not req.text.strip():

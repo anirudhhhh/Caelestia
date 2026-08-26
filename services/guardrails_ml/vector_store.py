@@ -107,7 +107,8 @@ class VectorStoreEngine:
         return 0.0
 
     def _seed_corpus(self):
-        """Seeds the vector store with initial attack templates."""
+        """Seeds multi-corpus vector index with initial pattern templates."""
+        # 1. Attack / Injection Corpus
         for item in SEED_ATTACK_PATTERNS:
             vec = self._compute_embedding(item["text"])
             self.corpus.append({
@@ -116,6 +117,44 @@ class VectorStoreEngine:
                 "pattern_type": item["pattern_type"],
                 "text": item["text"],
                 "embedding": vec
+            })
+
+        # 2. Toxicity Vector Corpus
+        self.toxicity_corpus = []
+        seed_toxic = [
+            ("tox_1", "toxicity", "You are a parasite, waste of space, go end your life"),
+            ("tox_2", "toxicity", "I hate your kind, people like you shouldn't be allowed to live"),
+            ("tox_3", "toxicity", "Shut up you useless piece of trash, nobody cares about you"),
+            ("tox_4", "toxicity", "I will track you down and hurt you severely")
+        ]
+        for tid, ptype, text in seed_toxic:
+            self.toxicity_corpus.append({
+                "id": tid, "pattern_type": ptype, "text": text, "embedding": self._compute_embedding(text)
+            })
+
+        # 3. Secrets & Credential Vector Corpus
+        self.secrets_corpus = []
+        seed_secrets = [
+            ("sec_1", "api_key", "AKIAIOSFODNN7EXAMPLE secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"),
+            ("sec_2", "private_key", "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA0Z3\n-----END RSA PRIVATE KEY-----"),
+            ("sec_3", "db_uri", "postgres://admin:Password123!@db.internal.corp:5432/production"),
+            ("sec_4", "token", "bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0")
+        ]
+        for sid, ptype, text in seed_secrets:
+            self.secrets_corpus.append({
+                "id": sid, "pattern_type": ptype, "text": text, "embedding": self._compute_embedding(text)
+            })
+
+        # 4. Policy & Compliance Violation Vector Corpus
+        self.policy_corpus = []
+        seed_policy = [
+            ("pol_1", "data_leak", "Disclose unannounced financial results and internal earnings report before Q4 release"),
+            ("pol_2", "compliance", "Bypass GDPR consent rules and export user personal data without user permission"),
+            ("pol_3", "confidentiality", "Share proprietary source code, trade secrets, and internal employee salary database")
+        ]
+        for pid, ptype, text in seed_policy:
+            self.policy_corpus.append({
+                "id": pid, "pattern_type": ptype, "text": text, "embedding": self._compute_embedding(text)
             })
 
     def add_attack_pattern(self, text: str, pattern_type: str = "confirmed_review", source: str = "human_review") -> Dict[str, Any]:
@@ -133,15 +172,27 @@ class VectorStoreEngine:
         return {"status": "added", "id": item_id, "corpus_size": len(self.corpus)}
 
     def search_similar_attacks(self, query_text: str, top_k: int = 3) -> Dict[str, Any]:
-        """
-        Executes fast cosine similarity search over attack corpus.
-        Returns top matching attack pattern and maximum similarity score.
-        """
+        """Executes fast cosine similarity search over attack corpus."""
+        return self._search_vector_corpus(self.corpus, query_text, top_k)
+
+    def search_similar_toxicity(self, query_text: str, top_k: int = 3) -> Dict[str, Any]:
+        """Executes fast cosine similarity search over toxicity vector corpus."""
+        return self._search_vector_corpus(self.toxicity_corpus, query_text, top_k)
+
+    def search_similar_secrets(self, query_text: str, top_k: int = 3) -> Dict[str, Any]:
+        """Executes fast cosine similarity search over secrets & credentials vector corpus."""
+        return self._search_vector_corpus(self.secrets_corpus, query_text, top_k)
+
+    def search_similar_policy(self, query_text: str, top_k: int = 3) -> Dict[str, Any]:
+        """Executes fast cosine similarity search over compliance policy vector corpus."""
+        return self._search_vector_corpus(self.policy_corpus, query_text, top_k)
+
+    def _search_vector_corpus(self, target_corpus: List[Dict[str, Any]], query_text: str, top_k: int = 3) -> Dict[str, Any]:
         start = time.time()
         query_vec = self._compute_embedding(query_text)
         
         matches = []
-        for item in self.corpus:
+        for item in target_corpus:
             sim = self._cosine_similarity(query_vec, item["embedding"])
             matches.append((sim, item))
 
@@ -154,15 +205,14 @@ class VectorStoreEngine:
         latency_ms = (time.time() - start) * 1000
 
         return {
-            "max_similarity": round(max_sim, 4),
+            "max_similarity": round(float(max_sim), 4),
             "top_match": {
                 "id": best_match["id"],
                 "pattern_type": best_match["pattern_type"],
-                "source": best_match["source"],
                 "text": best_match["text"]
             } if best_match else None,
             "latency_ms": latency_ms,
-            "total_corpus_size": len(self.corpus)
+            "total_corpus_size": len(target_corpus)
         }
 
 # Global singleton instance

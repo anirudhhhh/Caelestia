@@ -5,6 +5,7 @@ import AuditTrail from './pages/AuditTrail';
 import HumanReview from './pages/HumanReview';
 import TrustDashboard from './pages/TrustDashboard';
 import PolicyEditor from './pages/PolicyEditor';
+import SecretRegistration from './pages/SecretRegistration';
 import SystemHealth from './pages/SystemHealth';
 import LoadBalancer from './pages/LoadBalancer';
 import { TooltipProvider } from './components/ui/tooltip';
@@ -23,6 +24,7 @@ function App() {
               <Route path="/trust" element={<TrustDashboard />} />
               <Route path="/audit" element={<AuditTrail />} />
               <Route path="/policies" element={<PolicyEditor />} />
+              <Route path="/secrets" element={<SecretRegistration />} />
               <Route path="/health" element={<SystemHealth />} />
             </Route>
           </Routes>

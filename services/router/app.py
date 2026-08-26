@@ -82,39 +82,28 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
     ),
 }
 
+from services.router.vector_router import vector_db_router
+
+# Initialize Pinecone-style Vector Index with default enterprise endpoints
+def _init_vector_index():
+    for ep in DEFAULT_ENDPOINTS.values():
+        vector_db_router.index_endpoint(
+            endpoint_id=ep.id,
+            name=ep.name,
+            instructions=ep.instructions,
+            keywords=ep.keywords,
+            target_model=ep.push_target,
+            use_case=ep.use_case,
+            weight=ep.weight
+        )
+
+_init_vector_index()
+
 SESSION_ROUTES: Dict[str, str] = {}
-
-def _tokenize(text: str) -> set[str]:
-    """Tokenize text into lowercase alphanumeric words."""
-    return set(re.findall(r'\b[a-z0-9_]{3,}\b', text.lower()))
-
-def semantic_match_score(prompt: str, endpoint: WorkflowEndpoint) -> float:
-    """
-    Computes semantic match score between input prompt and endpoint instructions/keywords.
-    Combines instruction TF-IDF term overlap, keyword density, and baseline weight.
-    """
-    prompt_tokens = _tokenize(prompt)
-    if not prompt_tokens:
-        return 0.1 * endpoint.weight
-
-    instruction_tokens = _tokenize(endpoint.instructions)
-    keyword_tokens = set(k.lower() for k in endpoint.keywords)
-
-    # 1. Jaccard token overlap with instructions
-    inst_overlap = len(prompt_tokens & instruction_tokens)
-    inst_score = inst_overlap / (math.sqrt(len(prompt_tokens)) * math.sqrt(len(instruction_tokens)) + 1e-5)
-
-    # 2. Keyword hits (weighted heavily for strong semantic intent)
-    kw_hits = len(prompt_tokens & keyword_tokens)
-    kw_score = min(1.0, kw_hits * 0.35)
-
-    # 3. Combined score
-    total_score = (inst_score * 0.45 + kw_score * 0.45 + (0.1 * endpoint.weight))
-    return round(float(total_score), 4)
 
 @app.get("/healthz")
 async def healthz():
-    return {"status": "ok", "service": "router"}
+    return {"status": "ok", "service": "router", "indexed_endpoints": len(vector_db_router.vector_index)}
 
 @app.get("/endpoints")
 async def list_endpoints():
@@ -123,7 +112,16 @@ async def list_endpoints():
 @app.post("/endpoints")
 async def register_endpoint(endpoint: WorkflowEndpoint):
     DEFAULT_ENDPOINTS[endpoint.id] = endpoint
-    logger.info(f"Registered workflow endpoint: {endpoint.id} ({endpoint.name})")
+    vector_db_router.index_endpoint(
+        endpoint_id=endpoint.id,
+        name=endpoint.name,
+        instructions=endpoint.instructions,
+        keywords=endpoint.keywords,
+        target_model=endpoint.push_target,
+        use_case=endpoint.use_case,
+        weight=endpoint.weight
+    )
+    logger.info(f"Registered and indexed workflow endpoint: {endpoint.id} ({endpoint.name})")
     return {"status": "registered", "endpoint": endpoint}
 
 class MatchRequest(BaseModel):
@@ -131,32 +129,34 @@ class MatchRequest(BaseModel):
 
 @app.post("/match")
 async def test_semantic_match(req: MatchRequest):
-    """Test and rank all active endpoints against an input prompt for semantic explainability."""
+    """Test and rank all active endpoints against an input prompt using 384-d Pinecone-style Vector Search."""
+    if not req.prompt or not req.prompt.strip():
+        return {"results": [], "winning_endpoint": None}
+
+    vector_matches = vector_db_router.search_similar_endpoints(req.prompt, top_k=len(DEFAULT_ENDPOINTS))
     results = []
-    for ep in DEFAULT_ENDPOINTS.values():
-        if not ep.active:
-            continue
-        score = semantic_match_score(req.prompt, ep)
-        prompt_tokens = _tokenize(req.prompt)
-        keyword_tokens = set(k.lower() for k in ep.keywords)
-        matched_keywords = list(prompt_tokens & keyword_tokens)
-        results.append({
-            "id": ep.id,
-            "name": ep.name,
-            "target": ep.push_target,
-            "endpoint": ep.push_target,
-            "use_case": ep.use_case,
-            "score": score,
-            "matched_keywords": matched_keywords,
-            "weight": ep.weight
-        })
-    results.sort(key=lambda x: x["score"], reverse=True)
+    for m in vector_matches:
+        ep_id = m["endpoint"]
+        if ep_id in DEFAULT_ENDPOINTS and DEFAULT_ENDPOINTS[ep_id].active:
+            ep = DEFAULT_ENDPOINTS[ep_id]
+            results.append({
+                "id": ep.id,
+                "name": ep.name,
+                "target": ep.push_target,
+                "endpoint": ep.push_target,
+                "use_case": ep.use_case,
+                "score": m["score"],
+                "matched_keywords": m["vector_metrics"].get("matched_keywords", []),
+                "weight": ep.weight,
+                "vector_metrics": m["vector_metrics"]
+            })
     return {"results": results, "winning_endpoint": results[0] if results else None}
 
 @app.delete("/endpoints/{endpoint_id}")
 async def delete_endpoint(endpoint_id: str):
     if endpoint_id in DEFAULT_ENDPOINTS:
         del DEFAULT_ENDPOINTS[endpoint_id]
+        vector_db_router.remove_endpoint(endpoint_id)
         logger.info(f"Deleted workflow endpoint: {endpoint_id}")
         return {"status": "deleted", "id": endpoint_id}
     raise HTTPException(status_code=404, detail="Endpoint not found")
@@ -171,7 +171,7 @@ async def list_models():
 
 @app.post("/route", response_model=InteractionEnvelope)
 async def route(envelope: InteractionEnvelope):
-    logger.info(f"[{envelope.interaction_id}] Semantically routing request")
+    logger.info(f"[{envelope.interaction_id}] Vector-routing request via 384-d Pinecone-style DB")
     
     session_id = envelope.session_id
     text = envelope.payload.content
@@ -214,28 +214,28 @@ async def route(envelope: InteractionEnvelope):
             }]
             return envelope
 
-    # 3. Rank active endpoints by semantic match against instructions
+    # 3. Pinecone-style Vector DB Hybrid Search over active endpoints
+    vector_matches = vector_db_router.search_similar_endpoints(text, top_k=5)
     candidate_scores = []
-    for ep in DEFAULT_ENDPOINTS.values():
-        if not ep.active:
-            continue
-        score = semantic_match_score(text, ep)
-        candidate_scores.append({
-            "endpoint": ep.id,
-            "name": ep.name,
-            "model": ep.push_target,
-            "score": score,
-            "use_case": ep.use_case
-        })
-
-    candidate_scores.sort(key=lambda x: x["score"], reverse=True)
+    for m in vector_matches:
+        ep_id = m["endpoint"]
+        if ep_id in DEFAULT_ENDPOINTS and DEFAULT_ENDPOINTS[ep_id].active:
+            ep = DEFAULT_ENDPOINTS[ep_id]
+            candidate_scores.append({
+                "endpoint": ep.id,
+                "name": ep.name,
+                "model": ep.push_target,
+                "score": m["score"],
+                "use_case": ep.use_case,
+                "vector_metrics": m["vector_metrics"]
+            })
 
     if candidate_scores:
         best = candidate_scores[0]
         envelope.model.routed_to = best["model"]
         envelope.model.routing_trace = candidate_scores
         SESSION_ROUTES[session_id] = best["endpoint"]
-        logger.info(f"[{envelope.interaction_id}] Routed to {best['name']} (score: {best['score']}) -> {best['model']}")
+        logger.info(f"[{envelope.interaction_id}] Vector-routed to {best['name']} (score: {best['score']}, cos_sim: {best['vector_metrics']['cosine_similarity']}) -> {best['model']}")
     else:
         fallback_model = DEFAULT_MODEL or (AVAILABLE_MODELS[0] if AVAILABLE_MODELS else "google/gemini-2.5-flash")
         envelope.model.routed_to = fallback_model

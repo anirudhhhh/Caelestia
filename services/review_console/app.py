@@ -85,7 +85,7 @@ def _row_to_item(row: dict) -> EscalationItem:
         direction=Direction(row["direction"]) if row["direction"] in ("input", "output") else Direction.INPUT,
         use_case=UseCase(row["use_case"]) if row["use_case"] in [u.value for u in UseCase] else UseCase.CUSTOMER_SUPPORT,
         geography=Geography(row["geography"]) if row["geography"] in [g.value for g in Geography] else Geography.US,
-        risk_tier=RiskTier(row["risk_tier"]) if row["risk_tier"] in ("low", "medium", "high", "critical") else RiskTier.MEDIUM,
+        risk_tier=RiskTier(row["risk_tier"]) if row["risk_tier"] in [r.value for r in RiskTier] else RiskTier.MEDIUM,
         escalation_reason=row["escalation_reason"] or "",
         checks=[CheckResult(**c) for c in checks],
         payload=Payload(**payload),
@@ -107,6 +107,12 @@ async def healthz():
 async def add_escalation(item: EscalationItem):
     logger.info(f"Adding persistent escalation for {item.interaction_id}")
     async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT status, resolution FROM escalations WHERE interaction_id = ?", (item.interaction_id,))
+        existing = await cursor.fetchone()
+        if existing and existing["status"] == "resolved" and existing["resolution"] == "deny":
+            raise HTTPException(status_code=400, detail="This request has already been reviewed and denied by a human reviewer. Additional appeals are disabled.")
+
         await db.execute('''
             INSERT INTO escalations (
                 interaction_id, session_id, direction, use_case, geography, risk_tier,
@@ -194,8 +200,8 @@ async def resolve_escalation(interaction_id: str, action: ReviewAction):
         ))
         await db.commit()
 
-        # Ingest confirmed true positive attack into L3 Vector Store
-        if action.was_original_flag_correct or action.action in ("deny", "block"):
+        # Ingest confirmed true positive attack inputs into L3 Vector Store
+        if row and (row["direction"] or "input") == "input" and (action.was_original_flag_correct or action.action in ("deny", "block")):
             try:
                 payload_content = ""
                 if row and row["payload"]:

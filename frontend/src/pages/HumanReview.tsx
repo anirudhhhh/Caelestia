@@ -73,42 +73,41 @@ export default function HumanReview() {
   const handleAction = async (action: ReviewAction) => {
     if (!selectedItem) return;
     
-    setIsSubmitting(true);
+    const targetId = selectedItem.interaction_id;
+    const resPayload = {
+      reviewer_id: 'human_operator_1',
+      action: action,
+      was_original_flag_correct: wasFlagCorrect,
+      reason: reason.trim() || `Action: ${action}`,
+      edited_content: isEditing ? editedPayload : undefined
+    };
+
+    // INSTANT OPTIMISTIC UI REMOVAL: Close modal & remove from pending view (<0ms latency illusion)
+    setSelectedItem(null);
+    setResolvedSuccess(`Escalation ${targetId.substring(0, 8)} successfully resolved as ${action.toUpperCase()}`);
+    setTimeout(() => setResolvedSuccess(null), 4000);
+
+    setEscalations(prev => prev.map(item => {
+      if (item.interaction_id === targetId) {
+        return {
+          ...item,
+          status: 'resolved',
+          resolution: action,
+          resolved_by: 'human_operator_1',
+          resolved_at: new Date().toISOString(),
+          resolution_reason: resPayload.reason,
+          was_original_flag_correct: wasFlagCorrect,
+          edited_content: resPayload.edited_content
+        };
+      }
+      return item;
+    }));
+
+    // Fire API call asynchronously in background to persist to SQLite DB & ingest vectors
     try {
-      const resPayload = {
-        reviewer_id: 'human_operator_1',
-        action: action,
-        was_original_flag_correct: wasFlagCorrect,
-        reason: reason.trim() || `Action: ${action}`,
-        edited_content: isEditing ? editedPayload : undefined
-      };
-
-      await api.resolveEscalation(selectedItem.interaction_id, action, resPayload);
-
-      // Update local state to mark resolved with resolution details
-      setEscalations(prev => prev.map(item => {
-        if (item.interaction_id === selectedItem.interaction_id) {
-          return {
-            ...item,
-            status: 'resolved',
-            resolution: action,
-            resolved_by: 'human_operator_1',
-            resolved_at: new Date().toISOString(),
-            resolution_reason: resPayload.reason,
-            was_original_flag_correct: wasFlagCorrect,
-            edited_content: resPayload.edited_content
-          };
-        }
-        return item;
-      }));
-
-      setResolvedSuccess(`Escalation ${selectedItem.interaction_id.substring(0, 8)} successfully resolved as ${action.toUpperCase()}`);
-      setTimeout(() => setResolvedSuccess(null), 4000);
-      setSelectedItem(null);
+      await api.resolveEscalation(targetId, action, resPayload);
     } catch (error) {
-      console.error('Failed to resolve escalation', error);
-    } finally {
-      setIsSubmitting(false);
+      console.error('Failed to persist escalation resolution to DB', error);
     }
   };
 

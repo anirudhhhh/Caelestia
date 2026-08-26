@@ -66,19 +66,31 @@ app.add_middleware(
 REGEX_PATTERNS = {
     "EMAIL_ADDRESS": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
     "PHONE_NUMBER": r"\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b",
-    "US_SSN": r"\b\d{3}-\d{2}-\d{4}\b",
-    "CREDIT_CARD": r"\b(?:\d[ -]*?){13,16}\b"
+    "US_SSN": r"(?i)\b(?:ssn|social\s*security(?:\s*no|\s*number)?)\b(?:\s+is|\s*[:=-])?\s*(\d{9}|\d{3}[-\s]\d{2}[-\s]\d{4})|\b\d{3}-\d{2}-\d{4}\b|\b\d{3}\s\d{2}\s\d{4}\b",
+    "CREDIT_CARD": r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b|\b(?:\d{4}[ -]){3}\d{4}\b",
+    "PAN": r"\b[A-Za-z]{5}[0-9]{4}[A-Za-z]{1}\b",
+    "AADHAAR": r"\b[2-9]{1}[0-9]{3}\s?[0-9]{4}\s?[0-9]{4}\b",
+    "ADDRESS": r"\b\d{1,5}\s+[A-Za-z0-9\.\,\-\s]{3,35}(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Way|Court|Ct|Circle|Cir)\b",
+    "BANK_ACCOUNT": r"\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]?){0,16}\b"
 }
 
 def regex_fallback_detect(text: str) -> List[PIIEntity]:
     entities = []
     for entity_type, pattern in REGEX_PATTERNS.items():
-        for match in re.finditer(pattern, text):
+        for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+            if match.groups() and match.group(1):
+                start = match.start(1)
+                end = match.end(1)
+            else:
+                start = match.start()
+                end = match.end()
+            
+            score = 0.95 if entity_type in ("US_SSN", "CREDIT_CARD", "PAN", "AADHAAR") else 0.85
             entities.append(PIIEntity(
                 entity_type=entity_type,
-                start=match.start(),
-                end=match.end(),
-                score=0.7
+                start=start,
+                end=end,
+                score=score
             ))
     return entities
 
@@ -128,9 +140,12 @@ async def detect_pii(request: PIIDetectRequest):
                 and (r.end - r.start) >= MIN_ENTITY_LEN]  # drop short spurious matches
         except Exception as e:
             logger.error(f"Presidio analyze error: {e}")
-            entities = regex_fallback_detect(request.text)
-    else:
-        entities = regex_fallback_detect(request.text)
+    
+    # Always merge regex fallback entities to guarantee high-risk PII pattern detection
+    regex_entities = regex_fallback_detect(request.text)
+    for re_e in regex_entities:
+        if not any(e.entity_type == re_e.entity_type and abs(e.start - re_e.start) < 3 for e in entities):
+            entities.append(re_e)
 
     # Apply the same length filter to regex fallback results
     entities = [e for e in entities if (e.end - e.start) >= MIN_ENTITY_LEN]

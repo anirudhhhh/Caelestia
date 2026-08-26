@@ -54,9 +54,11 @@ export default function LoadBalancer() {
   };
 
   useEffect(() => {
-    if (testPrompt.trim()) {
-      runMatchSimulation(testPrompt);
+    if (!testPrompt.trim()) {
+      setMatchResults([]);
+      return;
     }
+    runMatchSimulation(testPrompt);
   }, [testPrompt, endpoints]);
 
   const runMatchSimulation = async (prompt: string) => {
@@ -201,41 +203,54 @@ print("Response:", data["content"])`;
           </div>
 
           {/* Real-time Match Scores */}
-          <div className="space-y-2.5 pt-2 border-t border-primary/10">
-            {matchResults.map((res, i) => {
-              const isWinner = i === 0;
-              return (
-                <div key={res.id} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      {isWinner ? (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                      ) : (
-                        <div className="w-3.5" />
-                      )}
-                      <span className={`font-medium ${isWinner ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
-                        {res.name}
-                      </span>
-                      {isWinner && (
-                        <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-500 text-[10px] py-0 px-1.5 border-emerald-500/20">
-                          Pushes To → {res.target}
-                        </Badge>
-                      )}
+          {!testPrompt.trim() ? (
+            <div className="py-6 text-center text-xs text-muted-foreground border-t border-border/40 font-mono">
+              Type a test prompt or click a sample query above to simulate live vector routing across endpoints.
+            </div>
+          ) : (
+            <div className="space-y-2.5 pt-2 border-t border-primary/10">
+              {matchResults.map((res, i) => {
+                const isWinner = i === 0;
+                return (
+                  <div key={res.id} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        {isWinner ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                        ) : (
+                          <div className="w-3.5" />
+                        )}
+                        <span className={`font-medium ${isWinner ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
+                          {res.name}
+                        </span>
+                        {isWinner && (
+                          <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-500 text-[10px] py-0 px-1.5 border-emerald-500/20">
+                            Pushes To → {res.target}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`font-mono font-medium ${isWinner ? 'text-emerald-500 font-semibold' : 'text-muted-foreground'}`}>
+                          {(res.score * 100).toFixed(1)}% match
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-medium">
-                        {(res.score * 100).toFixed(1)}% match
-                      </span>
+                    {/* Custom Pixel-Perfect Progress Bar */}
+                    <div className="w-full bg-secondary/80 h-1.5 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          isWinner 
+                            ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' 
+                            : 'bg-muted-foreground/30'
+                        }`}
+                        style={{ width: `${Math.max(res.score * 100, 0)}%` }}
+                      />
                     </div>
                   </div>
-                  <Progress
-                    value={Math.min(100, res.score * 100)}
-                    className={`h-1.5 ${isWinner ? 'bg-emerald-500/20' : 'bg-muted'}`}
-                  />
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 

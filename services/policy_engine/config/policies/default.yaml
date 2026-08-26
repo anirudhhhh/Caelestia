@@ -3,45 +3,51 @@ defaults:
   flag_threshold: 0.4
   on_timeout: block
 policies:
-- block_threshold: 0.9
+- block_threshold: 0.8
   check: toxicity
   flag_threshold: 0.4
-  geography: US
+  geography: '*'
   on_timeout: allow_with_flag
-  use_case: customer_support
-- block_threshold: 0.85
+  use_case: '*'
+- block_threshold: 0.8
   check: prompt_injection
   flag_threshold: 0.5
-  geography: US
+  geography: '*'
   on_timeout: allow_with_flag
-  use_case: customer_support
+  use_case: '*'
 - block_threshold: 0.5
   check: secrets
   flag_threshold: 0.3
-  geography: US
+  geography: '*'
   on_timeout: block
-  use_case: customer_support
-- block_threshold: 0.8
+  use_case: '*'
+- block_threshold: 0.75
   check: pii
-  flag_threshold: 0.5
-  geography: US
+  flag_threshold: 0.4
+  geography: '*'
   on_timeout: allow_with_flag
-  use_case: customer_support
+  use_case: '*'
 - block_threshold: 0.5
   check: sensitive_data
   flag_threshold: 0.3
-  geography: US
+  geography: '*'
   on_timeout: block
-  use_case: customer_support
+  use_case: '*'
 - block_threshold: 0.7
   check: system_prompt_leakage
   flag_threshold: 0.4
-  geography: US
+  geography: '*'
   on_timeout: block
-  use_case: customer_support
+  use_case: '*'
+- block_threshold: 0.75
+  check: brand_safety
+  flag_threshold: 0.4
+  geography: '*'
+  on_timeout: allow_with_flag
+  use_case: '*'
 - block_threshold: 0.65
   check: hallucination_risk
   flag_threshold: 0.4
-  geography: US
+  geography: '*'
   on_timeout: block
-  use_case: decision_support
+  use_case: '*'
