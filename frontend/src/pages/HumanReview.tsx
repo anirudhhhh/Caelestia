@@ -151,7 +151,50 @@ export default function HumanReview() {
   };
 
   const pendingCount = escalations.filter(e => e.status !== 'resolved').length;
-  const resolvedCount = escalations.filter(e => e.status === 'resolved').length;
+  const resolvedEscalations = escalations.filter(e => e.status === 'resolved');
+  const resolvedCount = resolvedEscalations.length;
+
+  let averageSla = '1.2m';
+  if (resolvedEscalations.length > 0) {
+    let totalMs = 0;
+    let count = 0;
+    resolvedEscalations.forEach(e => {
+      const start = e.created_at ? new Date(e.created_at).getTime() : 0;
+      const end = e.resolved_at ? new Date(e.resolved_at).getTime() : 0;
+      if (start && end && end > start) {
+        totalMs += (end - start);
+        count++;
+      }
+    });
+    if (count > 0) {
+      const avgMs = totalMs / count;
+      const avgMins = avgMs / 60000;
+      averageSla = avgMins < 1 ? '<1m' : `${avgMins.toFixed(1)}m`;
+    } else {
+      averageSla = 'N/A';
+    }
+  } else {
+    averageSla = 'N/A';
+  }
+
+  let immuneAccuracy = '100%';
+  if (resolvedEscalations.length > 0) {
+    let correctFlags = 0;
+    let totalFlags = 0;
+    resolvedEscalations.forEach(e => {
+      if (e.was_original_flag_correct !== undefined) {
+        totalFlags++;
+        if (e.was_original_flag_correct) correctFlags++;
+      }
+    });
+    if (totalFlags > 0) {
+      immuneAccuracy = `${Math.round((correctFlags / totalFlags) * 100)}%`;
+    } else {
+      immuneAccuracy = 'N/A';
+    }
+  } else {
+    immuneAccuracy = 'N/A';
+  }
 
   const filteredEscalations = escalations.filter((item) => {
     if (statusFilter === 'pending' && item.status === 'resolved') return false;
@@ -214,7 +257,7 @@ export default function HumanReview() {
             <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Average SLA</span>
             <Clock className="h-3.5 w-3.5 text-blue-400" />
           </div>
-          <div className="text-2xl font-extrabold tracking-tight text-white">1.2m</div>
+          <div className="text-2xl font-extrabold tracking-tight text-white">{averageSla}</div>
           <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-medium">Triage turnaround</p>
         </div>
 
@@ -223,7 +266,7 @@ export default function HumanReview() {
             <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Immune Accuracy</span>
             <ShieldCheck className="h-3.5 w-3.5 text-amber-400" />
           </div>
-          <div className="text-2xl font-extrabold tracking-tight text-amber-400">100%</div>
+          <div className="text-2xl font-extrabold tracking-tight text-amber-400">{immuneAccuracy}</div>
           <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-medium">Self-healing loop</p>
         </div>
       </div>

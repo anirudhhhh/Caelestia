@@ -225,7 +225,7 @@ export default function Playground() {
           ...prev,
           {
             role: "assistant",
-            content: data.decision?.reason || "Request blocked by enterprise security guardrails.",
+            content: (data.content ? `[Original Response]: ${data.content}\n\n` : "") + (data.decision?.reason || "Request blocked by enterprise security guardrails."),
             action: "block",
             interaction_id: data.interaction_id,
             reason: data.decision?.reason,
@@ -236,7 +236,7 @@ export default function Playground() {
           ...prev,
           {
             role: "assistant",
-            content: "Your request flagged perimeter security policies and has been queued for Human Review. Waiting for reviewer verdict...",
+            content: (data.content ? `[Original Response]: ${data.content}\n\n` : "") + "Your request flagged perimeter security policies and has been queued for Human Review. Waiting for reviewer verdict...",
             action: "escalate",
             interaction_id: data.interaction_id,
             reason: data.decision?.reason,
@@ -412,7 +412,10 @@ export default function Playground() {
                 </SelectContent>
               </Select>
 
-              <Select value={geography} onValueChange={(v) => setGeography(v as Geography)}>
+              <Select value={geography} onValueChange={(v) => {
+                setGeography(v as Geography);
+                clearSession();
+              }}>
                 <SelectTrigger className="w-[88px] h-9 text-xs font-bold bg-white/[0.04] border-white/[0.09] rounded-xl" aria-label="Select geography region">
                   <SelectValue placeholder="Geo" />
                 </SelectTrigger>
