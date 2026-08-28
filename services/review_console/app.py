@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from shared.schemas import EscalationItem, ReviewAction, HumanOutcome, Direction, UseCase, Geography, RiskTier, Payload, CheckResult
-from shared.config import setup_logging, AUDIT_STORE_URL
+from shared.config import setup_logging, AUDIT_STORE_URL, GUARDRAILS_ML_URL
 
 logger = setup_logging("review_console")
 DATA_DIR = Path(__file__).parent / "data"

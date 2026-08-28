@@ -384,11 +384,24 @@ async def chat_completions(
 
         all_warnings = envelope.metadata.get("warnings", []) + output_envelope.metadata.get("warnings", [])
         sanitizer_data = envelope.metadata.get("sanitizer_output", {})
+
+        # Resolve workflow metadata from routing trace
+        routing_trace = envelope.model.routing_trace or output_envelope.model.routing_trace or []
+        workflow_id = None
+        workflow_name = None
+        if routing_trace and isinstance(routing_trace, list) and len(routing_trace) > 0:
+            top_route = routing_trace[0]
+            workflow_id = top_route.get("endpoint")
+            workflow_name = top_route.get("name")
+
         response = ChatResponse(
             interaction_id=interaction_id,
             session_id=session_id,
             content=final_content,
             model_used=output_envelope.model.routed_to or routed_model,
+            workflow_id=workflow_id,
+            workflow_name=workflow_name,
+            routing_trace=routing_trace,
             decision=combined_decision,
             checks_summary=combined_checks,
             risk=RiskAssessment(tier=combined_tier, confidence=combined_decision.confidence),
@@ -758,8 +771,10 @@ async def get_audit_stats():
     total = data.get("total_interactions", 0)
     action_counts = data.get("action_counts", {})
     block_rate = round(data.get("block_rate", 0) * 100, 1)
-    escalate_rate = round(data.get("escalation_rate", 0) * 100, 1)
     flag_count = action_counts.get("flag", 0)
+    escalate_count = action_counts.get("escalate", 0)
+    total_escalations = flag_count + escalate_count
+    escalate_rate = round((total_escalations / total * 100) if total > 0 else 0, 1)
     flag_rate = round((flag_count / total * 100) if total > 0 else 0, 1)
 
     return {
@@ -769,6 +784,7 @@ async def get_audit_stats():
         "flag_rate": flag_rate,
         "escalate_rate": escalate_rate,
         "escalation_rate": escalate_rate,
+        "escalate_count": total_escalations,
         "action_counts": action_counts,
         "by_use_case": data.get("by_use_case", {})
     }
@@ -927,8 +943,10 @@ async def get_outcome_stats():
     }
 
     block_rate = round(stats.get("block_rate", 0) * 100, 1)
-    escalate_rate = round(stats.get("escalation_rate", 0) * 100, 1)
     flag_count = action_counts["flag"]
+    escalate_count = action_counts["escalate"]
+    total_escalations = flag_count + escalate_count
+    escalate_rate = round((total_escalations / total * 100) if total > 0 else 0, 1)
     flag_rate = round((flag_count / total * 100) if total > 0 else 0, 1)
 
     total_reviews = outcomes.get("total_reviews", 0)
@@ -937,14 +955,16 @@ async def get_outcome_stats():
     fpr = round(fpr_raw * 100, 1) if total_reviews > 0 else None
     fnr = round(fnr_raw * 100, 1) if total_reviews > 0 else None
 
-    # Composite trust score: high baseline, penalized if false positives or false negatives occur
+    # Composite Trust Score Calculation:
+    # Starts from baseline 100.0 and dynamically responds to block rate, warning flags, and verified false positives from human review
     if total == 0:
         trust_score = 100.0
-    elif total_reviews > 0:
-        trust_score = round(max(10.0, min(100.0, 100.0 - ((fpr or 0) * 2.5) - ((fnr or 0) * 3.5))), 1)
     else:
-        # Before reviews, baseline compliance score based on safe throughput
-        trust_score = round(max(75.0, min(100.0, 100.0 - (escalate_rate * 0.5))), 1)
+        fp_penalty = (fpr or 0.0) * 0.35 if total_reviews > 0 else 0.0
+        flag_penalty = flag_rate * 0.20
+        block_penalty = min(block_rate * 0.15, 15.0)
+        calc = 100.0 - fp_penalty - flag_penalty - block_penalty
+        trust_score = round(max(15.0, min(100.0, calc)), 1)
 
     return {
         "total": total,
@@ -954,6 +974,7 @@ async def get_outcome_stats():
         "block_rate": block_rate,
         "flag_rate": flag_rate,
         "escalate_rate": escalate_rate,
+        "escalate_count": total_escalations,
         "total_reviews": total_reviews,
         "by_use_case": stats.get("by_use_case", {}),
         "action_counts": action_counts,

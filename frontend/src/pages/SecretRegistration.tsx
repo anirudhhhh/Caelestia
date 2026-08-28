@@ -12,6 +12,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { api } from '@/lib/api';
+import SpotlightCard from '@/components/reactbits/SpotlightCard';
+import BorderBeam from '@/components/reactbits/BorderBeam';
+import Magnet from '@/components/reactbits/Magnet';
+import DecryptedText from '@/components/reactbits/DecryptedText';
 
 export default function SecretRegistration() {
   const [secrets, setSecrets] = useState<any[]>([]);
@@ -93,22 +97,25 @@ export default function SecretRegistration() {
             Register enterprise API keys and credentials for zero-knowledge HMAC-SHA256 fingerprint matching.
           </p>
         </div>
-        <button 
-          type="button"
-          onClick={() => { setIsRegisterOpen(true); setRegistrationSuccess(null); }} 
-          className="faang-btn-primary h-9 px-4 gap-2 text-xs flex items-center justify-center shadow-lg font-bold cursor-pointer"
-        >
-          <KeyRound className="w-4 h-4" />
-          <span>Register New Secret</span>
-        </button>
+        <Magnet magnetStrength={3} padding={20}>
+          <button 
+            type="button"
+            onClick={() => { setIsRegisterOpen(true); setRegistrationSuccess(null); }} 
+            className="faang-btn-primary h-9 px-4 gap-2 text-xs flex items-center justify-center shadow-lg font-bold cursor-pointer"
+          >
+            <KeyRound className="w-4 h-4" />
+            <span>Register New Secret</span>
+          </button>
+        </Magnet>
       </div>
 
-      {/* Security Guarantee Alert (Borderless, Integrated) */}
-      <div className="py-2 flex items-center gap-3 border-t border-b border-amber-500/20 bg-amber-500/[0.02]">
-        <div className="h-7 w-7 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+      {/* Security Guarantee Alert (Borderless, Integrated with BorderBeam) */}
+      <div className="py-3 px-4 rounded-xl flex items-center gap-3 border border-amber-500/25 bg-amber-500/[0.04] relative overflow-hidden">
+        <BorderBeam size={160} duration={10} colorFrom="#F59E0B" colorTo="#FFFFFF" />
+        <div className="h-7 w-7 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 relative z-10">
           <Lock className="w-3.5 h-3.5" />
         </div>
-        <div className="text-xs text-zinc-300 leading-relaxed font-medium">
+        <div className="text-xs text-zinc-300 leading-relaxed font-medium relative z-10">
           <strong className="text-amber-400 font-bold">Zero Plaintext Persistence Guarantee:</strong> Raw secret values are processed in volatile memory to compute an immutable HMAC-SHA256 fingerprint and discarded immediately. Plaintext secrets are never written to disk, databases, or logs.
         </div>
       </div>

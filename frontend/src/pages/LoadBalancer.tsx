@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Network, Plus, Trash2, CheckCircle2, 
   Sparkles, ArrowRight, Server, Globe,
-  RefreshCw, Code2, Copy, Check, Send, Shield, Settings2
+  RefreshCw, Code2, Copy, Check, Send, Shield, Settings2,
+  Pencil, Sliders
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,8 +14,13 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 import type { WorkflowEndpoint } from '@/types';
 import { api } from '@/lib/api';
+import SpotlightCard from '@/components/reactbits/SpotlightCard';
+import BorderBeam from '@/components/reactbits/BorderBeam';
+import DecryptedText from '@/components/reactbits/DecryptedText';
+import Magnet from '@/components/reactbits/Magnet';
 
 const SAMPLE_PROMPTS = [
   "Can you help me check the status of my order and request a refund?",
@@ -29,13 +35,24 @@ export default function LoadBalancer() {
   const [endpointPiiMap, setEndpointPiiMap] = useState<Record<string, Record<string, 'allow' | 'block'>>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingEndpoint, setEditingEndpoint] = useState<WorkflowEndpoint | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
-  // Form State: Name, Instruction for search, and Endpoint to push
+  // Add Form State: Name, Instruction for search, and Endpoint to push
   const [formName, setFormName] = useState('');
   const [formInstructions, setFormInstructions] = useState('');
   const [formEndpoint, setFormEndpoint] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Edit Form State
+  const [editName, setEditName] = useState('');
+  const [editInstructions, setEditInstructions] = useState('');
+  const [editTarget, setEditTarget] = useState('');
+  const [editUseCase, setEditUseCase] = useState('general');
+  const [editWeight, setEditWeight] = useState(1.0);
+  const [editActive, setEditActive] = useState(true);
+  const [editKeywords, setEditKeywords] = useState('');
 
   // Live Semantic Simulator State
   const [testPrompt, setTestPrompt] = useState(SAMPLE_PROMPTS[0]);
@@ -128,6 +145,43 @@ export default function LoadBalancer() {
       loadEndpoints();
     } catch (e) {
       console.error('Failed to delete endpoint', e);
+    }
+  };
+
+  const handleOpenEdit = (ep: WorkflowEndpoint) => {
+    setEditingEndpoint(ep);
+    setEditName(ep.name);
+    setEditInstructions(ep.instructions);
+    setEditTarget(ep.target_model_or_url || (ep as any).endpoint || '');
+    setEditUseCase(ep.use_case || 'general');
+    setEditWeight(ep.weight ?? 1.0);
+    setEditActive(ep.active !== false);
+    setEditKeywords((ep.keywords || []).join(', '));
+    setIsEditOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingEndpoint || !editName.trim() || !editInstructions.trim()) return;
+    setIsSubmitting(true);
+    try {
+      const updated: Partial<WorkflowEndpoint> = {
+        id: editingEndpoint.id,
+        name: editName.trim(),
+        instructions: editInstructions.trim(),
+        target_model_or_url: editTarget.trim(),
+        use_case: editUseCase,
+        weight: Number(editWeight) || 1.0,
+        active: editActive,
+        keywords: editKeywords.split(',').map(k => k.trim()).filter(Boolean),
+      };
+      await api.updateEndpoint(editingEndpoint.id, updated);
+      setIsEditOpen(false);
+      setEditingEndpoint(null);
+      loadEndpoints();
+    } catch (err) {
+      console.error('Failed to update endpoint', err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -357,13 +411,14 @@ print(completion.choices[0].message.content)`;
                 return (
                   <div 
                     key={res.id} 
-                    className={`space-y-2.5 p-3.5 rounded-xl transition-all ${
+                    className={`space-y-2.5 p-3.5 rounded-xl transition-all relative overflow-hidden ${
                       isWinner
-                        ? 'bg-amber-500/[0.08] border border-amber-500/35 shadow-[0_0_20px_rgba(245,158,11,0.06)]'
+                        ? 'bg-amber-500/[0.08] border border-amber-500/40 shadow-[0_0_24px_rgba(245,158,11,0.12)]'
                         : 'bg-white/[0.02] border border-white/[0.07] hover:border-white/[0.12]'
                     }`}
                   >
-                    <div className="flex items-center justify-between text-xs">
+                    {isWinner && <BorderBeam size={220} duration={8} colorFrom="#F59E0B" colorTo="#FCD34D" />}
+                    <div className="flex items-center justify-between text-xs relative z-10">
                       <div className="flex items-center gap-2.5">
                         {isWinner ? (
                           <div className="h-5 w-5 rounded-full bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-400 shrink-0">
@@ -442,34 +497,65 @@ print(completion.choices[0].message.content)`;
             const blockedList = Object.entries(piiForEp).filter(([_, action]) => action === 'block').map(([k]) => k);
 
             return (
-              <div key={ep.id} className="p-4 rounded-lg border-t border-b border-white/[0.05] bg-white/[0.015] flex flex-col justify-between space-y-3 hover:bg-white/[0.03] transition-all">
+              <SpotlightCard 
+                key={ep.id} 
+                onClick={() => handleOpenEdit(ep)}
+                className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.015] flex flex-col justify-between space-y-3 hover:bg-white/[0.035] hover:border-amber-500/30 transition-all cursor-pointer group shadow-sm"
+              >
                 <div className="space-y-2.5">
                   <div className="flex items-start justify-between">
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
-                        <div className="h-6 w-6 rounded-md bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400">
+                        <div className="h-6 w-6 rounded-md bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform">
                           <Server className="h-3.5 w-3.5 text-amber-400" />
                         </div>
-                        <h4 className="font-bold text-xs text-white">{ep.name}</h4>
+                        <h4 className="font-bold text-xs text-white group-hover:text-amber-300 transition-colors flex items-center gap-1.5">
+                          {ep.name}
+                          <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 text-amber-400 transition-opacity" />
+                        </h4>
                       </div>
-                      <span className="faang-chip chip-neutral text-[9px] font-mono mt-0.5">
-                        {ep.id}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="faang-chip chip-neutral text-[9px] font-mono mt-0.5">
+                          {ep.id}
+                        </span>
+                        {ep.active === false && (
+                          <span className="faang-chip chip-crimson text-[9px] font-bold">
+                            INACTIVE
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-zinc-400 hover:text-rose-400 rounded-full hover:bg-rose-500/10"
-                      aria-label={`Delete endpoint ${ep.name}`}
-                      onClick={() => handleDelete(ep.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-zinc-400 hover:text-amber-300 rounded-full hover:bg-amber-500/10"
+                        aria-label={`Edit endpoint ${ep.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEdit(ep);
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-zinc-400 hover:text-rose-400 rounded-full hover:bg-rose-500/10"
+                        aria-label={`Delete endpoint ${ep.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(ep.id);
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="bg-white/[0.02] p-2.5 rounded-lg border border-white/[0.04] text-xs text-zinc-300 space-y-1">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">Matching Instruction:</span>
-                    <p className="text-[11px] text-zinc-300 leading-relaxed font-medium">{ep.instructions}</p>
+                    <p className="text-[11px] text-zinc-300 leading-relaxed font-medium line-clamp-3">{ep.instructions}</p>
                   </div>
 
                   {/* Component PII Governance Whitelist */}
@@ -526,7 +612,7 @@ print(completion.choices[0].message.content)`;
                     API Code
                   </Button>
                 </div>
-              </div>
+              </SpotlightCard>
             );
           })}
         </div>
@@ -745,6 +831,121 @@ print(completion.choices[0].message.content)`;
               disabled={isSubmitting || !formName || !formInstructions || !formEndpoint}
             >
               {isSubmitting ? 'Adding...' : 'Add Endpoint'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Enterprise Endpoint Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="sm:max-w-[480px] p-5 bg-[#15161B] border border-white/[0.09] text-white rounded-2xl shadow-2xl">
+          <DialogHeader className="space-y-1 pb-1">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <Pencil className="h-3.5 w-3.5 text-amber-400" />
+              </div>
+              <div>
+                <DialogTitle className="text-sm font-bold text-white tracking-tight">
+                  Edit Workflow Endpoint
+                </DialogTitle>
+                <div className="text-[10px] font-mono text-zinc-400 mt-0.5">
+                  ID: {editingEndpoint?.id}
+                </div>
+              </div>
+            </div>
+            <DialogDescription className="text-[11px] text-zinc-400 leading-relaxed font-medium">
+              Update semantic matching instructions, destination push target, weight, and active status.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 pt-2 pb-1">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                1. Workflow Name
+              </label>
+              <Input
+                placeholder="Workflow display name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="h-8 text-xs bg-black/50 border-white/[0.08] text-white placeholder:text-zinc-500 rounded-lg focus-visible:ring-1 focus-visible:ring-white/30"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                2. Semantic Match Instruction
+              </label>
+              <Textarea
+                placeholder="Describe queries and tasks to route to this endpoint..."
+                value={editInstructions}
+                onChange={(e) => setEditInstructions(e.target.value)}
+                className="text-xs min-h-[72px] bg-black/50 border-white/[0.08] text-white placeholder:text-zinc-500 rounded-lg p-2.5 leading-relaxed focus-visible:ring-1 focus-visible:ring-white/30 resize-none"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                3. Push Target (Model ID or URL)
+              </label>
+              <Input
+                placeholder="e.g. gemini-3.5-flash-lite or http://localhost:8099/generate"
+                value={editTarget}
+                onChange={(e) => setEditTarget(e.target.value)}
+                className="h-8 font-mono text-[11px] bg-black/50 border-white/[0.08] text-violet-300 placeholder:text-zinc-500 rounded-lg focus-visible:ring-1 focus-visible:ring-white/30"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                  Keywords (Optional)
+                </label>
+                <Input
+                  placeholder="e.g. refund, billing, payment"
+                  value={editKeywords}
+                  onChange={(e) => setEditKeywords(e.target.value)}
+                  className="h-8 text-xs bg-black/50 border-white/[0.08] text-white placeholder:text-zinc-500 rounded-lg focus-visible:ring-1 focus-visible:ring-white/30"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                  Routing Weight
+                </label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  max="10.0"
+                  value={editWeight}
+                  onChange={(e) => setEditWeight(parseFloat(e.target.value) || 1.0)}
+                  className="h-8 text-xs bg-black/50 border-white/[0.08] text-white placeholder:text-zinc-500 rounded-lg focus-visible:ring-1 focus-visible:ring-white/30"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-2.5 rounded-lg bg-black/40 border border-white/[0.06] mt-1">
+              <div className="space-y-0.5">
+                <span className="text-xs font-bold text-white block">Active in Load Balancer</span>
+                <span className="text-[10px] text-zinc-400">When disabled, queries bypass this endpoint</span>
+              </div>
+              <Switch
+                checked={editActive}
+                onCheckedChange={setEditActive}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2 border-t border-white/[0.06] flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" className="faang-btn-ghost h-7.5 px-3 text-xs rounded-lg" onClick={() => setIsEditOpen(false)}>
+              Cancel
+            </Button>
+            <button 
+              type="button" 
+              className="faang-btn-primary text-xs px-3.5 h-7.5 font-bold flex items-center justify-center cursor-pointer rounded-lg disabled:opacity-50"
+              onClick={handleSaveEdit} 
+              disabled={isSubmitting || !editName || !editInstructions}
+            >
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
             </button>
           </DialogFooter>
         </DialogContent>

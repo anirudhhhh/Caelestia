@@ -253,6 +253,9 @@ class ChatResponse(BaseModel):
     session_id: str
     content: str
     model_used: Optional[str] = None
+    workflow_id: Optional[str] = None
+    workflow_name: Optional[str] = None
+    routing_trace: list[dict[str, Any]] = Field(default_factory=list)
     decision: Decision
     checks_summary: list[dict[str, Any]] = Field(default_factory=list)
     risk: RiskAssessment = Field(default_factory=RiskAssessment)

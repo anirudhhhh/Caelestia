@@ -1,49 +1,7 @@
-author: security_admin
 defaults:
   block_threshold: 0.7
   flag_threshold: 0.4
   on_timeout: block
-pii_permissions:
-  customer_support:
-    AADHAAR: block
-    ADDRESS: allow
-    BANK_ACCOUNT: block
-    CREDIT_CARD: block
-    EMAIL: allow
-    GOVERNMENT_ID: block
-    PAN: block
-    PHONE: allow
-    SSN: block
-  decision_support:
-    AADHAAR: block
-    ADDRESS: allow
-    BANK_ACCOUNT: block
-    CREDIT_CARD: allow
-    EMAIL: allow
-    GOVERNMENT_ID: block
-    PAN: block
-    PHONE: allow
-    SSN: allow
-  internal_copilot:
-    AADHAAR: block
-    ADDRESS: allow
-    BANK_ACCOUNT: block
-    CREDIT_CARD: block
-    EMAIL: allow
-    GOVERNMENT_ID: block
-    PAN: block
-    PHONE: allow
-    SSN: block
-  legal_compliance:
-    AADHAAR: block
-    ADDRESS: allow
-    BANK_ACCOUNT: block
-    CREDIT_CARD: block
-    EMAIL: allow
-    GOVERNMENT_ID: block
-    PAN: block
-    PHONE: allow
-    SSN: block
 policies:
 - block_threshold: 0.3
   check: secrets
@@ -81,11 +39,3 @@ policies:
   geography: US
   on_timeout: block
   use_case: decision_support
-rules:
-- action: flag
-  condition: geography == 'EU' and use_case == 'legal_compliance'
-  id: custom_sec_rule_1787936580
-  name: Strict Sovereign Trade Compliance
-  reason: Flagged under EU Article 48 Sovereign Transfer Directive
-updated_at: '2026-08-26T00:00:00Z'
-version: 1.0.0

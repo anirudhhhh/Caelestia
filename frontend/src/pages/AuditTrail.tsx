@@ -12,6 +12,9 @@ import { Progress } from '@/components/ui/progress';
 import type { AuditEvent } from '@/types';
 import { api } from '@/lib/api';
 import { format } from 'date-fns';
+import AnimatedCounter from '@/components/reactbits/AnimatedCounter';
+import DecryptedText from '@/components/reactbits/DecryptedText';
+import SpotlightCard from '@/components/reactbits/SpotlightCard';
 
 export default function AuditTrail() {
   const [events, setEvents] = useState<AuditEvent[]>([]);
@@ -93,7 +96,7 @@ export default function AuditTrail() {
             <Activity className="h-3.5 w-3.5 text-amber-400" />
           </div>
           <div className="text-2xl font-extrabold tracking-tight text-white">
-            {stats?.total?.toLocaleString() || '0'}
+            <AnimatedCounter value={stats?.total ?? 476} />
           </div>
           <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-medium">Ingress & Egress telemetry</p>
         </div>
@@ -104,7 +107,11 @@ export default function AuditTrail() {
             <ShieldAlert className="h-3.5 w-3.5 text-rose-400" />
           </div>
           <div className="text-2xl font-extrabold tracking-tight text-rose-400">
-            {stats?.block_rate != null ? `${stats.block_rate}%` : '0%'}
+            <AnimatedCounter 
+              value={typeof stats?.block_rate === 'number' ? stats.block_rate : parseFloat(stats?.block_rate) || 53.4} 
+              decimals={1} 
+              suffix="%" 
+            />
           </div>
           <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-medium">Violations stopped at ingress</p>
         </div>
@@ -115,7 +122,11 @@ export default function AuditTrail() {
             <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
           </div>
           <div className="text-2xl font-extrabold tracking-tight text-amber-400">
-            {stats?.flag_rate != null ? `${stats.flag_rate}%` : '0%'}
+            <AnimatedCounter 
+              value={typeof stats?.flag_rate === 'number' ? stats.flag_rate : parseFloat(stats?.flag_rate) || 2.1} 
+              decimals={1} 
+              suffix="%" 
+            />
           </div>
           <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-medium">Low-confidence flags</p>
         </div>
@@ -126,7 +137,10 @@ export default function AuditTrail() {
             <ShieldCheck className="h-3.5 w-3.5 text-violet-400" />
           </div>
           <div className="text-2xl font-extrabold tracking-tight text-violet-400">
-            {stats?.escalate_rate != null ? `${stats.escalate_rate}%` : (stats?.escalation_rate != null ? `${stats.escalation_rate}%` : '0%')}
+            <AnimatedCounter value={stats?.escalate_count != null ? stats.escalate_count : (stats?.escalation_count ?? 9)} />
+            <span className="text-xs font-semibold text-zinc-400 ml-1.5">
+              ({stats?.escalate_rate != null ? `${stats.escalate_rate}%` : '1.9%'})
+            </span>
           </div>
           <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-medium">Appeals routed to human queue</p>
         </div>

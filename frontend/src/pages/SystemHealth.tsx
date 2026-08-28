@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import type { AnomalyAlert } from '@/types';
 import { api } from '@/lib/api';
 import { format } from 'date-fns';
+import SpotlightCard from '@/components/reactbits/SpotlightCard';
+import DecryptedText from '@/components/reactbits/DecryptedText';
 
 // Map the gateway's keyed health object { input_guard: {status, latency_ms}, ... }
 // into the array shape the component renders
@@ -164,7 +166,10 @@ export default function SystemHealth() {
           {components.map((comp, idx) => {
             const isHealthy = comp.status === 'healthy';
             return (
-              <div key={idx} className="p-3 rounded-lg border-t border-b border-white/[0.05] bg-white/[0.015] flex flex-col justify-between space-y-2 hover:bg-white/[0.03] transition-all">
+              <SpotlightCard 
+                key={idx} 
+                className="p-3.5 rounded-xl border border-white/[0.06] bg-white/[0.015] flex flex-col justify-between space-y-2.5 hover:border-amber-500/25 transition-all shadow-sm"
+              >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="h-7 w-7 bg-white/[0.03] rounded-md border border-white/[0.05] flex items-center justify-center text-amber-400">
@@ -180,15 +185,15 @@ export default function SystemHealth() {
                     </div>
                   </div>
                 </div>
-                <div className="pt-1.5 border-t border-white/[0.04] flex items-center justify-between text-[10px]">
+                <div className="pt-2 border-t border-white/[0.04] flex items-center justify-between text-[10px]">
                   <span className="text-zinc-400 font-medium">
-                    Latency: <strong className={`font-bold ${comp.latency > 500 ? 'text-amber-400' : 'text-zinc-200'}`}>
+                    Latency: <strong className={`font-bold font-mono ${comp.latency > 500 ? 'text-amber-400' : 'text-zinc-200'}`}>
                       {comp.latency}ms
                     </strong>
                   </span>
                   <span className="text-zinc-500 font-mono font-medium">{format(new Date(comp.last_check), 'HH:mm:ss')}</span>
                 </div>
-              </div>
+              </SpotlightCard>
             );
           })}
         </div>

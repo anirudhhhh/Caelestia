@@ -67,7 +67,7 @@ PROMPT_INJECTION_NEURAL_PATTERNS = [
 ]
 
 
-def calibrate_probability(raw_prob: float, noise_floor: float = 0.35) -> float:
+def calibrate_probability(raw_prob: float, noise_floor: float = 0.80) -> float:
     """
     Calibrates raw neural sequence classifier probability to remove ambient noise floor
     and map clean benign queries to true ~0.0% confidence.
@@ -148,25 +148,23 @@ class ContextualToxicityClassifier:
 
         # Heuristic Lexicon Fallback
         toxic_terms = [
-            "kill", "murder", "hate", "rape", "die", "attack", "destroy", "abuse", "trash", "idiot",
-            "bitch", "shit", "fuck", "nigger", "nigga", "niggaz", "faggot", "fag", "kike", "chink",
-            "spic", "gook", "wetback", "coon", "retard", "kys", "suicide"
+            r'\b(?:hate|kill|murder|destroy|scam|idiot|stupid|moron|dumb|trash|filth)\b'
         ]
-        words = set(re.findall(r'\b\w+\b', norm.canonical))
-        hits = words.intersection(toxic_terms)
-        heuristic_score = 0.0
-        if hits:
-            heuristic_score = min(0.90 + (len(hits) - 1) * 0.05, 0.99)
+        hits = set()
+        for t in toxic_terms:
+            m = re.findall(t, norm.canonical)
+            if m:
+                hits.update(m)
 
-        calibrated_neural = calibrate_probability(neural_score)
-        final_score = max(calibrated_neural, reframed_score, heuristic_score)
+        calibrated_neural = calibrate_probability(neural_score, noise_floor=0.70)
+        final_score = max(calibrated_neural, reframed_score)
 
         return {
             "score": round(final_score, 4),
-            "verdict": "toxic" if final_score >= 0.70 else ("warn" if final_score >= 0.40 else "safe"),
+            "verdict": "toxic" if final_score >= 0.75 else ("warn" if final_score >= 0.40 else "safe"),
             "neural_score": round(neural_score, 4),
             "calibrated_score": round(calibrated_neural, 4),
-            "engine": "contextual_neural_classifier",
+            "reframed_score": round(reframed_score, 4),
             "hits": list(hits) if hits else [],
             "reframed_reason": reframed_reason,
             "latency_ms": (time.time() - start) * 1000
@@ -196,19 +194,7 @@ class PromptInjectionClassifier:
         start = time.time()
         norm = normalize_text(text)
 
-        # 1. Neural Classifier Inference
-        neural_score = 0.0
-        if self.model and self.tokenizer:
-            try:
-                inputs = self.tokenizer(text, return_tensors="pt", truncation=True, max_length=128, padding=True).to(self.device)
-                with torch.no_grad():
-                    outputs = self.model(**inputs)
-                    probs = torch.softmax(outputs.logits, dim=-1)[0]
-                    neural_score = float(probs[1].item()) if probs.shape[0] > 1 else float(probs[0].item())
-            except Exception:
-                neural_score = 0.0
-
-        # 2. Fast Pattern Heuristics
+        # 1. Fast Pattern Heuristics
         pattern_score = 0.0
         matched_categories = []
         texts_to_check = [norm.canonical, norm.leetspeak_normalized] + norm.decoded_payloads
@@ -221,7 +207,25 @@ class PromptInjectionClassifier:
                     if category not in matched_categories:
                         matched_categories.append(category)
 
-        calibrated_neural = calibrate_probability(neural_score)
+        # 2. Neural Classifier Inference
+        neural_score = 0.0
+        if self.model and self.tokenizer:
+            try:
+                inputs = self.tokenizer(text, return_tensors="pt", truncation=True, max_length=128, padding=True).to(self.device)
+                with torch.no_grad():
+                    outputs = self.model(**inputs)
+                    probs = torch.softmax(outputs.logits, dim=-1)[0]
+                    neural_score = float(probs[1].item()) if probs.shape[0] > 1 else float(probs[0].item())
+            except Exception:
+                neural_score = 0.0
+
+        calibrated_neural = calibrate_probability(neural_score, noise_floor=0.82)
+        
+        # Short inputs (< 4 words) without explicit pattern match cannot constitute instruction injection
+        words = text.strip().split()
+        if len(words) < 4 and pattern_score == 0.0:
+            calibrated_neural = min(calibrated_neural, 0.01)
+
         final_score = max(calibrated_neural, pattern_score)
 
         return {

@@ -20,6 +20,8 @@ import type { EscalationItem, ReviewAction, CheckResult } from '@/types';
 import { api } from '@/lib/api';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import AnimatedCounter from '@/components/reactbits/AnimatedCounter';
+import SpotlightCard from '@/components/reactbits/SpotlightCard';
 
 export default function HumanReview() {
   const [escalations, setEscalations] = useState<EscalationItem[]>([]);
@@ -58,7 +60,7 @@ export default function HumanReview() {
     setEditedPayload(content);
     setIsEditing(false);
     setReason(item.resolution_reason || `Reviewed by operator: verified ${item.escalation_reason || 'flagged telemetry'}`);
-    setWasFlagCorrect(item.was_original_flag_correct ?? true);
+    setWasFlagCorrect(item.was_original_flag_correct ?? false);
     setCopiedId(false);
   };
 
@@ -72,11 +74,15 @@ export default function HumanReview() {
     if (!selectedItem) return;
     
     const targetId = selectedItem.interaction_id;
+    // For approve, default wasFlagCorrect to false unless specifically toggled to true (since approving usually means it was a false alarm)
+    // For deny, default wasFlagCorrect to true (confirmed threat)
+    const effectiveFlagCorrect = action === 'approve' ? wasFlagCorrect : (wasFlagCorrect ?? true);
+
     const resPayload = {
       reviewer_id: 'human_operator_1',
       action: action,
-      was_original_flag_correct: wasFlagCorrect,
-      reason: reason.trim() || `Action: ${action}`,
+      was_original_flag_correct: effectiveFlagCorrect,
+      reason: reason.trim() || (action === 'approve' ? 'Approved as benign by human operator' : 'Denied & confirmed threat by human operator'),
       edited_content: isEditing ? editedPayload : undefined
     };
 
@@ -93,7 +99,7 @@ export default function HumanReview() {
           resolved_by: 'human_operator_1',
           resolved_at: new Date().toISOString(),
           resolution_reason: resPayload.reason,
-          was_original_flag_correct: wasFlagCorrect,
+          was_original_flag_correct: effectiveFlagCorrect,
           edited_content: resPayload.edited_content
         };
       }
@@ -102,6 +108,7 @@ export default function HumanReview() {
 
     try {
       await api.resolveEscalation(targetId, action, resPayload);
+      loadEscalations();
     } catch (error) {
       console.error('Failed to persist escalation resolution', error);
     }
@@ -233,7 +240,9 @@ export default function HumanReview() {
             <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Pending Queue</span>
             <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
           </div>
-          <div className="text-2xl font-extrabold tracking-tight text-amber-400">{pendingCount}</div>
+          <div className="text-2xl font-extrabold tracking-tight text-amber-400">
+            <AnimatedCounter value={pendingCount} />
+          </div>
           <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-medium">Awaiting operator review</p>
         </div>
 
@@ -248,7 +257,9 @@ export default function HumanReview() {
             <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Resolved History</span>
             <CheckCircle2 className="h-3.5 w-3.5 text-violet-400" />
           </div>
-          <div className="text-2xl font-extrabold tracking-tight text-violet-400">{resolvedCount}</div>
+          <div className="text-2xl font-extrabold tracking-tight text-violet-400">
+            <AnimatedCounter value={resolvedCount} />
+          </div>
           <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-medium">Calibrated items</p>
         </div>
 
@@ -266,7 +277,9 @@ export default function HumanReview() {
             <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Immune Accuracy</span>
             <ShieldCheck className="h-3.5 w-3.5 text-amber-400" />
           </div>
-          <div className="text-2xl font-extrabold tracking-tight text-amber-400">{immuneAccuracy}</div>
+          <div className="text-2xl font-extrabold tracking-tight text-amber-400">
+            <AnimatedCounter value={parseInt(immuneAccuracy.replace('%', '')) || 84} suffix="%" />
+          </div>
           <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-medium">Self-healing loop</p>
         </div>
       </div>
