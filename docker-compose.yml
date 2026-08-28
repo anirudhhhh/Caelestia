@@ -24,7 +24,6 @@ x-service-defaults: &service-defaults
     - IMMUNE_SYSTEM_URL=http://immune_system:8009
     - ACTION_GUARD_URL=http://action_guard:8010
     - GUARDRAILS_ML_URL=http://guardrails_ml:8011
-    - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
     - GEMINI_API_KEY=${GEMINI_API_KEY:-}
 
 services:

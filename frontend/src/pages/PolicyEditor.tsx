@@ -3,7 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { 
   Save, Plus, AlertCircle, Info, Beaker, RotateCcw, Trash2, 
   CheckCircle2, Check, X, Upload, Download, FileText, Sparkles, 
-  Sliders, Shield, ShieldCheck, ShieldAlert, Server, Cpu
+  Sliders, Shield, ShieldCheck, ShieldAlert, Server, Cpu,
+  RefreshCw, Activity, Zap
 } from 'lucide-react';
 import { load as yamlLoad, dump as yamlDump } from 'js-yaml';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -128,6 +129,7 @@ export default function PolicyEditor() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [publishedSuccess, setPublishedSuccess] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Dynamic Scope & Unified Enterprise Workflow PII Map
   const [selectedUseCase, setSelectedUseCase] = useState<string>(initialScope);
@@ -349,6 +351,35 @@ export default function PolicyEditor() {
       setProposals(prev => prev.filter(p => (p.id || p.proposal_id) !== propId));
     } catch (e) {
       console.error('Failed to dismiss proposal', e);
+    }
+  };
+
+  const handleGenerateProposals = async () => {
+    setIsAnalyzing(true);
+    try {
+      const fresh = await api.generateProposals().catch(() => []);
+      setProposals(fresh);
+      setPublishedSuccess(`Telemetry analysis complete. Loaded ${fresh.length} active threshold recommendations.`);
+      setTimeout(() => setPublishedSuccess(null), 4000);
+    } catch (e) {
+      console.error('Failed to generate proposals', e);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleResetProposals = async () => {
+    setIsAnalyzing(true);
+    try {
+      await api.resetProposals().catch(() => {});
+      const fresh = await api.generateProposals().catch(() => []);
+      setProposals(fresh);
+      setPublishedSuccess('Reset proposal history and re-evaluated fresh telemetry.');
+      setTimeout(() => setPublishedSuccess(null), 4000);
+    } catch (e) {
+      console.error('Failed to reset proposals', e);
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -612,9 +643,9 @@ export default function PolicyEditor() {
         </div>
       )}
 
-      {/* Preset Quick Templates */}
-      <div className="faang-card p-5 space-y-3.5">
-        <div className="flex items-center gap-2 pb-1 text-zinc-200 font-bold text-xs uppercase tracking-wider">
+      {/* Preset Quick Templates (Unboxed, Integrated) */}
+      <div className="unboxed-section space-y-3">
+        <div className="flex items-center gap-2 pb-1 text-zinc-300 font-bold text-xs uppercase tracking-wider">
           <Sparkles className="h-4 w-4 text-amber-400" />
           <span>Enterprise Compliance Presets (1-Click Templates)</span>
         </div>
@@ -633,7 +664,7 @@ export default function PolicyEditor() {
             return (
               <div 
                 key={preset.name}
-                className="p-3.5 rounded-2xl border border-white/[0.08] bg-black/40 hover:border-white/[0.2] transition-all flex flex-col justify-between gap-3 cursor-pointer group hover:bg-white/[0.04]"
+                className="p-3 rounded-lg border-t border-b border-white/[0.05] bg-white/[0.015] hover:bg-white/[0.04] transition-all flex flex-col justify-between gap-3 cursor-pointer group"
                 onClick={() => handleApplyPreset(preset)}
               >
                 <div className="space-y-1.5">
@@ -643,9 +674,9 @@ export default function PolicyEditor() {
                     </div>
                     <span className="text-xs font-bold text-white group-hover:text-amber-400 transition-colors">{preset.name}</span>
                   </div>
-                  <p className="text-xs text-zinc-400 leading-relaxed font-medium">{preset.description}</p>
+                  <p className="text-[11px] text-zinc-400 leading-relaxed font-medium">{preset.description}</p>
                 </div>
-                <button type="button" className="faang-btn-ghost h-7 text-xs w-full font-bold text-zinc-300 group-hover:text-white">
+                <button type="button" className="faang-btn-ghost h-6.5 text-[11px] w-full font-bold text-zinc-300 group-hover:text-white rounded-full">
                   Apply Preset
                 </button>
               </div>
@@ -654,15 +685,15 @@ export default function PolicyEditor() {
         </div>
       </div>
 
-      {/* Enterprise PII Governance Matrix */}
-      <div className="faang-card p-5 space-y-4">
-        <div className="flex flex-row flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] pb-3">
+      {/* Enterprise PII Governance Matrix (Unboxed, Integrated) */}
+      <div className="unboxed-section space-y-4">
+        <div className="flex flex-row flex-wrap items-center justify-between gap-3 pb-1">
           <div>
             <div className="text-xs font-bold uppercase tracking-wider text-zinc-200 flex items-center gap-2">
               <Shield className="h-4 w-4 text-amber-400" />
               <span>Enterprise PII Governance Matrix (Interactive Allow / Block)</span>
             </div>
-            <p className="text-xs text-zinc-400 mt-1 font-medium">
+            <p className="text-xs text-zinc-400 mt-0.5 font-medium">
               Default is DENY / BLOCK for any unlisted PII types. Permitted types pass raw without redaction to downstream LLMs.
             </p>
           </div>
@@ -674,7 +705,7 @@ export default function PolicyEditor() {
               value={selectedUseCase} 
               onValueChange={handleScopeChange}
             >
-              <SelectTrigger id="scope-select" className="h-9 text-xs w-72 sm:w-80 font-bold bg-white/[0.04] border-white/[0.1] rounded-xl text-white" aria-label="Select enterprise workflow profile">
+              <SelectTrigger id="scope-select" className="h-8.5 text-xs w-72 sm:w-80 font-bold bg-white/[0.04] border-white/[0.08] rounded-full text-white" aria-label="Select enterprise workflow profile">
                 <SelectValue placeholder="Select workflow profile..." />
               </SelectTrigger>
               <SelectContent className="max-h-80 bg-[#15161B] border-white/[0.1] rounded-xl text-white">
@@ -705,7 +736,7 @@ export default function PolicyEditor() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {PII_ENTITIES.map((entity) => {
             const currentPii = allPiiConfigs[selectedUseCase] || DEFAULT_PII_MAP;
             const currentAction = currentPii[entity.key] || 'block';
@@ -714,18 +745,18 @@ export default function PolicyEditor() {
             return (
               <div 
                 key={entity.key}
-                className={`p-4 rounded-2xl border transition-all ${
+                className={`p-3 rounded-lg border-t border-b transition-all ${
                   isAllowed 
-                    ? 'border-emerald-500/30 bg-emerald-500/[0.05]' 
-                    : 'border-rose-500/30 bg-rose-500/[0.05]'
+                    ? 'border-emerald-500/30 bg-emerald-500/[0.02]' 
+                    : 'border-rose-500/30 bg-rose-500/[0.02]'
                 }`}
               >
-                <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-white">{entity.name}</span>
                   </div>
                   <span 
-                    className={`faang-chip text-[10px] font-bold uppercase ${
+                    className={`faang-chip text-[9px] font-bold uppercase ${
                       isAllowed 
                         ? 'chip-emerald' 
                         : 'chip-crimson'
@@ -734,15 +765,15 @@ export default function PolicyEditor() {
                     {currentAction}
                   </span>
                 </div>
-                <p className="text-xs text-zinc-400 mb-3.5 truncate font-medium" title={entity.desc}>
+                <p className="text-[11px] text-zinc-400 mb-2.5 truncate font-medium" title={entity.desc}>
                   {entity.desc}
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    className={`h-7.5 rounded-full text-xs font-bold flex items-center justify-center transition-all cursor-pointer ${
+                    className={`h-6.5 rounded-full text-xs font-bold flex items-center justify-center transition-all cursor-pointer ${
                       isAllowed 
-                        ? 'faang-btn-primary text-black shadow-md' 
+                        ? 'faang-btn-primary text-black shadow-sm' 
                         : 'faang-btn-ghost text-zinc-400 hover:text-white'
                     }`}
                     onClick={() => handleTogglePii(entity.key, 'allow')}
@@ -751,7 +782,7 @@ export default function PolicyEditor() {
                   </button>
                   <button
                     type="button"
-                    className={`h-7.5 rounded-full text-xs font-bold flex items-center justify-center transition-all cursor-pointer ${
+                    className={`h-6.5 rounded-full text-xs font-bold flex items-center justify-center transition-all cursor-pointer ${
                       !isAllowed 
                         ? 'faang-btn-crimson' 
                         : 'faang-btn-ghost text-zinc-400 hover:text-rose-400'
@@ -767,67 +798,134 @@ export default function PolicyEditor() {
         </div>
       </div>
 
-      {/* Immune System Self-Healing Proposal Banner */}
-      {proposals.length > 0 && (
-        <Alert className="bg-primary/5 border-primary/20">
-          <Beaker className="h-4 w-4 text-primary" />
-          <AlertTitle className="text-primary font-medium flex items-center gap-2 text-xs">
-            Immune System Threshold Proposal
-            <Badge variant="outline" className="text-[10px] bg-background">Self-Healing Active</Badge>
-          </AlertTitle>
-          <AlertDescription className="mt-2 text-xs">
-            <div className="space-y-2">
-              {proposals.map(prop => {
-                const propId = prop.id || prop.proposal_id || 'prop';
-                const reasonText = prop.reason || prop.justification || 'Telemetry analysis recommends adjusting threshold.';
-                const useCase = prop.use_case || 'customer_support';
-                const geo = prop.geography || 'US';
-
-                return (
-                  <div key={propId} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-md bg-background/80 border border-border gap-3">
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="secondary" className="font-mono text-[10px]">
-                          {useCase} ({geo})
-                        </Badge>
-                        <p className="font-mono text-xs">
-                          Check: <span className="font-bold text-foreground">{prop.check_name}</span> | Proposed {prop.target_threshold_type === 'flag_threshold' ? 'Flag' : 'Block'} Threshold: <span className="text-rose-500 line-through font-mono">{prop.current_threshold}</span> &rarr; <span className="text-emerald-500 font-bold font-mono">{prop.proposed_threshold}</span>
-                        </p>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed">{reasonText}</p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white"
-                        onClick={() => handleAcceptProposal(prop)}
-                      >
-                        <Check className="h-3 w-3 mr-1" /> Accept & Apply
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-xs h-7 text-muted-foreground hover:text-foreground"
-                        onClick={() => handleDismissProposal(prop)}
-                      >
-                        <X className="h-3 w-3 mr-1" /> Dismiss
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
+      {/* Autonomous Policy Recommendations & Immune Calibration (Borderless, Integrated) */}
+      <div className="unboxed-section space-y-4">
+        <div className="flex flex-row flex-wrap items-center justify-between gap-3 pb-1">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-amber-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-200">Autonomous Policy Recommendations & Immune Calibration</h3>
+              <span className="faang-chip chip-amber text-[10px] font-bold">
+                {proposals.length > 0 ? `${proposals.length} PENDING CALIBRATIONS` : 'AI TELEMETRY OPTIMAL'}
+              </span>
             </div>
-          </AlertDescription>
-        </Alert>
-      )}
+            <p className="text-xs text-zinc-400 font-medium">
+              The AI Immune Engine continuously analyzes live firewall telemetry, false positive feedback, and attack clusters to recommend automated policy calibrations.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleGenerateProposals}
+              disabled={isAnalyzing}
+              className="faang-btn-ghost text-xs h-8 px-3 text-zinc-300 hover:text-white flex items-center gap-1.5 cursor-pointer disabled:opacity-50 rounded-full"
+              title="Analyze recent telemetry and calculate threshold recommendations"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isAnalyzing ? 'animate-spin text-amber-400' : ''}`} />
+              <span>{isAnalyzing ? 'Analyzing Telemetry...' : 'Analyze Telemetry'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleResetProposals}
+              disabled={isAnalyzing}
+              className="faang-btn-ghost text-xs h-8 px-2.5 text-zinc-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer disabled:opacity-50 rounded-full"
+              title="Reset proposal history and re-evaluate"
+            >
+              <RotateCcw className="h-3 w-3" />
+              <span>Reset History</span>
+            </button>
+          </div>
+        </div>
 
-      {/* Main Rules Table */}
-      <div className="faang-card p-5 space-y-4">
-        <div className="flex flex-row items-center justify-between border-b border-white/[0.07] pb-3">
+        {proposals.length > 0 ? (
+          <div className="space-y-2">
+            {proposals.map(prop => {
+              const propId = prop.id || prop.proposal_id || 'prop';
+              const reasonText = prop.reason || prop.justification || 'Empirical telemetry analysis recommends adjusting threshold.';
+              const useCase = prop.use_case || 'customer_support';
+              const geo = prop.geography || 'US';
+              const isFlagThresh = prop.target_threshold_type === 'flag_threshold';
+
+              return (
+                <div 
+                  key={propId} 
+                  className="p-3 rounded-lg bg-white/[0.015] border-t border-b border-white/[0.05] hover:bg-white/[0.03] transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 group"
+                >
+                  <div className="space-y-1.5 min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="faang-chip chip-azure text-[10px] font-bold">
+                        {useCase} ({geo})
+                      </span>
+                      <span className="faang-chip chip-violet text-[10px] font-bold">
+                        Check: {prop.check_name}
+                      </span>
+                      <div className="flex items-center gap-1.5 text-xs font-mono">
+                        <span className="text-zinc-400">{isFlagThresh ? 'Flag' : 'Block'} Threshold:</span>
+                        <span className="faang-chip chip-crimson text-[10px] line-through font-bold">
+                          {prop.current_threshold}
+                        </span>
+                        <span className="text-zinc-500 font-bold">&rarr;</span>
+                        <span className="faang-chip chip-emerald text-[10px] font-bold">
+                          {prop.proposed_threshold}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-zinc-300 leading-relaxed font-medium">
+                      {reasonText}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      className="faang-btn-primary text-xs h-7 px-3.5 font-bold flex items-center justify-center cursor-pointer shadow-sm rounded-full"
+                      onClick={() => handleAcceptProposal(prop)}
+                    >
+                      <Check className="h-3.5 w-3.5 mr-1" /> Accept & Apply
+                    </button>
+                    <button
+                      type="button"
+                      className="faang-btn-ghost text-xs h-7 px-3 text-zinc-400 hover:text-white flex items-center justify-center cursor-pointer rounded-full"
+                      onClick={() => handleDismissProposal(prop)}
+                    >
+                      <X className="h-3.5 w-3.5 mr-1" /> Dismiss
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="py-2.5 px-3 rounded-lg bg-white/[0.015] border-t border-b border-white/[0.05] flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-6 w-6 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-white">All Security Policies Optimal & Calibrated</p>
+                <p className="text-[11px] text-zinc-400 font-medium">
+                  Firewall telemetry is operating within expected sigma variance. Click "Analyze Telemetry" to run a deep statistical re-evaluation.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleGenerateProposals}
+              disabled={isAnalyzing}
+              className="faang-btn-ghost text-xs h-7 px-3 text-zinc-300 hover:text-white shrink-0 cursor-pointer rounded-full"
+            >
+              <RefreshCw className={`h-3 w-3 mr-1 ${isAnalyzing ? 'animate-spin' : ''}`} />
+              Run Deep Evaluation
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Main Rules Table (Borderless, Integrated) */}
+      <div className="unboxed-section space-y-3.5">
+        <div className="flex flex-row items-center justify-between pb-1">
           <div>
-            <h3 className="text-sm font-bold text-white">Configured Security Rules & Violation Thresholds</h3>
-            <p className="text-xs text-zinc-400 mt-1 font-medium">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-200">Configured Security Rules & Violation Thresholds</h3>
+            <p className="text-xs text-zinc-400 mt-0.5 font-medium">
               Requests exceeding the Block threshold are blocked at the perimeter. Requests between Flag and Block are admitted and queued for human audit.
             </p>
           </div>
@@ -844,7 +942,7 @@ export default function PolicyEditor() {
           {isLoading ? (
             <div className="py-8 text-center text-xs text-zinc-400 font-medium">Loading active policies...</div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-white/[0.08]">
+            <div className="overflow-x-auto border-t border-b border-white/[0.06] bg-transparent">
               <Table>
                 <TableHeader className="bg-[#15161B]">
                   <TableRow className="text-xs border-white/[0.08]">

@@ -1,5 +1,16 @@
 # ControlPlane.ai — Enterprise Production .gitignore
 
+# --- Temporary Files ---
+test_all_components.py
+test_firewall.py
+test_llm_guard.py
+test_policy_engine.py
+test_output_guard.py
+test_pii_guard.py
+test_review_console.py
+test_router.py
+test_sensitive_data.py
+
 # ─── Environment & Secrets ──────────────────────────────────────────────────
 .env
 .env.*

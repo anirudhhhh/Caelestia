@@ -47,15 +47,13 @@ IMMUNE_SYSTEM_URL = get_env("IMMUNE_SYSTEM_URL", "http://localhost:8009")
 ACTION_GUARD_URL = get_env("ACTION_GUARD_URL", "http://localhost:8010")
 GUARDRAILS_ML_URL = get_env("GUARDRAILS_ML_URL", "http://localhost:8011")
 
-# ─── LLM Configuration ───────────────────────────────────────────────────────
+# ─── LLM Configuration (Google Gemini Native) ─────────────────────────────────
 
-OPENROUTER_API_KEY = get_env("OPENROUTER_API_KEY")
-OPENROUTER_BASE_URL = get_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 GEMINI_API_KEY = get_env("GEMINI_API_KEY")
 
-# Default models (configurable via env)
-DEFAULT_MODEL = get_env("DEFAULT_MODEL", "google/gemini-2.5-flash")
-JUDGE_MODEL = get_env("JUDGE_MODEL", "google/gemini-2.5-flash")
+# Default models (Google Gemini)
+DEFAULT_MODEL = get_env("DEFAULT_MODEL", "gemini-3.5-flash-lite")
+JUDGE_MODEL = get_env("JUDGE_MODEL", "gemini-3.5-flash-lite")
 
 # Default system prompt
 CONTROLPLANE_SYSTEM_PROMPT = get_env(
@@ -67,7 +65,7 @@ CONTROLPLANE_SYSTEM_PROMPT = get_env(
 AVAILABLE_MODELS = [
     m.strip() for m in get_env(
         "AVAILABLE_MODELS",
-        "google/gemini-2.5-flash,openai/gpt-4o-mini,meta-llama/llama-3.3-70b-instruct"
+        "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-flash-lite-latest,gemini-3.6-flash,gemini-3.7-flash"
     ).split(",") if m.strip()
 ]
 

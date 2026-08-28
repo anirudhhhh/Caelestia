@@ -103,39 +103,39 @@ export default function SecretRegistration() {
         </button>
       </div>
 
-      {/* Security Guarantee Alert */}
-      <div className="faang-card p-4.5 flex items-center gap-3.5 border-amber-500/30 bg-amber-500/[0.04]">
-        <div className="h-9 w-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-          <Lock className="w-5 h-5" />
+      {/* Security Guarantee Alert (Borderless, Integrated) */}
+      <div className="py-2 flex items-center gap-3 border-t border-b border-amber-500/20 bg-amber-500/[0.02]">
+        <div className="h-7 w-7 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+          <Lock className="w-3.5 h-3.5" />
         </div>
         <div className="text-xs text-zinc-300 leading-relaxed font-medium">
           <strong className="text-amber-400 font-bold">Zero Plaintext Persistence Guarantee:</strong> Raw secret values are processed in volatile memory to compute an immutable HMAC-SHA256 fingerprint and discarded immediately. Plaintext secrets are never written to disk, databases, or logs.
         </div>
       </div>
 
-      {/* Registered Secrets Table */}
-      <div className="faang-card overflow-hidden">
-        <div className="p-4.5 flex flex-row items-center justify-between border-b border-white/[0.07]">
+      {/* Registered Secrets Table (Borderless, Integrated) */}
+      <div className="space-y-0 border-t border-b border-white/[0.06]">
+        <div className="py-3 flex flex-row items-center justify-between">
           <div>
-            <h3 className="text-sm font-bold text-white">Active HMAC Fingerprints ({secrets.length})</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-200">Active HMAC Fingerprints ({secrets.length})</h3>
             <p className="text-xs text-zinc-400 mt-0.5 font-medium">All registered credentials currently protected by perimeter firewall.</p>
           </div>
-          <Button variant="ghost" size="sm" onClick={loadSecrets} className="faang-btn-ghost h-8 px-3 gap-1.5 text-xs text-zinc-300 hover:text-white">
+          <Button variant="ghost" size="sm" onClick={loadSecrets} className="faang-btn-ghost h-8 px-3 gap-1.5 text-xs text-zinc-300 hover:text-white rounded-full">
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
         </div>
         <div className="overflow-x-auto">
           <Table>
-            <TableHeader className="bg-[#15161B] backdrop-blur-md border-b border-white/[0.08]">
-              <TableRow className="border-white/[0.08] hover:bg-transparent">
-                <TableHead className="text-xs font-bold text-zinc-300">Secret ID</TableHead>
-                <TableHead className="text-xs font-bold text-zinc-300">Type</TableHead>
-                <TableHead className="text-xs font-bold text-zinc-300">Firewall Action</TableHead>
-                <TableHead className="text-xs font-bold text-zinc-300">Status</TableHead>
-                <TableHead className="text-xs font-bold text-zinc-300">Registered</TableHead>
-                <TableHead className="text-xs font-bold text-zinc-300">Last Matched</TableHead>
-                <TableHead className="text-xs font-bold text-zinc-300 text-right pr-5">Actions</TableHead>
+            <TableHeader className="bg-[#0E0F12]/90 backdrop-blur-md border-b border-white/[0.06]">
+              <TableRow className="border-white/[0.06] hover:bg-transparent">
+                <TableHead className="text-xs font-bold text-zinc-400">Secret ID</TableHead>
+                <TableHead className="text-xs font-bold text-zinc-400">Type</TableHead>
+                <TableHead className="text-xs font-bold text-zinc-400">Firewall Action</TableHead>
+                <TableHead className="text-xs font-bold text-zinc-400">Status</TableHead>
+                <TableHead className="text-xs font-bold text-zinc-400">Registered</TableHead>
+                <TableHead className="text-xs font-bold text-zinc-400">Last Matched</TableHead>
+                <TableHead className="text-xs font-bold text-zinc-400 text-right pr-5">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -212,41 +212,45 @@ export default function SecretRegistration() {
         </div>
       </div>
 
-      {/* Registration Modal */}
+      {/* Registration Modal (Refined & Un-cluttered) */}
       <Dialog open={isRegisterOpen} onOpenChange={setIsRegisterOpen}>
-        <DialogContent className="sm:max-w-[500px] bg-[#15161B] border-white/[0.1] text-white">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-white">
-              <KeyRound className="w-5 h-5 text-amber-400" />
-              Register Enterprise Secret
-            </DialogTitle>
-            <DialogDescription className="text-zinc-400">
-              Submit an enterprise secret token to compute a zero-knowledge HMAC fingerprint. The plaintext value is immediately discarded.
+        <DialogContent className="sm:max-w-[460px] p-5 bg-[#15161B] border border-white/[0.09] text-white rounded-2xl shadow-2xl">
+          <DialogHeader className="space-y-1 pb-1">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+              </div>
+              <DialogTitle className="text-sm font-bold text-white tracking-tight">
+                Register Enterprise Secret
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-[11px] text-zinc-400 leading-relaxed font-medium">
+              Submit a secret token to compute a zero-knowledge HMAC fingerprint. The plaintext is discarded.
             </DialogDescription>
           </DialogHeader>
 
           {registrationSuccess ? (
-            <div className="space-y-4 py-3">
-              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3">
-                <CheckCircle2 className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            <div className="space-y-3 py-2">
+              <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-sm font-bold text-amber-400">Secret Registered Successfully</h4>
-                  <p className="text-xs text-zinc-300 mt-1">
+                  <h4 className="text-xs font-bold text-amber-400">Secret Registered Successfully</h4>
+                  <p className="text-[11px] text-zinc-300 mt-0.5 leading-relaxed">
                     The HMAC-SHA256 fingerprint has been generated and activated across perimeter firewalls.
                   </p>
-                  <div className="mt-3 font-mono text-xs bg-black/50 p-2.5 rounded-lg border border-white/[0.08] text-white">
+                  <div className="mt-2 font-mono text-[11px] bg-black/50 p-2 rounded-lg border border-white/[0.08] text-white">
                     ID: {registrationSuccess.secret_id}
                   </div>
                 </div>
               </div>
-              <DialogFooter>
-                <button type="button" className="faang-btn-primary h-8 px-4 text-xs font-bold" onClick={() => setIsRegisterOpen(false)}>Done</button>
+              <DialogFooter className="pt-2 border-t border-white/[0.06]">
+                <button type="button" className="faang-btn-primary h-7.5 px-3.5 text-xs font-bold rounded-lg" onClick={() => setIsRegisterOpen(false)}>Done</button>
               </DialogFooter>
             </div>
           ) : (
-            <form onSubmit={handleRegister} className="space-y-4 py-2">
-              <div className="space-y-2">
-                <Label htmlFor="rawSecret" className="text-zinc-300 font-bold text-xs">Raw Secret Value (Single-Use)</Label>
+            <form onSubmit={handleRegister} className="space-y-3 pt-2 pb-1">
+              <div className="space-y-1">
+                <Label htmlFor="rawSecret" className="text-[10px] uppercase font-bold tracking-wider text-zinc-400">Raw Secret Value (Single-Use)</Label>
                 <Input 
                   id="rawSecret"
                   type="password"
@@ -255,18 +259,18 @@ export default function SecretRegistration() {
                   placeholder="e.g. sk-proj-1234567890abcdef..."
                   required
                   autoFocus
-                  className="bg-black/40 border-white/[0.1] text-white h-9"
+                  className="bg-black/50 border-white/[0.08] text-white h-8 text-xs placeholder:text-zinc-500 rounded-lg focus-visible:ring-1 focus-visible:ring-white/30"
                 />
-                <p className="text-[11px] text-zinc-400">
-                  * Explicitly guaranteed: Raw secret is never saved, cached, or displayed.
+                <p className="text-[10px] text-zinc-400">
+                  * Guaranteed zero plaintext persistence in logs, cache, or database.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="secretTypeSelect" className="text-zinc-300 font-bold text-xs">Secret Type</Label>
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="space-y-1">
+                  <Label htmlFor="secretTypeSelect" className="text-[10px] uppercase font-bold tracking-wider text-zinc-400">Secret Type</Label>
                   <Select value={secretType} onValueChange={setSecretType}>
-                    <SelectTrigger id="secretTypeSelect" aria-label="Select secret type" className="bg-black/40 border-white/[0.1] text-white h-9">
+                    <SelectTrigger id="secretTypeSelect" aria-label="Select secret type" className="bg-black/50 border-white/[0.08] text-white h-8 text-xs rounded-lg">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-[#15161B] border-white/[0.1] text-white">
@@ -279,10 +283,10 @@ export default function SecretRegistration() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="actionSelect" className="text-zinc-300 font-bold text-xs">Action on Match</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="actionSelect" className="text-[10px] uppercase font-bold tracking-wider text-zinc-400">Action on Match</Label>
                   <Select value={actionOnMatch} onValueChange={setActionOnMatch}>
-                    <SelectTrigger id="actionSelect" aria-label="Select action on match" className="bg-black/40 border-white/[0.1] text-white h-9">
+                    <SelectTrigger id="actionSelect" aria-label="Select action on match" className="bg-black/50 border-white/[0.08] text-white h-8 text-xs rounded-lg">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-[#15161B] border-white/[0.1] text-white">
@@ -293,10 +297,10 @@ export default function SecretRegistration() {
                 </div>
               </div>
 
-              <DialogFooter className="pt-2 gap-2">
-                <Button type="button" variant="outline" className="faang-btn-ghost text-xs h-9 text-zinc-300" onClick={() => setIsRegisterOpen(false)}>Cancel</Button>
-                <button type="submit" disabled={isSubmitting || !rawSecret.trim()} className="faang-btn-primary text-xs h-9 px-4 font-bold cursor-pointer disabled:opacity-50">
-                  {isSubmitting ? 'Computing Fingerprint...' : 'Register Fingerprint'}
+              <DialogFooter className="pt-2 border-t border-white/[0.06] flex items-center justify-end gap-2">
+                <Button type="button" variant="outline" className="faang-btn-ghost text-xs h-7.5 px-3 text-zinc-300 rounded-lg" onClick={() => setIsRegisterOpen(false)}>Cancel</Button>
+                <button type="submit" disabled={isSubmitting || !rawSecret.trim()} className="faang-btn-primary text-xs h-7.5 px-3.5 font-bold cursor-pointer disabled:opacity-50 rounded-lg">
+                  {isSubmitting ? 'Computing...' : 'Register Fingerprint'}
                 </button>
               </DialogFooter>
             </form>

@@ -99,9 +99,9 @@ Every AI interaction passes through ControlPlane at the **perimeter boundary** (
   * **Secret Credentials Scanner (`25.7%` benign, `98.0%` leaked keys):** Continuous vector credential distance + token-level Shannon entropy ($> 4.3$ bits/char).
   * **PII & Privacy Engine (`0.0%` clean, `100.0%` PII):** Presidio NER boundary confidence + strict entity formatting.
 
-### 4. Resilient Multi-Model Adapter with Automatic Gemini Failover
-* **Native Google Gemini 3.6 Flash Integration:** High-throughput direct access via Google Generative Language API (`gemini-3.6-flash`).
-* **Zero-Downtime Provider Failover:** If an external upstream provider (e.g. OpenRouter) returns `402 Payment Required`, `429 Rate Limit`, or encounters network timeouts, [`services/adapter/app.py`](services/adapter/app.py) automatically falls back to direct Gemini API execution, and finally to synthetic fallback mode.
+### 4. Native Google Gemini Multi-Model Adapter
+* **Native Google Gemini Flash & Pro Integration:** High-throughput direct access via Google Generative Language API (`gemini-3.5-flash-lite`, `gemini-3.6-flash`, `gemini-3.7-flash`).
+* **Zero-Downtime Model Rotation:** Automatically rotates across Gemini models and falls back seamlessly to intelligent contextual synthesis during network drops or quota constraints.
 
 ### 5. Pinecone-Style Semantic Load Balancer & Hybrid Vector Router
 * Uses a 384-dimensional vector embedding space (`sentence-transformers/all-MiniLM-L6-v2`) combined with sparse BM25 keyword matching and dynamic endpoint health weighting.
@@ -137,7 +137,7 @@ Every AI interaction passes through ControlPlane at the **perimeter boundary** (
 |---|-----------|------|---------|
 | 01 | **API Gateway** | `8000` | Ingress gateway, proxy orchestrator, async audit dispatcher |
 | 02 | **Semantic Router & LB** | `8005` | Dynamic endpoint registry, 384-d hybrid vector routing, multi-agent load balancing |
-| 03 | **Model Adapter** | `8006` | Dual-provider model execution (Direct Google Gemini 3.6 Flash API + OpenRouter failover) |
+| 03 | **Model Adapter** | `8006` | Native Google Gemini API model execution (`gemini-3.5-flash-lite`, `gemini-3.6-flash`, `gemini-3.7-flash`) |
 | 04 | **Input Guard** | `8001` | Ingress perimeter firewall orchestrating L0 Normalization, L1 Lexicon, L2 ML Classifiers, L3 Vector Search |
 | 05 | **Output Guard** | `8002` | Egress perimeter firewall: hallucination verification (L4 AI-as-judge), system prompt leakage, sensitive data, L2 toxicity |
 | 06 | **PII Service** | `8003` | Shared PII detection (Presidio NER + contextual regex recognizers) |
@@ -216,7 +216,7 @@ Every AI interaction passes through ControlPlane at the **perimeter boundary** (
 ### Prerequisites
 - Python 3.11+
 - Node.js 18+
-- Google Gemini API Key ([aistudio.google.com](https://aistudio.google.com)) or OpenRouter API Key ([openrouter.ai](https://openrouter.ai))
+- Google Gemini API Key ([aistudio.google.com](https://aistudio.google.com))
 
 ### 1. Clone & Configure
 
@@ -227,7 +227,7 @@ cd Caelestia
 # Copy environment template
 cp .env.example .env
 
-# Edit .env to add your API key (GEMINI_API_KEY or OPENROUTER_API_KEY)
+# Edit .env to add your Google Gemini API key (GEMINI_API_KEY)
 ```
 
 ### 2. Install Dependencies

@@ -1,15 +1,15 @@
-import { chromium } from 'playwright';
+import { chromium } from '../frontend/node_modules/playwright/index.mjs';
 import fs from 'fs';
 import path from 'path';
 
-const OUT_DIR = path.resolve('frontend/screenshots');
+const OUT_DIR = path.resolve('/Users/anirudh/.gemini/antigravity/brain/4ecfd23c-73cc-45f1-92f6-aaef52d7793c');
 if (!fs.existsSync(OUT_DIR)) {
   fs.mkdirSync(OUT_DIR, { recursive: true });
 }
 
 const routes = [
   { name: 'playground', path: '/' },
-  { name: 'load_balancer', path: '/balancer' },
+  { name: 'load_balancer', path: '/load-balancer' },
   { name: 'human_review', path: '/review' },
   { name: 'trust_dashboard', path: '/trust' },
   { name: 'policy_editor', path: '/policies' },

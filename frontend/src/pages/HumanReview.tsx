@@ -177,62 +177,54 @@ export default function HumanReview() {
 
   return (
     <div className="h-full w-full flex flex-col gap-4 sm:gap-5 min-h-0 overflow-hidden font-sans">
-      {/* Top Metric Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 shrink-0">
+      {/* Top Metric Ribbon (Integrated, Unboxed) */}
+      <div className="metric-ribbon grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-white/[0.07] shrink-0 overflow-hidden">
         <div 
           className={cn(
-            "faang-card p-4.5 sm:p-5 cursor-pointer transition-all duration-200",
-            statusFilter === 'pending' ? "border-amber-500/40 bg-amber-500/10 shadow-[0_0_20px_rgba(245,158,11,0.15)]" : "hover:border-white/[0.15]"
+            "metric-item cursor-pointer",
+            statusFilter === 'pending' ? "bg-amber-500/[0.08]" : ""
           )}
           onClick={() => setStatusFilter('pending')}
         >
-          <div className="flex items-center justify-between pb-1.5">
-            <span className="text-xs font-bold text-zinc-400">Pending Queue</span>
-            <div className="h-8 w-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
-              <AlertTriangle className="h-4 w-4" />
-            </div>
+          <div className="flex items-center justify-between pb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Pending Queue</span>
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
           </div>
-          <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-amber-400">{pendingCount}</div>
-          <p className="text-xs text-zinc-400 mt-1 truncate font-medium">Awaiting operator review</p>
+          <div className="text-2xl font-extrabold tracking-tight text-amber-400">{pendingCount}</div>
+          <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-medium">Awaiting operator review</p>
         </div>
 
         <div 
           className={cn(
-            "faang-card p-4.5 sm:p-5 cursor-pointer transition-all duration-200",
-            statusFilter === 'resolved' ? "border-violet-500/40 bg-violet-500/10 shadow-[0_0_20px_rgba(139,92,246,0.15)]" : "hover:border-white/[0.15]"
+            "metric-item cursor-pointer",
+            statusFilter === 'resolved' ? "bg-violet-500/[0.08]" : ""
           )}
           onClick={() => setStatusFilter('resolved')}
         >
-          <div className="flex items-center justify-between pb-1.5">
-            <span className="text-xs font-bold text-zinc-400">Resolved History</span>
-            <div className="h-8 w-8 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400">
-              <CheckCircle2 className="h-4 w-4" />
-            </div>
+          <div className="flex items-center justify-between pb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Resolved History</span>
+            <CheckCircle2 className="h-3.5 w-3.5 text-violet-400" />
           </div>
-          <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-violet-400">{resolvedCount}</div>
-          <p className="text-xs text-zinc-400 mt-1 truncate font-medium">Calibrated items</p>
+          <div className="text-2xl font-extrabold tracking-tight text-violet-400">{resolvedCount}</div>
+          <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-medium">Calibrated items</p>
         </div>
 
-        <div className="faang-card p-4.5 sm:p-5">
-          <div className="flex items-center justify-between pb-1.5">
-            <span className="text-xs font-bold text-zinc-400">Average SLA</span>
-            <div className="h-8 w-8 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400">
-              <Clock className="h-4 w-4" />
-            </div>
+        <div className="metric-item">
+          <div className="flex items-center justify-between pb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Average SLA</span>
+            <Clock className="h-3.5 w-3.5 text-blue-400" />
           </div>
-          <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">1.2m</div>
-          <p className="text-xs text-zinc-400 mt-1 truncate font-medium">Triage turnaround</p>
+          <div className="text-2xl font-extrabold tracking-tight text-white">1.2m</div>
+          <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-medium">Triage turnaround</p>
         </div>
 
-        <div className="faang-card p-4.5 sm:p-5">
-          <div className="flex items-center justify-between pb-1.5">
-            <span className="text-xs font-bold text-zinc-400">Immune Accuracy</span>
-            <div className="h-8 w-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
-              <ShieldCheck className="h-4 w-4" />
-            </div>
+        <div className="metric-item">
+          <div className="flex items-center justify-between pb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Immune Accuracy</span>
+            <ShieldCheck className="h-3.5 w-3.5 text-amber-400" />
           </div>
-          <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-amber-400">100%</div>
-          <p className="text-xs text-zinc-400 mt-1 truncate font-medium">Self-healing loop</p>
+          <div className="text-2xl font-extrabold tracking-tight text-amber-400">100%</div>
+          <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-medium">Self-healing loop</p>
         </div>
       </div>
 
@@ -243,14 +235,14 @@ export default function HumanReview() {
         </div>
       )}
 
-      {/* Filter Toolbar */}
-      <div className="faang-card p-3 flex flex-wrap items-center gap-3 shrink-0">
-        <div className="flex items-center bg-black/40 p-1 rounded-full border border-white/[0.08]">
+      {/* Unboxed Filter Toolbar */}
+      <div className="flex flex-wrap items-center gap-3 shrink-0 py-0.5">
+        <div className="flex items-center bg-white/[0.04] p-1 rounded-full border border-white/[0.08]">
           <button
             type="button"
             className={cn(
-              "px-3.5 py-1.5 rounded-full text-xs font-bold transition-all",
-              statusFilter === 'pending' ? "bg-white text-black shadow-md" : "text-zinc-400 hover:text-white"
+              "px-3.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer",
+              statusFilter === 'pending' ? "bg-white text-black shadow-sm" : "text-zinc-400 hover:text-white"
             )}
             onClick={() => setStatusFilter('pending')}
           >
@@ -259,8 +251,8 @@ export default function HumanReview() {
           <button
             type="button"
             className={cn(
-              "px-3.5 py-1.5 rounded-full text-xs font-bold transition-all",
-              statusFilter === 'resolved' ? "bg-white text-black shadow-md" : "text-zinc-400 hover:text-white"
+              "px-3.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer",
+              statusFilter === 'resolved' ? "bg-white text-black shadow-sm" : "text-zinc-400 hover:text-white"
             )}
             onClick={() => setStatusFilter('resolved')}
           >
@@ -269,8 +261,8 @@ export default function HumanReview() {
           <button
             type="button"
             className={cn(
-              "px-3.5 py-1.5 rounded-full text-xs font-bold transition-all",
-              statusFilter === 'all' ? "bg-white text-black shadow-md" : "text-zinc-400 hover:text-white"
+              "px-3.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer",
+              statusFilter === 'all' ? "bg-white text-black shadow-sm" : "text-zinc-400 hover:text-white"
             )}
             onClick={() => setStatusFilter('all')}
           >
@@ -279,22 +271,22 @@ export default function HumanReview() {
         </div>
 
         <div className="relative flex-1 min-w-[180px] max-w-sm">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
+          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-400" />
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search incident ID, reason, or content..."
             aria-label="Search escalations"
-            className="pl-9 h-9 text-xs bg-black/40 border-white/[0.09] rounded-xl text-white placeholder:text-zinc-500 focus-visible:ring-1 focus-visible:ring-white/30"
+            className="pl-9 h-8.5 text-xs bg-white/[0.04] border-white/[0.08] rounded-full text-white placeholder:text-zinc-500 focus-visible:ring-1 focus-visible:ring-white/30"
           />
         </div>
 
         <Select value={directionFilter} onValueChange={setDirectionFilter}>
-          <SelectTrigger className="w-[160px] h-9 text-xs font-bold bg-white/[0.04] border-white/[0.09] rounded-xl text-white" aria-label="Filter by stream direction">
+          <SelectTrigger className="w-[150px] h-8.5 text-xs font-bold bg-white/[0.04] border-white/[0.08] rounded-full text-white" aria-label="Filter by stream direction">
             <div className="flex items-center gap-1.5 truncate">
               <span className="text-zinc-400 text-xs">Stream:</span>
               <span className="text-white font-bold truncate">
-                {directionFilter === 'all' ? 'All Streams' : directionFilter === 'input' ? 'Input' : 'Output'}
+                {directionFilter === 'all' ? 'All' : directionFilter === 'input' ? 'Ingress' : 'Egress'}
               </span>
             </div>
           </SelectTrigger>
@@ -306,11 +298,11 @@ export default function HumanReview() {
         </Select>
 
         <Select value={riskFilter} onValueChange={setRiskFilter}>
-          <SelectTrigger className="w-[150px] h-9 text-xs font-bold bg-white/[0.04] border-white/[0.09] rounded-xl text-white" aria-label="Filter by risk tier">
+          <SelectTrigger className="w-[145px] h-8.5 text-xs font-bold bg-white/[0.04] border-white/[0.08] rounded-full text-white" aria-label="Filter by risk tier">
             <div className="flex items-center gap-1.5 truncate">
               <span className="text-zinc-400 text-xs">Risk:</span>
               <span className="text-white font-bold capitalize truncate">
-                {riskFilter === 'all' ? 'All Tiers' : `${riskFilter} Risk`}
+                {riskFilter === 'all' ? 'All Tiers' : `${riskFilter}`}
               </span>
             </div>
           </SelectTrigger>
@@ -322,59 +314,61 @@ export default function HumanReview() {
           </SelectContent>
         </Select>
 
-        <Button variant="ghost" size="sm" onClick={loadEscalations} aria-label="Refresh escalations" className="ml-auto text-xs h-9 px-3 gap-1.5 text-zinc-400 hover:text-white rounded-full hover:bg-white/[0.06]">
+        <Button variant="ghost" size="sm" onClick={loadEscalations} aria-label="Refresh escalations" className="ml-auto text-xs h-8.5 px-3 gap-1.5 text-zinc-400 hover:text-white rounded-full hover:bg-white/[0.06]">
           <RefreshCw className="h-3.5 w-3.5" />
           Refresh
         </Button>
       </div>
 
-      {/* Main Table */}
-      <div className="faang-card flex-1 min-h-0 overflow-hidden flex flex-col">
+      {/* Main Integrated Table Container (Borderless) */}
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-b border-white/[0.06] bg-transparent">
         <div className="overflow-auto flex-1 w-full">
           <Table>
-            <TableHeader className="sticky top-0 bg-[#15161B] backdrop-blur-md z-10 border-b border-white/[0.08]">
-              <TableRow className="border-white/[0.08] hover:bg-transparent">
-                <TableHead className="text-xs w-[100px] font-bold text-zinc-300">Risk</TableHead>
-                <TableHead className="text-xs w-[105px] font-bold text-zinc-300">Direction</TableHead>
-                <TableHead className="text-xs w-[155px] font-bold text-zinc-300">Status / Verdict</TableHead>
-                <TableHead className="text-xs w-[110px] font-bold text-zinc-300">Incident ID</TableHead>
-                <TableHead className="text-xs w-[140px] font-bold text-zinc-300">Workflow</TableHead>
-                <TableHead className="text-xs min-w-[280px] font-bold text-zinc-300">Escalation Trigger</TableHead>
-                <TableHead className="text-xs min-w-[140px] font-bold text-zinc-300">Findings</TableHead>
-                <TableHead className="text-xs text-right w-[110px] pr-4 font-bold text-zinc-300">Action</TableHead>
+            <TableHeader className="sticky top-0 bg-[#0E0F12]/90 backdrop-blur-md z-10 border-b border-white/[0.06]">
+              <TableRow className="border-white/[0.06] hover:bg-transparent">
+                <TableHead className="text-xs w-[100px] font-bold text-zinc-400">Risk</TableHead>
+                <TableHead className="text-xs w-[105px] font-bold text-zinc-400">Direction</TableHead>
+                <TableHead className="text-xs w-[155px] font-bold text-zinc-400">Status / Verdict</TableHead>
+                <TableHead className="text-xs w-[110px] font-bold text-zinc-400">Incident ID</TableHead>
+                <TableHead className="text-xs w-[140px] font-bold text-zinc-400">Workflow</TableHead>
+                <TableHead className="text-xs min-w-[280px] font-bold text-zinc-400">Escalation Trigger</TableHead>
+                <TableHead className="text-xs min-w-[140px] font-bold text-zinc-400">Findings</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-16 text-zinc-400 text-xs font-medium">
+                  <TableCell colSpan={7} className="text-center py-16 text-zinc-400 text-xs font-medium">
                     Loading escalation queue...
                   </TableCell>
                 </TableRow>
               ) : filteredEscalations.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-16 text-zinc-400 text-xs font-medium">
+                  <TableCell colSpan={7} className="text-center py-16 text-zinc-400 text-xs font-medium">
                     No escalations in queue matching current filters.
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredEscalations.map((item, idx) => {
-                  const isResolved = item.status === 'resolved';
                   const issues = (item.interaction?.checks || []).filter((c: CheckResult) => c.score > 0 || c.verdict !== 'pass');
                   const isInput = (item as any).direction === 'input' || item.payload?.role === 'user' || !item.payload?.role;
 
                   return (
-                    <TableRow key={item.interaction_id ? `${item.interaction_id}-${idx}` : idx} className="hover:bg-white/[0.03] transition-colors border-white/[0.06]">
+                    <TableRow 
+                      key={item.interaction_id ? `${item.interaction_id}-${idx}` : idx} 
+                      onClick={() => handleOpenReview(item)}
+                      className="hover:bg-white/[0.04] active:bg-white/[0.06] transition-colors border-white/[0.04] cursor-pointer group"
+                    >
                       <TableCell>{getRiskBadge(item.risk_tier)}</TableCell>
                       
                       <TableCell>
                         {isInput ? (
                           <span className="faang-chip chip-azure text-[10px] w-fit">
-                            <ArrowDownLeft className="h-3 w-3 shrink-0" /> Ingress
+                            <ArrowDownLeft className="h-3 w-3 shrink-0" /> Input
                           </span>
                         ) : (
                           <span className="faang-chip chip-violet text-[10px] w-fit">
-                            <ArrowUpRight className="h-3 w-3 shrink-0" /> Egress
+                            <ArrowUpRight className="h-3 w-3 shrink-0" /> Output
                           </span>
                         )}
                       </TableCell>
@@ -383,12 +377,16 @@ export default function HumanReview() {
 
                       <TableCell className="text-xs text-zinc-400">
                         <button
-                          onClick={() => handleCopyId(item.interaction_id)}
-                          className="hover:text-amber-400 transition-colors flex items-center gap-1 group font-mono"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyId(item.interaction_id);
+                          }}
+                          className="hover:text-amber-400 transition-colors flex items-center gap-1 group/btn font-mono cursor-pointer"
                           title="Click to copy interaction ID"
                         >
                           <span>{item.interaction_id?.substring(0, 8)}...</span>
-                          <Copy className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <Copy className="h-2.5 w-2.5 opacity-0 group-hover/btn:opacity-100 transition-opacity" />
                         </button>
                       </TableCell>
 
@@ -411,27 +409,6 @@ export default function HumanReview() {
                           </div>
                         ) : (
                           <span className="text-xs text-zinc-400 font-medium">Policy Warning</span>
-                        )}
-                      </TableCell>
-
-                      <TableCell className="text-right pr-4">
-                        {isResolved ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 text-xs text-zinc-400 hover:text-white rounded-full hover:bg-white/[0.08]"
-                            onClick={() => handleOpenReview(item)}
-                          >
-                            <History className="h-3.5 w-3.5 mr-1" /> View
-                          </Button>
-                        ) : (
-                          <button
-                            type="button"
-                            className="faang-btn-primary text-xs h-8 px-3.5 gap-1.5 flex items-center justify-center whitespace-nowrap font-bold cursor-pointer"
-                            onClick={() => handleOpenReview(item)}
-                          >
-                            <UserCheck className="h-3.5 w-3.5 mr-1" /> Triage
-                          </button>
                         )}
                       </TableCell>
                     </TableRow>

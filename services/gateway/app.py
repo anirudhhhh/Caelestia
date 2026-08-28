@@ -257,11 +257,32 @@ async def chat_completions(
 
         routed_model = envelope.model.routed_to or req.model or "google/gemini-2.0-flash-001"
 
-        # 4. Model Adapter
+        # 4. Model Adapter with Regional Sovereignty Context
+        geo_str = _enum_val(req.geography).upper()
+        if geo_str == "EU":
+            geo_prompt = (
+                "You are operating in the European Union (EU) Sovereign Data Zone under GDPR compliance. "
+                "Adhere strictly to European data protection standards, EU regulatory frameworks, and reference EU currency (EUR €) "
+                "or European terminology where appropriate."
+            )
+        elif geo_str == "IN":
+            geo_prompt = (
+                "You are operating in the India (IN) Sovereign Data Zone under the Digital Personal Data Protection (DPDP) Act. "
+                "Adhere strictly to Indian data governance standards, regulatory frameworks, and reference Indian currency (INR ₹) "
+                "or Indian terminology where appropriate."
+            )
+        else:
+            geo_prompt = (
+                "You are operating in the United States (US) Sovereign Data Zone under US Federal/State compliance. "
+                "Adhere to US data governance standards, regulatory frameworks, and reference US currency (USD $) "
+                "or US terminology where appropriate."
+            )
+
+        effective_sys_prompt = f"{CONTROLPLANE_SYSTEM_PROMPT}\n{geo_prompt}"
         max_tokens = req.max_tokens or get_default_max_tokens(req.use_case)
         adapter_req = {
             "model": routed_model,
-            "messages": [{"role": "system", "content": CONTROLPLANE_SYSTEM_PROMPT}]
+            "messages": [{"role": "system", "content": effective_sys_prompt}]
                         + [m.model_dump() for m in req.messages],
             "max_tokens": max_tokens,
         }
@@ -767,6 +788,15 @@ async def register_router_endpoint(endpoint: Dict[str, Any]):
     return resp.json() if resp.status_code == 200 else {}
 
 
+@app.put("/v1/router/endpoints/{endpoint_id}")
+async def update_router_endpoint(endpoint_id: str, endpoint: Dict[str, Any]):
+    client = get_http_client()
+    resp = await client.put(f"{ROUTER_URL}/endpoints/{endpoint_id}", json=endpoint)
+    if resp.status_code == 200:
+        return resp.json()
+    raise HTTPException(status_code=resp.status_code, detail="Failed to update endpoint")
+
+
 @app.delete("/v1/router/endpoints/{endpoint_id}")
 async def delete_router_endpoint(endpoint_id: str):
     client = get_http_client()
@@ -841,6 +871,37 @@ async def dismiss_proposal(proposal_id: str):
     except Exception as e:
         logger.error(f"Failed to dismiss proposal: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/v1/health/proposals/generate")
+async def trigger_generate_proposals():
+    client = get_http_client()
+    try:
+        resp = await client.get(f"{IMMUNE_SYSTEM_URL}/proposals")
+        if resp.status_code == 200:
+            return resp.json()
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to trigger proposal generation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/v1/health/proposals/reset")
+async def reset_proposals():
+    client = get_http_client()
+    try:
+        resp = await client.post(f"{IMMUNE_SYSTEM_URL}/proposals/reset")
+        if resp.status_code == 200:
+            return resp.json()
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to reset proposals: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 # ─── Proxy: Trust / Outcome Stats ────────────────────────────────────────────

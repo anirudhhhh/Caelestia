@@ -119,18 +119,18 @@ export default function SystemHealth() {
         </div>
       </div>
 
-      {/* Active Alerts */}
+      {/* Active Alerts (Borderless, Integrated) */}
       {alerts.length > 0 && (
-        <div className="faang-card p-5 space-y-3.5 border-amber-500/30 bg-amber-500/[0.04]">
+        <div className="unboxed-section space-y-3 pb-3 mb-3">
           <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
-            <AlertTriangle className="h-4 w-4" />
+            <AlertTriangle className="h-3.5 w-3.5" />
             <span>Active Perimeter Anomalies ({alerts.length})</span>
           </div>
-          <div className="space-y-2.5">
+          <div className="space-y-1.5">
             {alerts.map(alert => (
-              <div key={alert.id} className="flex items-center justify-between bg-black/40 p-3.5 rounded-xl border border-white/[0.08]">
-                <div className="flex items-center gap-3">
-                  <span className={`faang-chip text-[10px] font-bold uppercase ${
+              <div key={alert.id} className="flex items-center justify-between bg-white/[0.015] p-2.5 rounded-lg border-t border-b border-amber-500/20">
+                <div className="flex items-center gap-2.5">
+                  <span className={`faang-chip text-[9px] font-bold uppercase ${
                     alert.severity === 'high' ? 'chip-crimson' :
                     alert.severity === 'medium' ? 'chip-amber' :
                     'chip-emerald'
@@ -139,13 +139,13 @@ export default function SystemHealth() {
                   </span>
                   <span className="font-bold text-xs text-white">{alert.metric}</span>
                 </div>
-                <div className="flex items-center gap-4 text-xs">
-                  <div className="text-zinc-400 font-medium">
+                <div className="flex items-center gap-3 text-xs">
+                  <div className="text-zinc-400 font-medium text-[11px]">
                     <span className="line-through mr-2 text-zinc-500">{alert.baseline_value}</span>
                     <span className="text-amber-400 font-extrabold">{alert.current_value}</span>
                   </div>
                   {alert.timestamp && (
-                    <span className="text-xs text-zinc-500 font-medium">
+                    <span className="text-[10px] text-zinc-500 font-medium font-mono">
                       {format(new Date(alert.timestamp), 'HH:mm')}
                     </span>
                   )}
@@ -156,37 +156,37 @@ export default function SystemHealth() {
         </div>
       )}
 
-      {/* Component Grid */}
+      {/* Component Grid (Borderless, Integrated) */}
       {isLoading && components.length === 0 ? (
         <div className="text-center py-16 text-zinc-400 text-xs font-medium">Checking service mesh health...</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {components.map((comp, idx) => {
             const isHealthy = comp.status === 'healthy';
             return (
-              <div key={idx} className="faang-card p-4.5 flex flex-col justify-between space-y-3 hover:border-white/[0.18]">
+              <div key={idx} className="p-3 rounded-lg border-t border-b border-white/[0.05] bg-white/[0.015] flex flex-col justify-between space-y-2 hover:bg-white/[0.03] transition-all">
                 <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 bg-black/50 rounded-xl border border-white/[0.08] flex items-center justify-center text-amber-400">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-7 w-7 bg-white/[0.03] rounded-md border border-white/[0.05] flex items-center justify-center text-amber-400">
                       {getComponentIcon(comp.name)}
                     </div>
                     <div>
                       <h4 className="font-bold text-xs text-white">{comp.name}</h4>
-                      <div className="mt-1">
-                        <span className={`faang-chip text-[9px] font-bold uppercase ${isHealthy ? 'chip-emerald' : 'chip-crimson'}`}>
+                      <div className="mt-0.5">
+                        <span className={`faang-chip text-[8px] font-bold uppercase ${isHealthy ? 'chip-emerald' : 'chip-crimson'}`}>
                           {comp.status}
                         </span>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div className="pt-2.5 border-t border-white/[0.06] flex items-center justify-between text-xs">
+                <div className="pt-1.5 border-t border-white/[0.04] flex items-center justify-between text-[10px]">
                   <span className="text-zinc-400 font-medium">
                     Latency: <strong className={`font-bold ${comp.latency > 500 ? 'text-amber-400' : 'text-zinc-200'}`}>
                       {comp.latency}ms
                     </strong>
                   </span>
-                  <span className="text-zinc-500 text-[10px] font-mono font-medium">{format(new Date(comp.last_check), 'HH:mm:ss')}</span>
+                  <span className="text-zinc-500 font-mono font-medium">{format(new Date(comp.last_check), 'HH:mm:ss')}</span>
                 </div>
               </div>
             );

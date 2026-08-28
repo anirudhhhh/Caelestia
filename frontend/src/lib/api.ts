@@ -145,6 +145,19 @@ export const api = {
       method: 'POST',
     }),
 
+  generateProposals: async (): Promise<ThresholdProposal[]> => {
+    const data = await fetchApi<ThresholdProposal[] | any>('/health/proposals/generate', {
+      method: 'POST',
+    });
+    return Array.isArray(data) ? data : data.proposals ?? [];
+  },
+
+  resetProposals: async () => {
+    return fetchApi<any>('/health/proposals/reset', {
+      method: 'POST',
+    });
+  },
+
   // ── Trust / Stats (REAL data from audit store + outcome store) ────────────
   getTrustStats: () => fetchApi<any>('/trust/outcomes'),
 
@@ -159,6 +172,12 @@ export const api = {
   registerEndpoint: (endpoint: any) =>
     fetchApi<any>('/router/endpoints', {
       method: 'POST',
+      body: JSON.stringify(endpoint),
+    }),
+
+  updateEndpoint: (endpointId: string, endpoint: any) =>
+    fetchApi<any>(`/router/endpoints/${endpointId}`, {
+      method: 'PUT',
       body: JSON.stringify(endpoint),
     }),
 

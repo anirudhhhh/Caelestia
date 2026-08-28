@@ -131,6 +131,8 @@ export default function LoadBalancer() {
     }
   };
 
+  const [selectedEndpointForCode, setSelectedEndpointForCode] = useState<WorkflowEndpoint | null>(null);
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setCopiedCode(label);
@@ -145,7 +147,39 @@ export default function LoadBalancer() {
     "geography": "US"
   }'`;
 
-  const pythonSnippet = `import requests
+  const jsSnippet = `// 1. Using Standard Fetch / Node.js
+async function callSemanticRouter() {
+  const response = await fetch("http://localhost:8000/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages: [{ role: "user", content: "How do I process a customer refund?" }],
+      use_case: "customer_support",
+      geography: "US"
+    })
+  });
+
+  const data = await response.json();
+  console.log("Verdict:", data.decision?.action);
+  console.log("Output:", data.content);
+}
+
+// 2. Or using OpenAI SDK (Drop-in Replacement)
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "http://localhost:8000/v1",
+  apiKey: "controlplane-api-key"
+});
+
+const completion = await client.chat.completions.create({
+  model: "auto", // Automatically classified by 384-d Vector Router
+  messages: [{ role: "user", content: "How do I process a customer refund?" }]
+});
+console.log(completion.choices[0].message.content);`;
+
+  const pythonSnippet = `# 1. Using Requests / Httpx
+import requests
 
 url = "http://localhost:8000/v1/chat/completions"
 payload = {
@@ -156,7 +190,88 @@ payload = {
 response = requests.post(url, json=payload)
 data = response.json()
 print("Verdict:", data["decision"]["action"])
-print("Response:", data["content"])`;
+print("Response:", data["content"])
+
+# 2. Or using OpenAI Python SDK
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="controlplane-api-key"
+)
+
+completion = client.chat.completions.create(
+    model="auto",
+    messages=[{"role": "user", "content": "How do I process a customer refund?"}]
+)
+print(completion.choices[0].message.content)`;
+
+  const getEndpointCurl = (ep: WorkflowEndpoint) => `curl -X POST http://localhost:8000/v1/chat/completions \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "messages": [{"role": "user", "content": "Query for ${ep.name}..."}],
+    "endpoint_id": "${ep.id}",
+    "use_case": "${ep.use_case}"
+  }'`;
+
+  const getEndpointJs = (ep: WorkflowEndpoint) => `// 1. Using Standard Fetch
+async function sendTo${ep.id.replace(/(^|_)([a-z])/g, (_, __, c) => c.toUpperCase())}() {
+  const res = await fetch("http://localhost:8000/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages: [{ role: "user", content: "Query for ${ep.name}..." }],
+      endpoint_id: "${ep.id}",
+      use_case: "${ep.use_case}"
+    })
+  });
+  const data = await res.json();
+  console.log("Decision:", data.decision?.action);
+  console.log("Content:", data.content);
+}
+
+// 2. Or using OpenAI Node SDK
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "http://localhost:8000/v1",
+  apiKey: "controlplane-api-key"
+});
+
+const completion = await client.chat.completions.create({
+  model: "${ep.id}", // Direct dispatch to ${ep.name}
+  messages: [{ role: "user", content: "Query for ${ep.name}..." }]
+});
+console.log(completion.choices[0].message.content);`;
+
+  const getEndpointPython = (ep: WorkflowEndpoint) => `# 1. Using Requests / Httpx
+import requests
+
+url = "http://localhost:8000/v1/chat/completions"
+payload = {
+    "messages": [{"role": "user", "content": "Query for ${ep.name}..."}],
+    "endpoint_id": "${ep.id}",
+    "use_case": "${ep.use_case}"
+}
+
+response = requests.post(url, json=payload)
+data = response.json()
+print("Verdict:", data["decision"]["action"])
+print("Response:", data["content"])
+
+# 2. Or using OpenAI Python SDK
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="controlplane-api-key"
+)
+
+completion = client.chat.completions.create(
+    model="${ep.id}",
+    messages=[{"role": "user", "content": "Query for ${ep.name}..."}]
+)
+print(completion.choices[0].message.content)`;
 
   return (
     <div className="h-full w-full overflow-y-auto space-y-6 pr-2 pb-12 font-sans">
@@ -189,10 +304,10 @@ print("Response:", data["content"])`;
         </div>
       </div>
 
-      {/* Semantic Intent Simulator */}
-      <div className="faang-card p-5 space-y-4 border-violet-500/30 bg-gradient-to-b from-violet-500/[0.08] to-[#15161B]">
-        <div className="flex items-center justify-between border-b border-white/[0.07] pb-3">
-          <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+      {/* Semantic Intent Simulator (Unboxed, Integrated) */}
+      <div className="p-4.5 rounded-xl border border-violet-500/25 bg-white/[0.02] space-y-3.5">
+        <div className="flex items-center justify-between border-b border-white/[0.06] pb-2.5">
+          <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
             <Sparkles className="h-4 w-4 text-amber-400" />
             <span>Live Semantic Routing Matcher</span>
           </div>
@@ -209,18 +324,18 @@ print("Response:", data["content"])`;
             value={testPrompt}
             onChange={(e) => setTestPrompt(e.target.value)}
             placeholder="Type a test query to simulate semantic destination..."
-            className="bg-black/40 border-white/[0.1] h-10 text-sm rounded-xl text-white placeholder:text-zinc-500 focus-visible:ring-1 focus-visible:ring-white/30"
+            className="bg-white/[0.04] border-white/[0.08] h-9 text-xs rounded-full text-white placeholder:text-zinc-500 focus-visible:ring-1 focus-visible:ring-white/30"
           />
 
           {/* Quick sample chips */}
           <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs font-bold text-zinc-400 mr-1">Sample queries:</span>
+            <span className="text-[11px] font-bold text-zinc-400 mr-1">Sample queries:</span>
             {SAMPLE_PROMPTS.map((p, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => setTestPrompt(p)}
-                className="faang-btn-ghost px-3 py-1 text-zinc-300 text-xs transition-all font-medium"
+                className="faang-btn-ghost px-3 py-1 text-zinc-300 text-[11px] transition-all font-medium rounded-full cursor-pointer"
               >
                 {p.slice(0, 36)}...
               </button>
@@ -233,19 +348,33 @@ print("Response:", data["content"])`;
               Type a test prompt or click a sample query above to simulate live vector routing across endpoints.
             </div>
           ) : (
-            <div className="space-y-3 pt-3 border-t border-white/[0.07]">
+            <div className="space-y-3 pt-3 border-t border-white/[0.06]">
               {matchResults.map((res, i) => {
                 const isWinner = i === 0;
+                const rawScore = typeof res.score === 'number' ? res.score : 0;
+                const scorePercent = Math.max(0, Math.min(100, rawScore * 100));
+                
                 return (
-                  <div key={res.id} className="space-y-1.5 p-3 rounded-xl bg-black/40 border border-white/[0.06]">
+                  <div 
+                    key={res.id} 
+                    className={`space-y-2.5 p-3.5 rounded-xl transition-all ${
+                      isWinner
+                        ? 'bg-amber-500/[0.08] border border-amber-500/35 shadow-[0_0_20px_rgba(245,158,11,0.06)]'
+                        : 'bg-white/[0.02] border border-white/[0.07] hover:border-white/[0.12]'
+                    }`}
+                  >
                     <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2.5">
                         {isWinner ? (
-                          <CheckCircle2 className="h-4 w-4 text-amber-400 shrink-0" />
+                          <div className="h-5 w-5 rounded-full bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-400 shrink-0">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-amber-400" />
+                          </div>
                         ) : (
-                          <div className="w-4" />
+                          <div className="h-5 w-5 rounded-full bg-white/[0.04] border border-white/15 flex items-center justify-center text-[10px] text-zinc-400 font-bold shrink-0">
+                            {i + 1}
+                          </div>
                         )}
-                        <span className={`font-bold ${isWinner ? 'text-white text-sm' : 'text-zinc-400'}`}>
+                        <span className={`font-bold ${isWinner ? 'text-white text-sm' : 'text-zinc-300 text-xs'}`}>
                           {res.name}
                         </span>
                         {isWinner && (
@@ -255,20 +384,27 @@ print("Response:", data["content"])`;
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`font-extrabold ${isWinner ? 'text-amber-400 text-sm' : 'text-zinc-400'}`}>
-                          {(res.score * 100).toFixed(1)}% match
+                        <span className={`font-mono font-extrabold ${isWinner ? 'text-amber-400 text-sm' : 'text-zinc-400 text-xs'}`}>
+                          {rawScore < 0 ? '0.0%' : `${scorePercent.toFixed(1)}% match`}
                         </span>
                       </div>
                     </div>
-                    {/* Multi-color Progress Bar */}
-                    <div className="w-full bg-black/60 h-2 rounded-full overflow-hidden p-0.5 border border-white/[0.04]">
+
+                    {/* Prominent High-Contrast Progress Bar */}
+                    <div className="w-full bg-[#181920] h-3 rounded-full overflow-hidden border border-white/[0.1] relative p-[1.5px] shadow-inner">
                       <div 
-                        className={`h-full rounded-full transition-all duration-300 ${
+                        className={`h-full rounded-full transition-all duration-500 ease-out relative ${
                           isWinner 
-                            ? 'bg-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.4)]' 
-                            : 'bg-zinc-700'
+                            ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-300 shadow-[0_0_14px_rgba(245,158,11,0.65)]' 
+                            : scorePercent > 10
+                            ? 'bg-gradient-to-r from-violet-600 via-violet-500 to-indigo-400 shadow-[0_0_10px_rgba(139,92,246,0.4)]'
+                            : scorePercent > 0
+                            ? 'bg-gradient-to-r from-zinc-500 to-zinc-400'
+                            : 'bg-zinc-700/40'
                         }`}
-                        style={{ width: `${Math.max(res.score * 100, 0)}%` }}
+                        style={{ 
+                          width: `${Math.max(scorePercent, isWinner ? 6 : (scorePercent > 0 ? 3 : 0))}%` 
+                        }}
                       />
                     </div>
                   </div>
@@ -279,17 +415,17 @@ print("Response:", data["content"])`;
         </div>
       </div>
 
-      {/* Registered Endpoints Grid */}
-      <div className="space-y-4">
+      {/* Registered Endpoints Grid (Unboxed, Integrated) */}
+      <div className="space-y-3.5">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-200">
             Enterprise Workflow Endpoints ({endpoints.length})
           </h3>
-          <span className="text-xs text-zinc-400 font-medium">
+          <span className="text-[11px] text-zinc-400 font-medium">
             Each endpoint maintains an independent PII Governance Whitelist
           </span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {endpoints.map((ep) => {
             const piiForEp = endpointPiiMap[ep.id] || {
               EMAIL: 'allow',
@@ -306,65 +442,65 @@ print("Response:", data["content"])`;
             const blockedList = Object.entries(piiForEp).filter(([_, action]) => action === 'block').map(([k]) => k);
 
             return (
-              <div key={ep.id} className="faang-card p-5 flex flex-col justify-between space-y-4 hover:border-white/[0.18]">
-                <div className="space-y-3">
+              <div key={ep.id} className="p-4 rounded-lg border-t border-b border-white/[0.05] bg-white/[0.015] flex flex-col justify-between space-y-3 hover:bg-white/[0.03] transition-all">
+                <div className="space-y-2.5">
                   <div className="flex items-start justify-between">
                     <div className="space-y-0.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="h-7 w-7 rounded-lg bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400">
-                          <Server className="h-4 w-4 text-amber-400" />
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-md bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400">
+                          <Server className="h-3.5 w-3.5 text-amber-400" />
                         </div>
-                        <h4 className="font-bold text-sm text-white">{ep.name}</h4>
+                        <h4 className="font-bold text-xs text-white">{ep.name}</h4>
                       </div>
-                      <span className="faang-chip chip-neutral text-[10px] font-mono mt-1">
+                      <span className="faang-chip chip-neutral text-[9px] font-mono mt-0.5">
                         {ep.id}
                       </span>
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-zinc-400 hover:text-rose-400 rounded-full hover:bg-rose-500/10"
+                      className="h-7 w-7 text-zinc-400 hover:text-rose-400 rounded-full hover:bg-rose-500/10"
                       aria-label={`Delete endpoint ${ep.name}`}
                       onClick={() => handleDelete(ep.id)}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
 
-                  <div className="bg-black/40 p-3 rounded-xl border border-white/[0.06] text-xs text-zinc-300 space-y-1">
-                    <span className="font-bold text-zinc-200">Semantic Matching Instruction:</span>
-                    <p className="text-xs text-zinc-300 leading-relaxed font-medium">{ep.instructions}</p>
+                  <div className="bg-white/[0.02] p-2.5 rounded-lg border border-white/[0.04] text-xs text-zinc-300 space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">Matching Instruction:</span>
+                    <p className="text-[11px] text-zinc-300 leading-relaxed font-medium">{ep.instructions}</p>
                   </div>
 
                   {/* Component PII Governance Whitelist */}
-                  <div className="p-3 rounded-xl border border-white/[0.07] bg-black/30 space-y-2.5">
+                  <div className="p-2.5 rounded-lg border border-white/[0.04] bg-white/[0.02] space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold flex items-center gap-1.5 text-zinc-200">
-                        <Shield className="h-3.5 w-3.5 text-amber-400" />
-                        Scoped PII Policy Matrix
+                      <span className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 text-zinc-400">
+                        <Shield className="h-3 w-3 text-amber-400" />
+                        Scoped PII Policy
                       </span>
                       <button
                         type="button"
-                        className="faang-chip chip-amber font-bold transition-all cursor-pointer"
+                        className="faang-chip chip-amber text-[9px] font-bold transition-all cursor-pointer rounded-full"
                         onClick={() => navigate(`/policies?scope=${ep.id}`)}
                       >
-                        <Settings2 className="h-3 w-3 mr-1" />
-                        Configure Whitelist
+                        <Settings2 className="h-2.5 w-2.5 mr-1" />
+                        Configure
                       </button>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-1">
                       {allowedList.slice(0, 4).map(k => (
-                        <span key={k} className="faang-chip chip-emerald text-[10px]">
+                        <span key={k} className="faang-chip chip-emerald text-[9px]">
                           ✓ {k}
                         </span>
                       ))}
                       {blockedList.slice(0, 3).map(k => (
-                        <span key={k} className="faang-chip chip-crimson text-[10px]">
+                        <span key={k} className="faang-chip chip-crimson text-[9px]">
                           ✕ {k}
                         </span>
                       ))}
                       {blockedList.length > 3 && (
-                        <span className="faang-chip chip-neutral text-[10px]">
+                        <span className="faang-chip chip-neutral text-[9px]">
                           +{blockedList.length - 3} more
                         </span>
                       )}
@@ -372,14 +508,23 @@ print("Response:", data["content"])`;
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-xs pt-3 border-t border-white/[0.06] text-zinc-400">
+                <div className="flex items-center justify-between text-xs pt-2.5 border-t border-white/[0.04] text-zinc-400">
                   <div className="flex items-center gap-1.5">
-                    <Send className="h-3.5 w-3.5 text-amber-400" />
-                    <span className="text-xs font-semibold text-zinc-300">Pushes to Target:</span>
+                    <Send className="h-3 w-3 text-amber-400" />
+                    <span className="text-[11px] font-medium text-zinc-400">Push Target:</span>
+                    <span className="font-mono text-[11px] text-violet-300 font-semibold truncate max-w-[140px]">
+                      {ep.target_model_or_url || (ep as any).endpoint}
+                    </span>
                   </div>
-                  <span className="font-mono text-xs text-violet-400 font-bold truncate max-w-[200px]">
-                    {ep.target_model_or_url || (ep as any).endpoint}
-                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6.5 px-2.5 text-[10px] gap-1 faang-btn-ghost text-zinc-300 hover:text-white rounded-full font-bold"
+                    onClick={() => setSelectedEndpointForCode(ep)}
+                  >
+                    <Code2 className="h-3 w-3 text-violet-400" />
+                    API Code
+                  </Button>
                 </div>
               </div>
             );
@@ -401,10 +546,12 @@ print("Response:", data["content"])`;
         </p>
 
         <Tabs defaultValue="curl" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 max-w-[220px] bg-[#111216] p-1 rounded-full border border-white/[0.08]">
+          <TabsList className="grid w-full grid-cols-3 max-w-[320px] bg-[#111216] p-1 rounded-full border border-white/[0.08]">
             <TabsTrigger value="curl" className="text-xs font-bold rounded-full data-[state=active]:bg-white data-[state=active]:text-black">cURL</TabsTrigger>
+            <TabsTrigger value="javascript" className="text-xs font-bold rounded-full data-[state=active]:bg-white data-[state=active]:text-black">JavaScript</TabsTrigger>
             <TabsTrigger value="python" className="text-xs font-bold rounded-full data-[state=active]:bg-white data-[state=active]:text-black">Python</TabsTrigger>
           </TabsList>
+
           <TabsContent value="curl" className="mt-3 relative">
             <pre className="p-4 bg-black/50 border border-white/[0.08] text-zinc-300 rounded-2xl text-xs font-mono overflow-x-auto leading-relaxed">
               {curlSnippet}
@@ -419,8 +566,24 @@ print("Response:", data["content"])`;
               {copiedCode === 'curl' ? 'Copied' : 'Copy'}
             </Button>
           </TabsContent>
+
+          <TabsContent value="javascript" className="mt-3 relative">
+            <pre className="p-4 bg-black/50 border border-white/[0.08] text-zinc-300 rounded-2xl text-xs font-mono overflow-x-auto leading-relaxed max-h-[300px]">
+              {jsSnippet}
+            </pre>
+            <Button
+              size="sm"
+              variant="outline"
+              className="absolute top-2.5 right-2.5 h-8 text-xs faang-btn-ghost px-3 text-zinc-300 hover:text-white"
+              onClick={() => copyToClipboard(jsSnippet, 'js')}
+            >
+              {copiedCode === 'js' ? <Check className="h-3.5 w-3.5 text-amber-400 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+              {copiedCode === 'js' ? 'Copied' : 'Copy'}
+            </Button>
+          </TabsContent>
+
           <TabsContent value="python" className="mt-3 relative">
-            <pre className="p-4 bg-black/50 border border-white/[0.08] text-zinc-300 rounded-2xl text-xs font-mono overflow-x-auto leading-relaxed">
+            <pre className="p-4 bg-black/50 border border-white/[0.08] text-zinc-300 rounded-2xl text-xs font-mono overflow-x-auto leading-relaxed max-h-[300px]">
               {pythonSnippet}
             </pre>
             <Button
@@ -436,55 +599,148 @@ print("Response:", data["content"])`;
         </Tabs>
       </div>
 
-      {/* Add Enterprise Endpoint Dialog */}
-      <Dialog open={isRegisterOpen} onOpenChange={setIsRegisterOpen}>
-        <DialogContent className="sm:max-w-[500px] bg-[#15161B] border-white/[0.1] text-white">
+      {/* Endpoint Specific API Code Dialog */}
+      <Dialog open={!!selectedEndpointForCode} onOpenChange={(open) => !open && setSelectedEndpointForCode(null)}>
+        <DialogContent className="max-w-2xl bg-[#15161B] border-white/[0.1] text-white">
           <DialogHeader>
-            <DialogTitle className="text-white font-bold">Add Enterprise Endpoint</DialogTitle>
-            <DialogDescription className="text-xs text-zinc-400">
-              Register a downstream workflow with its name, instruction for semantic search, and the destination endpoint to push requests to.
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-400">
+                <Code2 className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-white">
+                  Connect to {selectedEndpointForCode?.name}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-zinc-400">
+                  Target workflow endpoint: <code className="text-amber-400 font-mono font-bold">{selectedEndpointForCode?.id}</code> (Pushes to {selectedEndpointForCode?.target_model_or_url || (selectedEndpointForCode as any)?.endpoint})
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {selectedEndpointForCode && (
+            <Tabs defaultValue="curl" className="w-full mt-2">
+              <TabsList className="grid w-full grid-cols-3 max-w-[320px] bg-[#111216] p-1 rounded-full border border-white/[0.08]">
+                <TabsTrigger value="curl" className="text-xs font-bold rounded-full data-[state=active]:bg-white data-[state=active]:text-black">cURL</TabsTrigger>
+                <TabsTrigger value="javascript" className="text-xs font-bold rounded-full data-[state=active]:bg-white data-[state=active]:text-black">JavaScript</TabsTrigger>
+                <TabsTrigger value="python" className="text-xs font-bold rounded-full data-[state=active]:bg-white data-[state=active]:text-black">Python</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="curl" className="mt-3 relative">
+                <div className="p-4 bg-black/60 border border-white/[0.08] rounded-2xl relative">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="absolute top-2.5 right-2.5 h-8 text-xs gap-1.5 px-3 text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.1] rounded-lg border border-white/[0.08]"
+                    onClick={() => copyToClipboard(getEndpointCurl(selectedEndpointForCode), 'ep_curl')}
+                  >
+                    {copiedCode === 'ep_curl' ? <Check className="h-3.5 w-3.5 text-amber-400" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiedCode === 'ep_curl' ? 'Copied' : 'Copy'}
+                  </Button>
+                  <pre className="text-[11px] font-mono whitespace-pre-wrap text-zinc-200 pr-16 leading-relaxed">
+                    {getEndpointCurl(selectedEndpointForCode)}
+                  </pre>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="javascript" className="mt-3 relative">
+                <div className="p-4 bg-black/60 border border-white/[0.08] rounded-2xl relative">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="absolute top-2.5 right-2.5 h-8 text-xs gap-1.5 px-3 text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.1] rounded-lg border border-white/[0.08]"
+                    onClick={() => copyToClipboard(getEndpointJs(selectedEndpointForCode), 'ep_js')}
+                  >
+                    {copiedCode === 'ep_js' ? <Check className="h-3.5 w-3.5 text-amber-400" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiedCode === 'ep_js' ? 'Copied' : 'Copy'}
+                  </Button>
+                  <pre className="text-[11px] font-mono whitespace-pre-wrap text-zinc-200 pr-16 leading-relaxed max-h-[300px] overflow-y-auto">
+                    {getEndpointJs(selectedEndpointForCode)}
+                  </pre>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="python" className="mt-3 relative">
+                <div className="p-4 bg-black/60 border border-white/[0.08] rounded-2xl relative">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="absolute top-2.5 right-2.5 h-8 text-xs gap-1.5 px-3 text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.1] rounded-lg border border-white/[0.08]"
+                    onClick={() => copyToClipboard(getEndpointPython(selectedEndpointForCode), 'ep_python')}
+                  >
+                    {copiedCode === 'ep_python' ? <Check className="h-3.5 w-3.5 text-amber-400" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiedCode === 'ep_python' ? 'Copied' : 'Copy'}
+                  </Button>
+                  <pre className="text-[11px] font-mono whitespace-pre-wrap text-zinc-200 pr-16 leading-relaxed max-h-[300px] overflow-y-auto">
+                    {getEndpointPython(selectedEndpointForCode)}
+                  </pre>
+                </div>
+              </TabsContent>
+            </Tabs>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Enterprise Endpoint Dialog (Refined & Un-cluttered) */}
+      <Dialog open={isRegisterOpen} onOpenChange={setIsRegisterOpen}>
+        <DialogContent className="sm:max-w-[460px] p-5 bg-[#15161B] border border-white/[0.09] text-white rounded-2xl shadow-2xl">
+          <DialogHeader className="space-y-1 pb-1">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-lg bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400">
+                <Network className="h-3.5 w-3.5 text-amber-400" />
+              </div>
+              <DialogTitle className="text-sm font-bold text-white tracking-tight">Add Enterprise Endpoint</DialogTitle>
+            </div>
+            <DialogDescription className="text-[11px] text-zinc-400 leading-relaxed font-medium">
+              Register a downstream workflow endpoint with semantic matching instructions.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div>
-              <label className="text-xs font-bold mb-1 block text-zinc-300">1. Enterprise Workflow Name</label>
+
+          <div className="space-y-3 pt-2 pb-1">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                1. Workflow Name
+              </label>
               <Input
                 placeholder="e.g. Customer Support & Refund Workflow"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                className="text-xs bg-black/40 border-white/[0.1] text-white"
+                className="h-8 text-xs bg-black/50 border-white/[0.08] text-white placeholder:text-zinc-500 rounded-lg focus-visible:ring-1 focus-visible:ring-white/30"
               />
             </div>
-            <div>
-              <label className="text-xs font-bold mb-1 block text-zinc-300">
-                2. Instruction for Search
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                2. Semantic Match Instruction
               </label>
               <Textarea
-                placeholder="Describe what tasks, queries, and intents this workflow handles. The Load Balancer uses this instruction to match incoming prompts."
+                placeholder="Describe what tasks, queries, and intents this workflow handles. The vector router uses this instruction to match incoming prompts."
                 value={formInstructions}
                 onChange={(e) => setFormInstructions(e.target.value)}
-                className="text-xs min-h-[90px] bg-black/40 border-white/[0.1] text-white"
+                className="text-xs min-h-[72px] bg-black/50 border-white/[0.08] text-white placeholder:text-zinc-500 rounded-lg p-2.5 leading-relaxed focus-visible:ring-1 focus-visible:ring-white/30 resize-none"
               />
             </div>
-            <div>
-              <label className="text-xs font-bold mb-1 block text-zinc-300">
-                3. Endpoint to Push Request To
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                3. Push Target Endpoint URL
               </label>
               <Input
-                placeholder="e.g. http://localhost:8006/complete or https://api.mycorp.internal/orders/process"
+                placeholder="e.g. http://localhost:8006/complete"
                 value={formEndpoint}
                 onChange={(e) => setFormEndpoint(e.target.value)}
-                className="font-mono text-xs bg-black/40 border-white/[0.1] text-white"
+                className="h-8 font-mono text-[11px] bg-black/50 border-white/[0.08] text-violet-300 placeholder:text-zinc-500 rounded-lg focus-visible:ring-1 focus-visible:ring-white/30"
               />
             </div>
           </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" size="sm" className="faang-btn-ghost text-xs" onClick={() => setIsRegisterOpen(false)}>
+
+          <DialogFooter className="pt-2 border-t border-white/[0.06] flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" className="faang-btn-ghost h-7.5 px-3 text-xs rounded-lg" onClick={() => setIsRegisterOpen(false)}>
               Cancel
             </Button>
             <button 
               type="button" 
-              className="faang-btn-primary text-xs px-4 h-9 font-bold flex items-center justify-center cursor-pointer"
+              className="faang-btn-primary text-xs px-3.5 h-7.5 font-bold flex items-center justify-center cursor-pointer rounded-lg disabled:opacity-50"
               onClick={handleRegister} 
               disabled={isSubmitting || !formName || !formInstructions || !formEndpoint}
             >

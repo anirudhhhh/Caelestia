@@ -1,93 +1,91 @@
-version: 1.0.0
 author: security_admin
-updated_at: '2026-08-26T00:00:00Z'
+defaults:
+  block_threshold: 0.7
+  flag_threshold: 0.4
+  on_timeout: block
 pii_permissions:
   customer_support:
-    EMAIL: allow
-    PHONE: allow
-    ADDRESS: allow
-    SSN: block
-    CREDIT_CARD: block
-    PAN: block
     AADHAAR: block
-    BANK_ACCOUNT: block
-    GOVERNMENT_ID: block
-  internal_copilot:
-    EMAIL: allow
-    PHONE: allow
     ADDRESS: allow
-    SSN: block
-    CREDIT_CARD: block
-    PAN: block
-    AADHAAR: block
     BANK_ACCOUNT: block
+    CREDIT_CARD: block
+    EMAIL: allow
     GOVERNMENT_ID: block
+    PAN: block
+    PHONE: allow
+    SSN: block
   decision_support:
-    EMAIL: allow
-    PHONE: allow
+    AADHAAR: block
     ADDRESS: allow
-    SSN: block
+    BANK_ACCOUNT: block
     CREDIT_CARD: allow
-    PAN: block
-    AADHAAR: block
-    BANK_ACCOUNT: block
-    GOVERNMENT_ID: block
-  legal_compliance:
     EMAIL: allow
-    PHONE: allow
-    ADDRESS: allow
-    SSN: block
-    CREDIT_CARD: block
-    PAN: block
-    AADHAAR: block
-    BANK_ACCOUNT: block
     GOVERNMENT_ID: block
+    PAN: block
+    PHONE: allow
+    SSN: allow
+  internal_copilot:
+    AADHAAR: block
+    ADDRESS: allow
+    BANK_ACCOUNT: block
+    CREDIT_CARD: block
+    EMAIL: allow
+    GOVERNMENT_ID: block
+    PAN: block
+    PHONE: allow
+    SSN: block
+  legal_compliance:
+    AADHAAR: block
+    ADDRESS: allow
+    BANK_ACCOUNT: block
+    CREDIT_CARD: block
+    EMAIL: allow
+    GOVERNMENT_ID: block
+    PAN: block
+    PHONE: allow
+    SSN: block
 policies:
-- use_case: '*'
-  geography: '*'
-  check: prompt_injection
-  block_threshold: 0.8
-  flag_threshold: 0.5
-  on_timeout: allow
-- use_case: '*'
-  geography: '*'
+- block_threshold: 0.3
   check: secrets
-  block_threshold: 0.5
-  flag_threshold: 0.3
+  flag_threshold: 0.15
+  geography: US
   on_timeout: block
-- use_case: '*'
-  geography: '*'
-  check: toxicity
-  block_threshold: 0.8
-  flag_threshold: 0.6
-  on_timeout: allow
-- use_case: '*'
-  geography: '*'
-  check: pii
-  block_threshold: 0.75
-  flag_threshold: 0.5
-  on_timeout: allow
-- use_case: '*'
-  geography: '*'
+  use_case: decision_support
+- block_threshold: 0.3
   check: sensitive_data
-  block_threshold: 0.5
+  flag_threshold: 0.15
+  geography: US
+  on_timeout: block
+  use_case: decision_support
+- block_threshold: 0.6
+  check: pii
   flag_threshold: 0.3
+  geography: US
   on_timeout: block
-- use_case: '*'
-  geography: '*'
-  check: system_prompt_leakage
-  block_threshold: 0.8
-  flag_threshold: 0.6
+  use_case: decision_support
+- block_threshold: 0.7
+  check: prompt_injection
+  flag_threshold: 0.35
+  geography: US
   on_timeout: block
-- use_case: '*'
-  geography: '*'
-  check: brand_safety
-  block_threshold: 0.75
-  flag_threshold: 0.4
-  on_timeout: allow
-- use_case: '*'
-  geography: '*'
+  use_case: decision_support
+- block_threshold: 0.75
+  check: toxicity
+  flag_threshold: 0.3
+  geography: US
+  on_timeout: block
+  use_case: customer_support
+- block_threshold: 0.5
   check: hallucination_risk
-  block_threshold: 0.65
-  flag_threshold: 0.4
+  flag_threshold: 0.3
+  geography: US
   on_timeout: block
+  use_case: decision_support
+rules:
+- action: flag
+  condition: geography == 'EU' and use_case == 'legal_compliance'
+  id: custom_sec_rule_1787936580
+  name: Strict Sovereign Trade Compliance
+  reason: Flagged under EU Article 48 Sovereign Transfer Directive
+updated_at: '2026-08-26T00:00:00Z'
+version: 1.0.0

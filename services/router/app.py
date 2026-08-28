@@ -36,7 +36,7 @@ class WorkflowEndpoint(BaseModel):
 
     @property
     def push_target(self) -> str:
-        return self.endpoint or self.target_model_or_url or "google/gemini-2.5-flash"
+        return self.endpoint or self.target_model_or_url or "gemini-3.5-flash-lite"
 
 # In-memory registry of enterprise workflow endpoints with semantic instructions
 DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
@@ -44,8 +44,8 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
         id="customer_support",
         name="Customer Support & Success",
         instructions="Handles general customer inquiries, product questions, order status, returns, refunds, user onboarding, and satisfaction surveys.",
-        endpoint="google/gemini-2.5-flash",
-        target_model_or_url="google/gemini-2.5-flash",
+        endpoint="gemini-3.5-flash-lite",
+        target_model_or_url="gemini-3.5-flash-lite",
         use_case="customer_support",
         keywords=["order", "refund", "customer", "return", "product", "account", "help", "support", "ticket", "status"],
         weight=1.0
@@ -54,8 +54,8 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
         id="internal_copilot",
         name="Engineering & Internal Copilot",
         instructions="Specialized in software debugging, Python, API integrations, cloud architecture, stack traces, code generation, and developer diagnostics.",
-        endpoint="google/gemini-2.5-flash",
-        target_model_or_url="google/gemini-2.5-flash",
+        endpoint="gemini-3.5-flash-lite",
+        target_model_or_url="gemini-3.5-flash-lite",
         use_case="internal_copilot",
         keywords=["code", "debug", "python", "api", "function", "error", "script", "database", "sql", "bug", "aws", "docker"],
         weight=1.0
@@ -64,8 +64,8 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
         id="decision_support",
         name="Billing & Financial Decision Support",
         instructions="Handles enterprise subscription plans, payment processing, invoices, receipts, contract terms, billing disputes, and price tiers.",
-        endpoint="google/gemini-2.5-flash",
-        target_model_or_url="google/gemini-2.5-flash",
+        endpoint="gemini-3.5-flash-lite",
+        target_model_or_url="gemini-3.5-flash-lite",
         use_case="decision_support",
         keywords=["billing", "invoice", "payment", "subscription", "price", "charge", "credit", "receipt", "plan", "cost"],
         weight=1.0
@@ -74,11 +74,21 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
         id="legal_compliance",
         name="Security & Legal Compliance",
         instructions="Specialized in terms of service, GDPR, compliance requirements, enterprise privacy policies, data governance, and regulatory guidelines.",
-        endpoint="google/gemini-2.5-flash",
-        target_model_or_url="google/gemini-2.5-flash",
+        endpoint="gemini-3.5-flash-lite",
+        target_model_or_url="gemini-3.5-flash-lite",
         use_case="decision_support",
         keywords=["policy", "legal", "gdpr", "compliance", "privacy", "terms", "contract", "security", "regulation", "confidential"],
         weight=1.0
+    ),
+    "mocha_endpoint": WorkflowEndpoint(
+        id="mocha_endpoint",
+        name="Mocha QA & Load Balancer Live Test Endpoint",
+        instructions="Specialized live test endpoint for verifying semantic load balancer routing, latency diagnostics, and returning mocha outputs.",
+        endpoint="http://localhost:8099/complete",
+        target_model_or_url="http://localhost:8099/complete",
+        use_case="customer_support",
+        keywords=["mocha", "mochaaa", "coffee", "test", "testing", "echo", "ping", "probe", "latency", "benchmark"],
+        weight=1.2
     ),
 }
 
@@ -145,6 +155,23 @@ async def register_endpoint(endpoint: WorkflowEndpoint):
     _save_custom_endpoints()
     logger.info(f"Registered and indexed workflow endpoint: {endpoint.id} ({endpoint.name})")
     return {"status": "registered", "endpoint": endpoint}
+
+@app.put("/endpoints/{endpoint_id}")
+async def update_endpoint(endpoint_id: str, endpoint: WorkflowEndpoint):
+    endpoint.id = endpoint_id
+    DEFAULT_ENDPOINTS[endpoint_id] = endpoint
+    vector_db_router.index_endpoint(
+        endpoint_id=endpoint.id,
+        name=endpoint.name,
+        instructions=endpoint.instructions,
+        keywords=endpoint.keywords,
+        target_model=endpoint.push_target,
+        use_case=endpoint.use_case,
+        weight=endpoint.weight
+    )
+    _save_custom_endpoints()
+    logger.info(f"Updated and re-indexed workflow endpoint: {endpoint.id} ({endpoint.name})")
+    return {"status": "updated", "endpoint": endpoint}
 
 class MatchRequest(BaseModel):
     prompt: str

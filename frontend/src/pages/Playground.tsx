@@ -364,11 +364,11 @@ export default function Playground() {
       <div className="flex flex-col lg:flex-row flex-1 h-full w-full gap-5 min-h-0 overflow-hidden">
         {/* Left Panel: Chat Interface */}
         <div className={cn(
-          "flex-1 flex flex-col min-w-0 h-full faang-card overflow-hidden",
+          "flex-1 flex flex-col min-w-0 h-full rounded-2xl border border-white/[0.08] bg-[#111216]/50 backdrop-blur-xl overflow-hidden",
           mobileTab === 'inspector' ? "hidden lg:flex" : "flex"
         )}>
           {/* Top Filter & Route Bar */}
-          <div className="p-3.5 border-b border-white/[0.07] bg-[#15161B]/90 backdrop-blur-md flex flex-wrap gap-3 items-center justify-between shrink-0">
+          <div className="p-3.5 border-b border-white/[0.07] bg-[#111216]/80 backdrop-blur-md flex flex-wrap gap-3 items-center justify-between shrink-0">
             <div className="flex flex-wrap gap-2.5 items-center">
               <Select 
                 value={selectedEndpoint} 
@@ -444,35 +444,6 @@ export default function Playground() {
                 Reset
               </Button>
             </div>
-          </div>
-
-          {/* Active PII Profile Strip */}
-          <div className="px-4 py-2.5 bg-black/40 border-b border-white/[0.06] flex flex-wrap items-center justify-between gap-2 text-xs">
-            <div className="flex flex-wrap items-center gap-2">
-              <Shield className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-              <span className="font-bold text-zinc-200">Active PII Profile:</span>
-              <span className="faang-chip chip-neutral text-[11px]">
-                {activeScope}
-              </span>
-              <div className="flex flex-wrap items-center gap-1.5 ml-1">
-                {Object.entries(activePiiConfig).filter(([_, a]) => a === 'allow').map(([k]) => (
-                  <span key={k} className="faang-chip chip-emerald text-[10px]">
-                    ✓ {k}
-                  </span>
-                ))}
-                {Object.entries(activePiiConfig).filter(([_, a]) => a === 'block').slice(0, 3).map(([k]) => (
-                  <span key={k} className="faang-chip chip-crimson text-[10px]">
-                    ✕ {k}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <a
-              href={`/policies?scope=${activeScope}`}
-              className="text-amber-400 hover:text-amber-300 font-bold text-xs transition-colors whitespace-nowrap"
-            >
-              Configure Whitelist →
-            </a>
           </div>
 
         {/* Message Thread */}
@@ -606,15 +577,9 @@ export default function Playground() {
                     className={`max-w-[82%] rounded-2xl p-4 text-sm leading-relaxed shadow-md ${
                       msg.role === "user"
                         ? "bg-white text-black font-semibold rounded-br-sm"
-                        : "bg-[#181920] border border-white/[0.08] text-zinc-100 rounded-bl-sm space-y-2.5"
+                        : "bg-[#181920] border border-white/[0.08] text-zinc-100 rounded-bl-sm"
                     }`}
                   >
-                    {msg.role === "assistant" && idx === messages.length - 1 && latestInteraction?.warnings && latestInteraction.warnings.length > 0 && (
-                      <div className="flex items-center gap-2 text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-xl">
-                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
-                        <span>PII Policy Notice: Permitted PII detected and passed raw without redaction.</span>
-                      </div>
-                    )}
                     <p className="whitespace-pre-wrap">{msg.content}</p>
                   </div>
                 </div>
@@ -688,40 +653,40 @@ export default function Playground() {
           </div>
         ) : (
           <>
-            {/* Top Decision Card */}
-            <div className="faang-card p-4.5 space-y-4">
-              <div className="flex items-center justify-between border-b border-white/[0.07] pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="h-8 w-8 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400">
-                    <Zap className="h-4 w-4 text-amber-400" />
+            {/* Top Decision Section (Borderless, Integrated) */}
+            <div className="space-y-3 pb-3 border-b border-white/[0.07]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                    <Zap className="h-3.5 w-3.5 text-amber-400" />
                   </div>
                   <div>
-                    <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider">Firewall Decision</span>
-                    <div className="text-sm font-extrabold text-white">Perimeter Verdict</div>
+                    <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Firewall Decision</span>
+                    <div className="text-xs font-extrabold text-white">Perimeter Verdict</div>
                   </div>
                 </div>
                 {getDecisionBadge(latestInteraction.decision.action)}
               </div>
 
-              <div className="space-y-1.5">
-                <div className="text-xs font-semibold text-zinc-300">Policy Reason</div>
-                <div className="text-xs font-medium text-zinc-100 bg-black/40 p-3 rounded-xl border border-white/[0.08] leading-relaxed">
+              <div className="space-y-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Policy Reason</div>
+                <div className="text-xs font-medium text-zinc-200 bg-white/[0.02] p-2.5 rounded-lg border border-white/[0.05] leading-relaxed">
                   {latestInteraction.decision.reason}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-1 border-t border-white/[0.07] text-xs">
+              <div className="grid grid-cols-2 gap-3 pt-1 text-xs">
                 <div>
-                  <span className="text-xs text-zinc-400 font-medium">Confidence Score</span>
-                  <div className="font-extrabold text-base text-white mt-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Confidence Score</span>
+                  <div className="font-extrabold text-sm text-white mt-0.5">
                     {(latestInteraction.decision.confidence * 100).toFixed(1)}%
                   </div>
                 </div>
                 <div>
-                  <span className="text-xs text-zinc-400 font-medium">Assessed Risk Tier</span>
-                  <div className="mt-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Assessed Risk Tier</span>
+                  <div className="mt-0.5">
                     <span
-                      className={`faang-chip uppercase text-[10px] font-bold ${
+                      className={`faang-chip uppercase text-[9px] font-bold ${
                         latestInteraction.risk_assessment.tier === "high"
                           ? "chip-crimson"
                           : latestInteraction.risk_assessment.tier === "medium"
@@ -738,24 +703,23 @@ export default function Playground() {
 
             {/* Detailed Tabs */}
             <Tabs defaultValue="checks" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 h-10 bg-[#15161B] p-1 rounded-full border border-white/[0.08]">
-                <TabsTrigger value="checks" className="text-xs font-bold rounded-full data-[state=active]:bg-white data-[state=active]:text-black">
+              <TabsList className="grid w-full grid-cols-3 h-8 bg-white/[0.03] p-0.5 rounded-lg border border-white/[0.06]">
+                <TabsTrigger value="checks" className="text-xs font-bold rounded-md data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-zinc-400">
                   Checks ({latestInteraction.checks.length})
                 </TabsTrigger>
-                <TabsTrigger value="trace" className="text-xs font-bold rounded-full data-[state=active]:bg-white data-[state=active]:text-black">
+                <TabsTrigger value="trace" className="text-xs font-bold rounded-md data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-zinc-400">
                   Trace
                 </TabsTrigger>
-                <TabsTrigger value="json" className="text-xs font-bold rounded-full data-[state=active]:bg-white data-[state=active]:text-black">
+                <TabsTrigger value="json" className="text-xs font-bold rounded-md data-[state=active]:bg-white/[0.08] data-[state=active]:text-white text-zinc-400">
                   JSON
                 </TabsTrigger>
               </TabsList>
 
-              {/* Checks Tab */}
-              <TabsContent value="checks" className="mt-3 space-y-2.5">
+              {/* Checks Tab — Borderless Continuous Stream */}
+              <TabsContent value="checks" className="mt-1 divide-y divide-white/[0.05]">
                 {latestInteraction.checks.map((check, idx) => {
-                  const isInput = ["prompt_injection", "secrets"].includes(check.check_name);
-                  const isOutput = ["sensitive_data", "system_prompt_leakage"].includes(check.check_name);
-                  const boundaryLabel = isInput ? "Input" : (isOutput ? "Output" : "Ingress");
+                  const isOutput = ["sensitive_data", "system_prompt_leakage", "hallucination", "brand_safety"].includes(check.check_name);
+                  const boundaryLabel = isOutput ? "Output" : "Input";
 
                   const friendlyNames: Record<string, string> = {
                     prompt_injection: "Prompt Injection Defense",
@@ -776,17 +740,17 @@ export default function Playground() {
                   return (
                     <div 
                       key={idx} 
-                      className="p-3.5 rounded-2xl border border-white/[0.08] bg-[#15161B]/80 backdrop-blur-md space-y-2.5 shadow-sm hover:border-white/[0.15] transition-all"
+                      className="py-2.5 px-1 space-y-1.5 hover:bg-white/[0.02] rounded-lg transition-colors"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-white">{displayName}</span>
-                          <span className="faang-chip chip-neutral text-[9px] px-1.5 py-0">
+                          <span className="text-xs font-semibold text-zinc-100">{displayName}</span>
+                          <span className={`faang-chip text-[9px] px-1.5 py-0 font-medium ${boundaryLabel === 'Output' ? 'chip-neutral text-violet-300' : 'chip-neutral text-zinc-300'}`}>
                             {boundaryLabel}
                           </span>
                         </div>
                         <span
-                          className={`faang-chip text-[10px] font-bold uppercase ${
+                          className={`faang-chip text-[9px] font-bold uppercase ${
                             isFail
                               ? "chip-crimson"
                               : isWarn
@@ -798,23 +762,23 @@ export default function Playground() {
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between text-xs text-zinc-400">
-                        <span className="truncate max-w-[200px] font-medium">{check.engine || "stateless_evaluator"}</span>
+                      <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                        <span className="truncate max-w-[210px] font-mono text-[10px] text-zinc-400">{check.engine || "stateless_evaluator"}</span>
                         <div className="flex items-center gap-1.5">
                           <span className={`font-bold ${isFail ? "text-rose-400" : (isWarn ? "text-amber-400" : "text-emerald-400")}`}>
                             {scorePercent}%
                           </span>
-                          <span className="text-[10px] text-zinc-500">({check.score.toFixed(2)})</span>
+                          <span className="text-[10px] text-zinc-500 font-mono">({check.score.toFixed(2)})</span>
                         </div>
                       </div>
 
-                      {/* Multi-Color Progress Bar */}
-                      <div className="w-full bg-black/60 h-2 rounded-full overflow-hidden p-0.5 border border-white/[0.04]">
+                      {/* Clean Hairline Progress Track */}
+                      <div className="w-full bg-black/60 h-1.5 rounded-full overflow-hidden p-0">
                         <div
                           className={`h-full rounded-full transition-all duration-300 ${
                             isFail ? "bg-rose-500" : 
                             isWarn ? "bg-amber-400" : 
-                            "bg-violet-400"
+                            "bg-gradient-to-r from-violet-500 to-indigo-400"
                           }`}
                           style={{ width: `${check.score <= 0.005 ? 0 : Math.max(check.score * 100, 4)}%` }}
                         />
@@ -824,34 +788,32 @@ export default function Playground() {
                 })}
               </TabsContent>
 
-              {/* Trace Tab */}
-              <TabsContent value="trace" className="mt-3 space-y-2.5">
-                <div className="faang-card p-4 space-y-3">
-                  <div className="flex items-center gap-2 pb-2 border-b border-white/[0.07]">
-                    <Activity className="h-4 w-4 text-violet-400" />
+              {/* Trace Tab — Borderless */}
+              <TabsContent value="trace" className="mt-2 space-y-2">
+                <div className="space-y-2 text-xs py-1">
+                  <div className="flex items-center gap-2 pb-2 border-b border-white/[0.06]">
+                    <Activity className="h-3.5 w-3.5 text-violet-400" />
                     <span className="text-xs font-bold text-white">Execution Latency Breakdown</span>
                   </div>
-                  <div className="space-y-2 text-xs">
-                    {Object.entries(latestInteraction.latency_breakdown).map(([stage, ms]) => (
-                      <div key={stage} className="flex items-center justify-between py-1 border-b border-white/[0.04]">
-                        <span className="text-zinc-400 capitalize font-medium">{stage.replace(/_/g, " ")}</span>
-                        <span className="font-semibold text-zinc-200">{String(ms)}ms</span>
-                      </div>
-                    ))}
-                    <div className="pt-2 flex items-center justify-between font-bold text-sm">
-                      <span className="text-white">Total Firewall Overhead</span>
-                      <span className="text-amber-400 font-extrabold">
-                        {(Object.values(latestInteraction.latency_breakdown) as number[]).reduce((a, b) => Number(a) + Number(b), 0)}ms
-                      </span>
+                  {Object.entries(latestInteraction.latency_breakdown).map(([stage, ms]) => (
+                    <div key={stage} className="flex items-center justify-between py-1 border-b border-white/[0.03]">
+                      <span className="text-zinc-400 capitalize font-medium">{stage.replace(/_/g, " ")}</span>
+                      <span className="font-semibold text-zinc-200">{String(ms)}ms</span>
                     </div>
+                  ))}
+                  <div className="pt-2 flex items-center justify-between font-bold text-sm">
+                    <span className="text-white">Total Firewall Overhead</span>
+                    <span className="text-amber-400 font-extrabold">
+                      {(Object.values(latestInteraction.latency_breakdown) as number[]).reduce((a, b) => Number(a) + Number(b), 0)}ms
+                    </span>
                   </div>
                 </div>
               </TabsContent>
 
-              {/* JSON Tab */}
-              <TabsContent value="json" className="mt-3">
-                <div className="p-4 bg-black/50 border border-white/[0.08] rounded-2xl max-h-[380px] overflow-y-auto shadow-inner">
-                  <pre className="text-xs font-mono text-zinc-300 whitespace-pre-wrap break-all leading-relaxed">
+              {/* JSON Tab — Borderless */}
+              <TabsContent value="json" className="mt-2">
+                <div className="p-3 bg-black/40 border border-white/[0.05] rounded-xl max-h-[380px] overflow-y-auto">
+                  <pre className="text-[11px] font-mono text-zinc-300 whitespace-pre-wrap break-all leading-relaxed">
                     {JSON.stringify(latestInteraction, null, 2)}
                   </pre>
                 </div>
@@ -864,35 +826,217 @@ export default function Playground() {
 
       {/* Connect API Dialog */}
       <Dialog open={isApiModalOpen} onOpenChange={setIsApiModalOpen}>
-        <DialogContent className="max-w-xl bg-[#15161B] border-white/[0.1] text-white">
+        <DialogContent className="max-w-2xl bg-[#15161B] border-white/[0.1] text-white">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-white">Connect via API</DialogTitle>
-            <DialogDescription className="text-xs text-zinc-400">
-              Call ControlPlane.ai Gateway directly from your backend services:
-            </DialogDescription>
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-400">
+                <Code2 className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-white">Connect via API</DialogTitle>
+                <DialogDescription className="text-xs text-zinc-400">
+                  Call ControlPlane.ai Gateway directly from your backend services, bots, and pipelines:
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
-          <div className="mt-2 space-y-2">
-            <div className="p-3 bg-black/60 border border-white/[0.08] rounded-xl relative">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="absolute top-2 right-2 h-7 text-xs gap-1 text-zinc-300 hover:text-white"
-                onClick={() => copyCode(`curl -X POST http://localhost:8000/v1/chat/completions \\\n  -H "Content-Type: application/json" \\\n  -d '{"messages": [{"role": "user", "content": "Hello!"}], "use_case": "${useCase}"}'`, "curl")}
-              >
-                {copiedSnippet === "curl" ? <Check className="h-3.5 w-3.5 text-amber-400" /> : <Copy className="h-3.5 w-3.5" />}
-                {copiedSnippet === "curl" ? "Copied" : "Copy"}
-              </Button>
-              <pre className="text-[11px] font-mono whitespace-pre-wrap text-zinc-200 pr-14 leading-relaxed">
+
+          <Tabs defaultValue="curl" className="w-full mt-2">
+            <TabsList className="grid w-full grid-cols-3 max-w-[320px] bg-[#111216] p-1 rounded-full border border-white/[0.08]">
+              <TabsTrigger value="curl" className="text-xs font-bold rounded-full data-[state=active]:bg-white data-[state=active]:text-black">
+                cURL
+              </TabsTrigger>
+              <TabsTrigger value="javascript" className="text-xs font-bold rounded-full data-[state=active]:bg-white data-[state=active]:text-black">
+                JavaScript
+              </TabsTrigger>
+              <TabsTrigger value="python" className="text-xs font-bold rounded-full data-[state=active]:bg-white data-[state=active]:text-black">
+                Python
+              </TabsTrigger>
+            </TabsList>
+
+            {/* cURL Snippet */}
+            <TabsContent value="curl" className="mt-3 relative">
+              <div className="p-4 bg-black/60 border border-white/[0.08] rounded-2xl relative">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="absolute top-2.5 right-2.5 h-8 text-xs gap-1.5 px-3 text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.1] rounded-lg border border-white/[0.08]"
+                  onClick={() => copyCode(
+`curl -X POST http://localhost:8000/v1/chat/completions \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "messages": [{"role": "user", "content": "Hello, ControlPlane!"}],
+    "use_case": "${useCase}",
+    "geography": "${geography}"${selectedEndpoint !== "auto" ? `,\n    "endpoint_id": "${selectedEndpoint}"` : ""}
+  }'`, "curl")}
+                >
+                  {copiedSnippet === "curl" ? <Check className="h-3.5 w-3.5 text-amber-400" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copiedSnippet === "curl" ? "Copied" : "Copy"}
+                </Button>
+                <pre className="text-[11px] font-mono whitespace-pre-wrap text-zinc-200 pr-16 leading-relaxed">
 {`curl -X POST http://localhost:8000/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -d '{
-    "messages": [{"role": "user", "content": "Your query..."}],
+    "messages": [{"role": "user", "content": "Hello, ControlPlane!"}],
     "use_case": "${useCase}",
-    "geography": "${geography}"
+    "geography": "${geography}"${selectedEndpoint !== "auto" ? `,\n    "endpoint_id": "${selectedEndpoint}"` : ""}
   }'`}
-              </pre>
-            </div>
-          </div>
+                </pre>
+              </div>
+            </TabsContent>
+
+            {/* JavaScript Snippet */}
+            <TabsContent value="javascript" className="mt-3 relative">
+              <div className="p-4 bg-black/60 border border-white/[0.08] rounded-2xl relative">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="absolute top-2.5 right-2.5 h-8 text-xs gap-1.5 px-3 text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.1] rounded-lg border border-white/[0.08]"
+                  onClick={() => copyCode(
+`// 1. Using Standard Fetch / Node.js
+async function askControlPlane() {
+  const res = await fetch("http://localhost:8000/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages: [{ role: "user", content: "Hello, ControlPlane!" }],
+      use_case: "${useCase}",
+      geography: "${geography}"${selectedEndpoint !== "auto" ? `,\n      endpoint_id: "${selectedEndpoint}"` : ""}
+    })
+  });
+
+  const data = await res.json();
+  console.log("Decision:", data.decision?.action); // "allow" | "block"
+  console.log("Content:", data.content);
+}
+
+// 2. Or using OpenAI SDK (Drop-in Replacement)
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "http://localhost:8000/v1",
+  apiKey: "controlplane-api-key"
+});
+
+const completion = await client.chat.completions.create({
+  model: "${selectedEndpoint !== "auto" ? selectedEndpoint : "auto"}",
+  messages: [{ role: "user", content: "Hello, ControlPlane!" }]
+});
+console.log(completion.choices[0].message.content);`, "javascript")}
+                >
+                  {copiedSnippet === "javascript" ? <Check className="h-3.5 w-3.5 text-amber-400" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copiedSnippet === "javascript" ? "Copied" : "Copy"}
+                </Button>
+                <pre className="text-[11px] font-mono whitespace-pre-wrap text-zinc-200 pr-16 leading-relaxed max-h-[320px] overflow-y-auto">
+{`// 1. Using Standard Fetch / Node.js
+async function askControlPlane() {
+  const res = await fetch("http://localhost:8000/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages: [{ role: "user", content: "Hello, ControlPlane!" }],
+      use_case: "${useCase}",
+      geography: "${geography}"${selectedEndpoint !== "auto" ? `,\n      endpoint_id: "${selectedEndpoint}"` : ""}
+    })
+  });
+
+  const data = await res.json();
+  console.log("Decision:", data.decision?.action); // "allow" | "block"
+  console.log("Content:", data.content);
+}
+
+// 2. Or using OpenAI SDK (Drop-in Replacement)
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "http://localhost:8000/v1",
+  apiKey: "controlplane-api-key"
+});
+
+const completion = await client.chat.completions.create({
+  model: "${selectedEndpoint !== "auto" ? selectedEndpoint : "auto"}",
+  messages: [{ role: "user", content: "Hello, ControlPlane!" }]
+});
+console.log(completion.choices[0].message.content);`}
+                </pre>
+              </div>
+            </TabsContent>
+
+            {/* Python Snippet */}
+            <TabsContent value="python" className="mt-3 relative">
+              <div className="p-4 bg-black/60 border border-white/[0.08] rounded-2xl relative">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="absolute top-2.5 right-2.5 h-8 text-xs gap-1.5 px-3 text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.1] rounded-lg border border-white/[0.08]"
+                  onClick={() => copyCode(
+`# 1. Using Requests / Httpx
+import requests
+
+url = "http://localhost:8000/v1/chat/completions"
+payload = {
+    "messages": [{"role": "user", "content": "Hello, ControlPlane!"}],
+    "use_case": "${useCase}",
+    "geography": "${geography}"${selectedEndpoint !== "auto" ? `,\n    "endpoint_id": "${selectedEndpoint}"` : ""}
+}
+
+response = requests.post(url, json=payload)
+data = response.json()
+
+print("Perimeter Action:", data["decision"]["action"])
+print("AI Response:", data["content"])
+
+# 2. Or using OpenAI Python SDK
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="controlplane-api-key"
+)
+
+completion = client.chat.completions.create(
+    model="${selectedEndpoint !== "auto" ? selectedEndpoint : "auto"}",
+    messages=[{"role": "user", "content": "Hello, ControlPlane!"}]
+)
+print(completion.choices[0].message.content)`, "python")}
+                >
+                  {copiedSnippet === "python" ? <Check className="h-3.5 w-3.5 text-amber-400" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copiedSnippet === "python" ? "Copied" : "Copy"}
+                </Button>
+                <pre className="text-[11px] font-mono whitespace-pre-wrap text-zinc-200 pr-16 leading-relaxed max-h-[320px] overflow-y-auto">
+{`# 1. Using Requests / Httpx
+import requests
+
+url = "http://localhost:8000/v1/chat/completions"
+payload = {
+    "messages": [{"role": "user", "content": "Hello, ControlPlane!"}],
+    "use_case": "${useCase}",
+    "geography": "${geography}"${selectedEndpoint !== "auto" ? `,\n    "endpoint_id": "${selectedEndpoint}"` : ""}
+}
+
+response = requests.post(url, json=payload)
+data = response.json()
+
+print("Perimeter Action:", data["decision"]["action"])
+print("AI Response:", data["content"])
+
+# 2. Or using OpenAI Python SDK
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="controlplane-api-key"
+)
+
+completion = client.chat.completions.create(
+    model="${selectedEndpoint !== "auto" ? selectedEndpoint : "auto"}",
+    messages=[{"role": "user", "content": "Hello, ControlPlane!"}]
+)
+print(completion.choices[0].message.content)`}
+                </pre>
+              </div>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>

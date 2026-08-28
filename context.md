@@ -35,7 +35,7 @@ ControlPlane.ai runs as a 12-microservice distributed cluster with a React 18 fr
 | `8003` | **PII Service** | `services/pii_service/app.py` | Microsoft Presidio NER + Regex Recognizers (EMAIL, PHONE, ADDRESS, SSN, PAN, AADHAAR, CARDS). |
 | `8004` | **Policy Engine** | `services/policy_engine/app.py` | Hot-reloading declarative YAML compiler (`policies.yaml`), SHA-256 versioning, multi-tenant rules. |
 | `8005` | **Semantic Router & LB** | `services/router/app.py` | 384-d Vector Semantic Index (`all-MiniLM-L6-v2`) + BM25 hybrid matching + geographic residency. |
-| `8006` | **Model Adapter** | `services/adapter/app.py` | Dual-provider executor (Native Google Gemini 3.6 Flash API + OpenRouter failover + synthetic). |
+| `8006` | **Model Adapter** | `services/adapter/app.py` | Native Google Gemini API executor (`gemini-3.5-flash-lite`, `gemini-3.6-flash`, `gemini-3.7-flash` + synthetic). |
 | `8007` | **Audit Store** | `services/audit_store/app.py` | Append-only cryptographically hashed ledger (`merkle_root`, `previous_hash`, SQLite). |
 | `8008` | **Review Console** | `services/review_console/app.py` | Escalation triage queue for human-in-the-loop verification (Approve, Deny, Edit). |
 | `8009` | **Immune System** | `services/immune_system/app.py` | Telemetry statistical analyzer, $\sigma$-anomaly detector, automated threshold self-healing proposals. |
