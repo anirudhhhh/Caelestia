@@ -100,16 +100,32 @@ async def lifespan(app: FastAPI):
                 description TEXT,
                 latency_tier TEXT,
                 detectors JSON,
+                pii_permissions JSON,
+                strict_pii_declaration BOOLEAN DEFAULT 0,
                 change_note TEXT,
                 updated_by TEXT,
                 updated_at TEXT,
                 UNIQUE(use_case_id, version)
             )
         ''')
+        try:
+            await db.execute("ALTER TABLE use_case_configs ADD COLUMN pii_permissions JSON")
+            await db.commit()
+        except Exception:
+            pass
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS redaction_vault (
+                interaction_id TEXT PRIMARY KEY,
+                entities JSON,
+                created_at REAL,
+                expires_at REAL
+            )
+        ''')
         await db.execute('CREATE INDEX IF NOT EXISTS idx_interaction_id ON interaction_events (interaction_id)')
         await db.execute('CREATE INDEX IF NOT EXISTS idx_use_case_created_at ON interaction_events (use_case, created_at)')
         await db.execute('CREATE INDEX IF NOT EXISTS idx_secret_fingerprint ON registered_secrets (fingerprint)')
         await db.execute('CREATE INDEX IF NOT EXISTS idx_policy_id_ver ON policy_records (policy_id, version)')
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_vault_expires ON redaction_vault (expires_at)')
         await db.commit()
     logger.info("Audit store & enterprise security tables initialized.")
     yield
@@ -496,7 +512,7 @@ async def archive_policy(policy_id: str):
 
 # ─── Use-Case Configuration Store (§5 & §9) ───────────────────────────────────
 
-@app.post("/v1/configs/{use_case_id}")
+@app.post("/v1/configs/{use_case_id:path}")
 async def save_use_case_config(config: UseCaseConfig):
     now = datetime.now(timezone.utc).isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
@@ -505,12 +521,13 @@ async def save_use_case_config(config: UseCaseConfig):
         next_version = (row[0] + 1) if row and row[0] else config.version
 
         detectors_data = {k: v.model_dump() if hasattr(v, "model_dump") else v for k, v in config.detectors.items()}
+        pii_perms_json = json.dumps(config.pii_permissions) if config.pii_permissions else json.dumps({})
 
         await db.execute(
             """
             INSERT INTO use_case_configs (
-                use_case_id, version, name, description, latency_tier, detectors, change_note, updated_by, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                use_case_id, version, name, description, latency_tier, detectors, pii_permissions, strict_pii_declaration, change_note, updated_by, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 config.use_case_id,
@@ -519,6 +536,8 @@ async def save_use_case_config(config: UseCaseConfig):
                 config.description,
                 config.latency_tier,
                 json.dumps(detectors_data),
+                pii_perms_json,
+                1 if config.strict_pii_declaration else 0,
                 config.change_note,
                 config.updated_by,
                 now
@@ -526,10 +545,25 @@ async def save_use_case_config(config: UseCaseConfig):
         )
         await db.commit()
 
-    logger.info(f"Saved use-case configuration {config.use_case_id} v{next_version}")
+    # Sync to default_policy.yaml so static baseline stays synchronized
+    try:
+        policy_path = Path(__file__).parent.parent.parent / "policies" / "default_policy.yaml"
+        if policy_path.exists() and config.pii_permissions:
+            import yaml
+            with open(policy_path, "r") as f:
+                ydata = yaml.safe_load(f) or {}
+            if "pii_permissions" not in ydata:
+                ydata["pii_permissions"] = {}
+            ydata["pii_permissions"][config.use_case_id] = config.pii_permissions
+            with open(policy_path, "w") as f:
+                yaml.safe_dump(ydata, f, sort_keys=False)
+    except Exception as e:
+        logger.warning(f"Could not sync to default_policy.yaml: {e}")
+
+    logger.info(f"Saved use-case configuration {config.use_case_id} v{next_version} with PII permissions")
     return {"status": "saved", "use_case_id": config.use_case_id, "version": next_version}
 
-@app.get("/v1/configs/{use_case_id}")
+@app.get("/v1/configs/{use_case_id:path}")
 async def get_use_case_config(use_case_id: str):
     default_pii_permissions = {
         "EMAIL": "allow",
@@ -542,17 +576,28 @@ async def get_use_case_config(use_case_id: str):
         "BANK_ACCOUNT": "block",
         "GOVERNMENT_ID": "block"
     }
+
+    try:
+        policy_path = Path(__file__).parent.parent.parent / "policies" / "default_policy.yaml"
+        if policy_path.exists():
+            import yaml
+            with open(policy_path, "r") as f:
+                ydata = yaml.safe_load(f)
+                if ydata and "pii_permissions" in ydata and use_case_id in ydata["pii_permissions"]:
+                    default_pii_permissions = ydata["pii_permissions"][use_case_id]
+    except Exception:
+        pass
+
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute("SELECT * FROM use_case_configs WHERE use_case_id = ? ORDER BY version DESC LIMIT 1", (use_case_id,))
         row = await cursor.fetchone()
         if not row:
-            # Return default baseline configuration
             default_detectors = {
                 "secrets": {"enabled": True, "flag_threshold": 0.3, "block_threshold": 0.5, "fail_behavior": "fail_closed", "is_locked": True},
                 "injection": {"enabled": True, "flag_threshold": 0.5, "block_threshold": 0.8, "fail_behavior": "fail_closed", "is_locked": True},
-                "pii": {"enabled": True, "flag_threshold": 0.4, "block_threshold": 0.75, "fail_behavior": "fail_closed", "is_locked": False},
-                "toxicity": {"enabled": True, "flag_threshold": 0.4, "block_threshold": 0.8, "fail_behavior": "fail_closed", "is_locked": False},
+                "pii": {"enabled": True, "flag_threshold": 0.5, "block_threshold": 0.75, "fail_behavior": "fail_closed", "is_locked": False},
+                "toxicity": {"enabled": True, "flag_threshold": 0.6, "block_threshold": 0.8, "fail_behavior": "fail_closed", "is_locked": False},
                 "policy": {"enabled": True, "flag_threshold": 0.4, "block_threshold": 0.7, "fail_behavior": "fail_closed", "is_locked": False}
             }
             return {
@@ -569,14 +614,21 @@ async def get_use_case_config(use_case_id: str):
 
         config_data = dict(row)
         if "detectors" in config_data and isinstance(config_data["detectors"], str):
-            config_data["detectors"] = json.loads(config_data["detectors"])
-        if "pii_permissions" not in config_data or not config_data["pii_permissions"]:
+            try:
+                config_data["detectors"] = json.loads(config_data["detectors"])
+            except Exception:
+                config_data["detectors"] = {}
+        if "pii_permissions" in config_data and config_data["pii_permissions"]:
+            if isinstance(config_data["pii_permissions"], str):
+                try:
+                    config_data["pii_permissions"] = json.loads(config_data["pii_permissions"])
+                except Exception:
+                    config_data["pii_permissions"] = default_pii_permissions
+        else:
             config_data["pii_permissions"] = default_pii_permissions
-        elif isinstance(config_data["pii_permissions"], str):
-            config_data["pii_permissions"] = json.loads(config_data["pii_permissions"])
         return config_data
 
-@app.get("/v1/configs/{use_case_id}/history")
+@app.get("/v1/configs/{use_case_id:path}/history")
 async def get_use_case_config_history(use_case_id: str):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
@@ -599,41 +651,86 @@ class VaultStoreRequest(BaseModel):
 @app.post("/v1/vault/store")
 async def store_in_vault(req: VaultStoreRequest):
     import time
+    now_ts = time.time()
+    expires_ts = now_ts + VAULT_TTL_SECONDS
+    entities_map = {e.id: e.value for e in req.raw_entities}
+
     REDACTION_VAULT[req.interaction_id] = {
-        "entities": {e.id: e.value for e in req.raw_entities},
-        "created_at": time.time(),
-        "expires_at": time.time() + VAULT_TTL_SECONDS
+        "entities": entities_map,
+        "created_at": now_ts,
+        "expires_at": expires_ts
     }
+
+    try:
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                """
+                INSERT OR REPLACE INTO redaction_vault (interaction_id, entities, created_at, expires_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (req.interaction_id, json.dumps(entities_map), now_ts, expires_ts)
+            )
+            await db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to persist vault entry to SQLite: {e}")
+
     return {"status": "stored", "vault_ref": req.interaction_id, "ttl_seconds": VAULT_TTL_SECONDS}
 
 @app.get("/v1/vault/{interaction_id}")
 async def get_from_vault(interaction_id: str):
     import time
-    if interaction_id not in REDACTION_VAULT:
-        raise HTTPException(status_code=404, detail="Vault entry not found or expired")
-    
-    entry = REDACTION_VAULT[interaction_id]
-    if time.time() > entry["expires_at"]:
-        del REDACTION_VAULT[interaction_id]
-        raise HTTPException(status_code=410, detail="Vault entry expired")
-    
-    return {"vault_ref": interaction_id, "entities": entry["entities"], "expires_in_seconds": int(entry["expires_at"] - time.time())}
+    now_ts = time.time()
+
+    # Check RAM cache first
+    if interaction_id in REDACTION_VAULT:
+        entry = REDACTION_VAULT[interaction_id]
+        if now_ts > entry["expires_at"]:
+            del REDACTION_VAULT[interaction_id]
+            raise HTTPException(status_code=410, detail="Vault entry expired")
+        return {"vault_ref": interaction_id, "entities": entry["entities"], "expires_in_seconds": int(entry["expires_at"] - now_ts)}
+
+    # Fallback to SQLite DB
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute("SELECT * FROM redaction_vault WHERE interaction_id = ?", (interaction_id,))
+        row = await cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Vault entry not found")
+        if now_ts > row["expires_at"]:
+            await db.execute("DELETE FROM redaction_vault WHERE interaction_id = ?", (interaction_id,))
+            await db.commit()
+            raise HTTPException(status_code=410, detail="Vault entry expired")
+
+        entities = json.loads(row["entities"]) if isinstance(row["entities"], str) else row["entities"]
+        REDACTION_VAULT[interaction_id] = {"entities": entities, "created_at": row["created_at"], "expires_at": row["expires_at"]}
+        return {"vault_ref": interaction_id, "entities": entities, "expires_in_seconds": int(row["expires_at"] - now_ts)}
 
 @app.post("/v1/vault/{interaction_id}/reveal")
 async def reveal_vault_entity(interaction_id: str, placeholder_id: str, requester: str = "admin"):
     import time
-    if interaction_id not in REDACTION_VAULT:
-        raise HTTPException(status_code=404, detail="Vault entry expired or not found")
-    
-    entry = REDACTION_VAULT[interaction_id]
-    if time.time() > entry["expires_at"]:
-        del REDACTION_VAULT[interaction_id]
-        raise HTTPException(status_code=410, detail="Vault entry expired")
-    
-    raw_val = entry["entities"].get(placeholder_id)
+    now_ts = time.time()
+
+    entities = None
+    if interaction_id in REDACTION_VAULT:
+        entry = REDACTION_VAULT[interaction_id]
+        if now_ts <= entry["expires_at"]:
+            entities = entry["entities"]
+
+    if entities is None:
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute("SELECT * FROM redaction_vault WHERE interaction_id = ?", (interaction_id,))
+            row = await cursor.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Vault entry expired or not found")
+            if now_ts > row["expires_at"]:
+                raise HTTPException(status_code=410, detail="Vault entry expired")
+            entities = json.loads(row["entities"]) if isinstance(row["entities"], str) else row["entities"]
+
+    raw_val = entities.get(placeholder_id)
     if not raw_val:
         raise HTTPException(status_code=404, detail=f"Entity {placeholder_id} not found in vault")
-    
+
     logger.info(f"REDACTION VAULT REVEAL: User {requester} accessed {placeholder_id} on {interaction_id}")
     return {"placeholder_id": placeholder_id, "raw_value": raw_val}
 

@@ -9,16 +9,19 @@ from typing import Dict, Set
 
 # Severe Violations: Hate speech, physical threats, explicit slurs, self-harm
 SEVERE_WORDLIST: Set[str] = {
-    "kill", "murder", "assassinate", "genocide", "nigger", "faggot", "ky2", "suicide",
-    "slaughter", "behead", "exterminate", "holocaust", "rape", "pedophile", "cp",
-    "chitchat_kill", "bombing", "terrorist", "massacre", "lynch"
+    "kill", "murder", "assassinate", "genocide", "nigger", "niggers", "nigga", "niggas", "niggaz",
+    "faggot", "faggots", "fag", "fags", "kike", "kikes", "chink", "chinks", "spic", "spics",
+    "wetback", "wetbacks", "gook", "gooks", "coon", "coons", "tranny", "shemale",
+    "retard", "retarded", "ky2", "kys", "suicide", "slaughter", "behead", "exterminate",
+    "holocaust", "rape", "pedophile", "cp", "chitchat_kill", "bombing", "terrorist", "massacre",
+    "lynch", "kill yourself", "hang yourself", "die in a fire", "gas the", "white power", "heil hitler", "nazi"
 }
 
 # Moderate Violations: Harassment, vulgarity, offensive profanity
 MODERATE_WORDLIST: Set[str] = {
-    "fuck", "shit", "bitch", "cunt", "bastard", "dick",
-    "pussy", "whore", "slut", "motherfucker", "cock", "asshole", "dumbass", "jackass",
-    "retard", "crap", "bullshit", "dipshit", "piss", "prick", "twat", "wanker"
+    "fuck", "fucking", "fucked", "shit", "bitch", "bitches", "cunt", "cunts", "bastard", "bastards",
+    "dick", "dicks", "pussy", "pussies", "whore", "whores", "slut", "sluts", "motherfucker", "motherfucking",
+    "cock", "cocks", "asshole", "assholes", "dumbass", "jackass", "crap", "bullshit", "dipshit", "piss", "prick", "twat", "wanker"
 }
 
 # Mild Violations: Mild insults, aggressiveness

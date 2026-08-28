@@ -181,6 +181,8 @@ async def chat_completions(
 
     if req.model:
         envelope.model.requested = req.model
+    elif req.endpoint_id:
+        envelope.model.requested = req.endpoint_id
 
     logger.info(f"[{interaction_id}] Processing | use_case={req.use_case} geo={req.geography}")
 
@@ -993,19 +995,19 @@ async def proxy_archive_policy(policy_id: str):
     resp = await client.post(f"{AUDIT_STORE_URL}/v1/policies/{policy_id}/archive")
     return resp.json() if resp.status_code == 200 else {}
 
-@app.get("/v1/configs/{use_case_id}")
+@app.get("/v1/configs/{use_case_id:path}")
 async def proxy_get_use_case_config(use_case_id: str):
     client = get_http_client()
     resp = await client.get(f"{AUDIT_STORE_URL}/v1/configs/{use_case_id}")
     return resp.json() if resp.status_code == 200 else {}
 
-@app.post("/v1/configs/{use_case_id}")
+@app.post("/v1/configs/{use_case_id:path}")
 async def proxy_save_use_case_config(use_case_id: str, body: Dict[str, Any]):
     client = get_http_client()
     resp = await client.post(f"{AUDIT_STORE_URL}/v1/configs/{use_case_id}", json=body)
     return resp.json() if resp.status_code == 200 else {}
 
-@app.get("/v1/configs/{use_case_id}/history")
+@app.get("/v1/configs/{use_case_id:path}/history")
 async def proxy_get_use_case_config_history(use_case_id: str):
     client = get_http_client()
     resp = await client.get(f"{AUDIT_STORE_URL}/v1/configs/{use_case_id}/history")

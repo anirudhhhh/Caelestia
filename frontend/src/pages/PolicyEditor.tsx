@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   Save, Plus, AlertCircle, Info, Beaker, RotateCcw, Trash2, 
   CheckCircle2, Check, X, Upload, Download, FileText, Sparkles, 
-  Sliders, Shield, ShieldCheck, ShieldAlert
+  Sliders, Shield, ShieldCheck, ShieldAlert, Server, Cpu
 } from 'lucide-react';
 import { load as yamlLoad, dump as yamlDump } from 'js-yaml';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -105,7 +106,22 @@ const PII_ENTITIES = [
   { key: 'GOVERNMENT_ID', name: 'Passports & Licenses', desc: 'Driver licenses, national IDs, and passports' },
 ];
 
+const DEFAULT_PII_MAP: Record<string, 'allow' | 'block'> = {
+  EMAIL: 'allow',
+  PHONE: 'allow',
+  ADDRESS: 'allow',
+  SSN: 'block',
+  CREDIT_CARD: 'block',
+  PAN: 'block',
+  AADHAAR: 'block',
+  BANK_ACCOUNT: 'block',
+  GOVERNMENT_ID: 'block'
+};
+
 export default function PolicyEditor() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialScope = searchParams.get('scope') || 'customer_support';
+
   const [policies, setPolicies] = useState<PolicyRule[]>([]);
   const [originalPolicies, setOriginalPolicies] = useState<PolicyRule[]>([]);
   const [proposals, setProposals] = useState<ThresholdProposal[]>([]);
@@ -113,18 +129,14 @@ export default function PolicyEditor() {
   const [isSaving, setIsSaving] = useState(false);
   const [publishedSuccess, setPublishedSuccess] = useState<string | null>(null);
 
-  // PII Governance Matrix state
-  const [selectedUseCase, setSelectedUseCase] = useState<string>('customer_support');
-  const [piiPermissions, setPiiPermissions] = useState<Record<string, 'allow' | 'block'>>({
-    EMAIL: 'allow',
-    PHONE: 'allow',
-    ADDRESS: 'allow',
-    SSN: 'block',
-    CREDIT_CARD: 'block',
-    PAN: 'block',
-    AADHAAR: 'block',
-    BANK_ACCOUNT: 'block',
-    GOVERNMENT_ID: 'block'
+  // Dynamic Scope & Unified Enterprise Workflow PII Map
+  const [selectedUseCase, setSelectedUseCase] = useState<string>(initialScope);
+  const [endpointsList, setEndpointsList] = useState<any[]>([]);
+  const [allPiiConfigs, setAllPiiConfigs] = useState<Record<string, Record<string, 'allow' | 'block'>>>({
+    customer_support: { ...DEFAULT_PII_MAP },
+    internal_copilot: { ...DEFAULT_PII_MAP },
+    decision_support: { ...DEFAULT_PII_MAP },
+    legal_compliance: { ...DEFAULT_PII_MAP }
   });
 
   // Upload modal state
@@ -144,26 +156,75 @@ export default function PolicyEditor() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      await Promise.all([loadPoliciesData(), loadProposalsOnly(), loadUseCaseConfig(selectedUseCase)]);
+      await Promise.all([
+        loadPoliciesData(),
+        loadProposalsOnly(),
+        loadAllComponentConfigs()
+      ]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loadUseCaseConfig = async (uc: string) => {
+  const loadAllComponentConfigs = async () => {
     try {
-      const cfg = await api.getUseCaseConfig(uc);
-      if (cfg?.pii_permissions) {
-        setPiiPermissions(cfg.pii_permissions);
-      }
+      const eps = await api.getEndpoints().catch(() => []);
+      setEndpointsList(eps);
+
+      const allScopes = Array.from(new Set([
+        'customer_support',
+        'internal_copilot',
+        'decision_support',
+        'legal_compliance',
+        ...eps.map((e: any) => e.id)
+      ]));
+
+      const results = await Promise.all(
+        allScopes.map(async (scopeId) => {
+          try {
+            const cfg = await api.getUseCaseConfig(scopeId);
+            return { scopeId, pii: cfg?.pii_permissions || DEFAULT_PII_MAP };
+          } catch {
+            return { scopeId, pii: DEFAULT_PII_MAP };
+          }
+        })
+      );
+
+      const updatedMap: Record<string, Record<string, 'allow' | 'block'>> = {};
+      results.forEach(r => {
+        updatedMap[r.scopeId] = { ...DEFAULT_PII_MAP, ...r.pii };
+      });
+      setAllPiiConfigs(prev => ({ ...prev, ...updatedMap }));
     } catch (e) {
-      console.error('Failed to load use case config', e);
+      console.error('Failed to load component configs', e);
+    }
+  };
+
+  const handleScopeChange = (newScope: string) => {
+    setSelectedUseCase(newScope);
+    setSearchParams({ scope: newScope });
+
+    if (!allPiiConfigs[newScope]) {
+      api.getUseCaseConfig(newScope).then(cfg => {
+        if (cfg?.pii_permissions) {
+          setAllPiiConfigs(prev => ({
+            ...prev,
+            [newScope]: { ...DEFAULT_PII_MAP, ...cfg.pii_permissions }
+          }));
+        }
+      }).catch(() => {});
     }
   };
 
   const handleTogglePii = async (key: string, newAction: 'allow' | 'block') => {
-    const updated = { ...piiPermissions, [key]: newAction };
-    setPiiPermissions(updated);
+    const currentForScope = allPiiConfigs[selectedUseCase] || DEFAULT_PII_MAP;
+    const updatedForScope = { ...currentForScope, [key]: newAction };
+
+    setAllPiiConfigs(prev => ({
+      ...prev,
+      [selectedUseCase]: updatedForScope
+    }));
+
     try {
       await api.saveUseCaseConfig(selectedUseCase, {
         use_case_id: selectedUseCase,
@@ -171,11 +232,11 @@ export default function PolicyEditor() {
         version: 1,
         latency_tier: 'real_time',
         detectors: {},
-        pii_permissions: updated,
+        pii_permissions: updatedForScope,
         strict_pii_declaration: false,
         change_note: `Updated ${key} to ${newAction}`
       });
-      setPublishedSuccess(`Updated ${key} permission to ${newAction.toUpperCase()} for ${selectedUseCase}! Hot-reloaded.`);
+      setPublishedSuccess(`Updated ${key} to ${newAction.toUpperCase()} for "${selectedUseCase}"! Saved & active.`);
       setTimeout(() => setPublishedSuccess(null), 3000);
     } catch (e) {
       console.error('Failed to save PII permission', e);
@@ -498,12 +559,12 @@ export default function PolicyEditor() {
   const hasChanges = JSON.stringify(policies) !== JSON.stringify(originalPolicies);
 
   return (
-    <div className="h-full w-full overflow-y-auto space-y-6 pr-2 pb-10">
+    <div className="h-full w-full overflow-y-auto space-y-6 pr-2 pb-10 font-sans">
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-medium">Policy Engine & Firewall Thresholds</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <h2 className="text-xl font-extrabold tracking-tight text-white">Policy Engine & Firewall Thresholds</h2>
+          <p className="text-xs text-zinc-400 mt-1 font-medium">
             Configure safety thresholds, block limits, and upload custom policy definitions for automated perimeter enforcement.
           </p>
         </div>
@@ -512,7 +573,7 @@ export default function PolicyEditor() {
             variant="outline" 
             size="sm" 
             onClick={() => { setIsUploadOpen(true); setUploadError(null); setPreviewRules(null); setUploadText(''); }} 
-            className="text-xs h-8"
+            className="faang-btn-ghost text-xs h-8 text-zinc-300 hover:text-white"
           >
             <Upload className="mr-1.5 h-3.5 w-3.5" />
             Upload Policy (YAML / JSON)
@@ -521,165 +582,190 @@ export default function PolicyEditor() {
             variant="outline" 
             size="sm" 
             onClick={handleExportYaml} 
-            className="text-xs h-8"
+            className="faang-btn-ghost text-xs h-8 text-zinc-300 hover:text-white"
           >
             <Download className="mr-1.5 h-3.5 w-3.5" />
             Export YAML
           </Button>
           {hasChanges && (
-            <Button variant="outline" size="sm" onClick={handleRevert} className="text-xs h-8">
+            <Button variant="outline" size="sm" onClick={handleRevert} className="faang-btn-ghost text-xs h-8 text-zinc-400 hover:text-white">
               <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
               Revert
             </Button>
           )}
-          <Button size="sm" onClick={handleSave} disabled={!hasChanges || isSaving} className="text-xs h-8">
+          <button 
+            type="button"
+            onClick={handleSave} 
+            disabled={!hasChanges || isSaving} 
+            className="faang-btn-primary text-xs h-8 px-4 font-bold flex items-center justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <Save className="mr-1.5 h-3.5 w-3.5" />
             {isSaving ? 'Publishing...' : 'Publish Changes'}
-          </Button>
+          </button>
         </div>
       </div>
 
       {publishedSuccess && (
-        <Alert className="bg-emerald-500/10 border-emerald-500/30 text-emerald-500">
-          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-          <AlertTitle className="text-emerald-500 font-medium text-xs">Active & Deployed</AlertTitle>
-          <AlertDescription className="text-xs">{publishedSuccess}</AlertDescription>
-        </Alert>
+        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-2.5 shadow-lg">
+          <CheckCircle2 className="h-4 w-4 text-amber-400 shrink-0" />
+          <span>{publishedSuccess}</span>
+        </div>
       )}
 
       {/* Preset Quick Templates */}
-      <Card className="border-border/60">
-        <CardHeader className="py-3 px-4 pb-2">
-          <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
-            Enterprise Compliance Presets (1-Click Templates)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-3">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2.5">
-            {PRESETS.map((preset) => {
-              const Icon = preset.icon;
-              return (
-                <div 
-                  key={preset.name}
-                  className="p-3 rounded-lg border border-border/70 bg-card hover:bg-accent/40 transition-colors flex flex-col justify-between gap-2.5 cursor-pointer group"
-                  onClick={() => handleApplyPreset(preset)}
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Icon className="h-4 w-4 text-primary shrink-0" />
-                      <span className="text-xs font-medium group-hover:text-primary transition-colors">{preset.name}</span>
+      <div className="faang-card p-5 space-y-3.5">
+        <div className="flex items-center gap-2 pb-1 text-zinc-200 font-bold text-xs uppercase tracking-wider">
+          <Sparkles className="h-4 w-4 text-amber-400" />
+          <span>Enterprise Compliance Presets (1-Click Templates)</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+          {PRESETS.map((preset, pIdx) => {
+            const Icon = preset.icon;
+            const accentColors = [
+              'text-violet-400 bg-violet-500/15 border-violet-500/30',
+              'text-blue-400 bg-blue-500/15 border-blue-500/30',
+              'text-rose-400 bg-rose-500/15 border-rose-500/30',
+              'text-amber-400 bg-amber-500/15 border-amber-500/30',
+              'text-emerald-400 bg-emerald-500/15 border-emerald-500/30',
+            ];
+            const colorClass = accentColors[pIdx % accentColors.length];
+
+            return (
+              <div 
+                key={preset.name}
+                className="p-3.5 rounded-2xl border border-white/[0.08] bg-black/40 hover:border-white/[0.2] transition-all flex flex-col justify-between gap-3 cursor-pointer group hover:bg-white/[0.04]"
+                onClick={() => handleApplyPreset(preset)}
+              >
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className={`h-6 w-6 rounded-lg flex items-center justify-center border ${colorClass}`}>
+                      <Icon className="h-3.5 w-3.5" />
                     </div>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">{preset.description}</p>
+                    <span className="text-xs font-bold text-white group-hover:text-amber-400 transition-colors">{preset.name}</span>
                   </div>
-                  <Button size="sm" variant="secondary" className="h-6 text-[11px] w-full">
-                    Apply Preset
-                  </Button>
+                  <p className="text-xs text-zinc-400 leading-relaxed font-medium">{preset.description}</p>
                 </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                <button type="button" className="faang-btn-ghost h-7 text-xs w-full font-bold text-zinc-300 group-hover:text-white">
+                  Apply Preset
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Enterprise PII Governance Matrix */}
-      <Card className="border-border/70 shadow-sm">
-        <CardHeader className="py-3 px-4 flex flex-row items-center justify-between border-b border-border/40 bg-muted/20">
+      <div className="faang-card p-5 space-y-4">
+        <div className="flex flex-row flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] pb-3">
           <div>
-            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Shield className="h-3.5 w-3.5 text-primary" />
-              Enterprise PII Governance Matrix (Interactive Allow / Block)
-            </CardTitle>
-            <CardDescription className="text-[11px] text-muted-foreground mt-0.5">
+            <div className="text-xs font-bold uppercase tracking-wider text-zinc-200 flex items-center gap-2">
+              <Shield className="h-4 w-4 text-amber-400" />
+              <span>Enterprise PII Governance Matrix (Interactive Allow / Block)</span>
+            </div>
+            <p className="text-xs text-zinc-400 mt-1 font-medium">
               Default is DENY / BLOCK for any unlisted PII types. Permitted types pass raw without redaction to downstream LLMs.
-            </CardDescription>
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-xs text-muted-foreground">Scope:</label>
+            <label className="text-xs text-zinc-300 font-bold whitespace-nowrap" htmlFor="scope-select">
+              Workflow Profile:
+            </label>
             <Select 
               value={selectedUseCase} 
-              onValueChange={(val) => {
-                setSelectedUseCase(val);
-                loadUseCaseConfig(val);
-              }}
+              onValueChange={handleScopeChange}
             >
-              <SelectTrigger className="h-7 text-xs w-44 font-mono">
-                <SelectValue />
+              <SelectTrigger id="scope-select" className="h-9 text-xs w-72 sm:w-80 font-bold bg-white/[0.04] border-white/[0.1] rounded-xl text-white" aria-label="Select enterprise workflow profile">
+                <SelectValue placeholder="Select workflow profile..." />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="customer_support">customer_support</SelectItem>
-                <SelectItem value="internal_copilot">internal_copilot</SelectItem>
-                <SelectItem value="decision_support">decision_support</SelectItem>
+              <SelectContent className="max-h-80 bg-[#15161B] border-white/[0.1] rounded-xl text-white">
+                {endpointsList.length > 0 ? (
+                  endpointsList.map((ep: any) => (
+                    <SelectItem key={ep.id} value={ep.id} className="text-xs">
+                      <span className="font-bold text-white">{ep.name}</span> <span className="text-zinc-400 text-xs">({ep.id})</span>
+                    </SelectItem>
+                  ))
+                ) : (
+                  <>
+                    <SelectItem value="customer_support" className="text-xs">
+                      Customer Support & Success (customer_support)
+                    </SelectItem>
+                    <SelectItem value="internal_copilot" className="text-xs">
+                      Engineering & Internal Copilot (internal_copilot)
+                    </SelectItem>
+                    <SelectItem value="decision_support" className="text-xs">
+                      Billing & Financial Decision Support (decision_support)
+                    </SelectItem>
+                    <SelectItem value="legal_compliance" className="text-xs">
+                      Security & Legal Compliance (legal_compliance)
+                    </SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>
-        </CardHeader>
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {PII_ENTITIES.map((entity) => {
-              const currentAction = piiPermissions[entity.key] || 'block';
-              const isAllowed = currentAction === 'allow';
+        </div>
 
-              return (
-                <div 
-                  key={entity.key}
-                  className={`p-3 rounded-lg border transition-all ${
-                    isAllowed 
-                      ? 'border-emerald-500/30 bg-emerald-500/5' 
-                      : 'border-rose-500/30 bg-rose-500/5'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className={`w-2 h-2 rounded-full ${isAllowed ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                      <span className="text-xs font-semibold">{entity.name}</span>
-                    </div>
-                    <Badge 
-                      variant="outline" 
-                      className={`text-[10px] font-mono font-bold uppercase ${
-                        isAllowed 
-                          ? 'border-emerald-500/40 text-emerald-500 bg-emerald-500/10' 
-                          : 'border-rose-500/40 text-rose-500 bg-rose-500/10'
-                      }`}
-                    >
-                      {currentAction}
-                    </Badge>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          {PII_ENTITIES.map((entity) => {
+            const currentPii = allPiiConfigs[selectedUseCase] || DEFAULT_PII_MAP;
+            const currentAction = currentPii[entity.key] || 'block';
+            const isAllowed = currentAction === 'allow';
+
+            return (
+              <div 
+                key={entity.key}
+                className={`p-4 rounded-2xl border transition-all ${
+                  isAllowed 
+                    ? 'border-emerald-500/30 bg-emerald-500/[0.05]' 
+                    : 'border-rose-500/30 bg-rose-500/[0.05]'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-white">{entity.name}</span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground font-mono mb-3 truncate" title={entity.desc}>
-                    {entity.desc}
-                  </p>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <Button
-                      size="sm"
-                      variant={isAllowed ? 'default' : 'outline'}
-                      className={`h-6 text-[10px] ${
-                        isAllowed 
-                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
-                          : 'border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10'
-                      }`}
-                      onClick={() => handleTogglePii(entity.key, 'allow')}
-                    >
-                      <Check className="h-3 w-3 mr-1" /> Allow Raw
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={!isAllowed ? 'destructive' : 'outline'}
-                      className={`h-6 text-[10px] ${
-                        !isAllowed 
-                          ? 'bg-rose-600 hover:bg-rose-700 text-white' 
-                          : 'border-rose-500/30 text-rose-500 hover:bg-rose-500/10'
-                      }`}
-                      onClick={() => handleTogglePii(entity.key, 'block')}
-                    >
-                      <X className="h-3 w-3 mr-1" /> Strict Block
-                    </Button>
-                  </div>
+                  <span 
+                    className={`faang-chip text-[10px] font-bold uppercase ${
+                      isAllowed 
+                        ? 'chip-emerald' 
+                        : 'chip-crimson'
+                    }`}
+                  >
+                    {currentAction}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                <p className="text-xs text-zinc-400 mb-3.5 truncate font-medium" title={entity.desc}>
+                  {entity.desc}
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    className={`h-7.5 rounded-full text-xs font-bold flex items-center justify-center transition-all cursor-pointer ${
+                      isAllowed 
+                        ? 'faang-btn-primary text-black shadow-md' 
+                        : 'faang-btn-ghost text-zinc-400 hover:text-white'
+                    }`}
+                    onClick={() => handleTogglePii(entity.key, 'allow')}
+                  >
+                    <Check className="h-3 w-3 mr-1" /> Allow Raw
+                  </button>
+                  <button
+                    type="button"
+                    className={`h-7.5 rounded-full text-xs font-bold flex items-center justify-center transition-all cursor-pointer ${
+                      !isAllowed 
+                        ? 'faang-btn-crimson' 
+                        : 'faang-btn-ghost text-zinc-400 hover:text-rose-400'
+                    }`}
+                    onClick={() => handleTogglePii(entity.key, 'block')}
+                  >
+                    <X className="h-3 w-3 mr-1" /> Strict Block
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Immune System Self-Healing Proposal Banner */}
       {proposals.length > 0 && (
@@ -737,48 +823,52 @@ export default function PolicyEditor() {
       )}
 
       {/* Main Rules Table */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between py-4">
+      <div className="faang-card p-5 space-y-4">
+        <div className="flex flex-row items-center justify-between border-b border-white/[0.07] pb-3">
           <div>
-            <CardTitle className="text-sm font-medium">Configured Security Rules & Violation Thresholds</CardTitle>
-            <CardDescription className="text-xs">
+            <h3 className="text-sm font-bold text-white">Configured Security Rules & Violation Thresholds</h3>
+            <p className="text-xs text-zinc-400 mt-1 font-medium">
               Requests exceeding the Block threshold are blocked at the perimeter. Requests between Flag and Block are admitted and queued for human audit.
-            </CardDescription>
+            </p>
           </div>
-          <Button size="sm" variant="outline" onClick={handleAdd} className="text-xs h-8">
+          <button 
+            type="button" 
+            onClick={handleAdd} 
+            className="faang-btn-primary text-xs h-8 px-3.5 font-bold flex items-center justify-center cursor-pointer"
+          >
             <Plus className="mr-1.5 h-3.5 w-3.5" />
             Add Rule
-          </Button>
-        </CardHeader>
-        <CardContent>
+          </button>
+        </div>
+        <div>
           {isLoading ? (
-            <div className="py-8 text-center text-xs text-muted-foreground">Loading active policies...</div>
+            <div className="py-8 text-center text-xs text-zinc-400 font-medium">Loading active policies...</div>
           ) : (
-            <div className="rounded-md border border-border">
+            <div className="overflow-x-auto rounded-xl border border-white/[0.08]">
               <Table>
-                <TableHeader>
-                  <TableRow className="text-xs">
-                    <TableHead>Use Case</TableHead>
-                    <TableHead>Geography</TableHead>
-                    <TableHead>Scanner Check</TableHead>
-                    <TableHead className="w-36">Block Threshold (0-1)</TableHead>
-                    <TableHead className="w-36">Flag Threshold (0-1)</TableHead>
-                    <TableHead className="w-32">On Timeout</TableHead>
-                    <TableHead className="w-16 text-right">Actions</TableHead>
+                <TableHeader className="bg-[#15161B]">
+                  <TableRow className="text-xs border-white/[0.08]">
+                    <TableHead className="font-bold text-zinc-300">Use Case</TableHead>
+                    <TableHead className="font-bold text-zinc-300">Geography</TableHead>
+                    <TableHead className="font-bold text-zinc-300">Scanner Check</TableHead>
+                    <TableHead className="w-36 font-bold text-zinc-300">Block Threshold (0-1)</TableHead>
+                    <TableHead className="w-36 font-bold text-zinc-300">Flag Threshold (0-1)</TableHead>
+                    <TableHead className="w-36 font-bold text-zinc-300">On Timeout</TableHead>
+                    <TableHead className="w-16 text-right font-bold text-zinc-300">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {policies.map((policy, idx) => (
-                    <TableRow key={policy.id || idx} className="text-xs">
+                    <TableRow key={policy.id || idx} className="text-xs border-white/[0.06] hover:bg-white/[0.03]">
                       <TableCell>
                         <Select
                           value={policy.use_case}
                           onValueChange={(val) => handleUpdate(idx, 'use_case', val)}
                         >
-                          <SelectTrigger className="h-8 text-xs">
+                          <SelectTrigger className="h-8 text-xs bg-black/40 border-white/[0.1] text-white">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-[#15161B] border-white/[0.1] text-white">
                             <SelectItem value="*">All (*)</SelectItem>
                             <SelectItem value="customer_support">Customer Support</SelectItem>
                             <SelectItem value="internal_copilot">Internal Copilot</SelectItem>
@@ -791,10 +881,10 @@ export default function PolicyEditor() {
                           value={policy.geography}
                           onValueChange={(val) => handleUpdate(idx, 'geography', val)}
                         >
-                          <SelectTrigger className="h-8 text-xs">
+                          <SelectTrigger className="h-8 text-xs bg-black/40 border-white/[0.1] text-white">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-[#15161B] border-white/[0.1] text-white">
                             <SelectItem value="*">Global (*)</SelectItem>
                             <SelectItem value="US">US</SelectItem>
                             <SelectItem value="EU">EU (GDPR)</SelectItem>
@@ -807,10 +897,10 @@ export default function PolicyEditor() {
                           value={policy.check_name}
                           onValueChange={(val) => handleUpdate(idx, 'check_name', val)}
                         >
-                          <SelectTrigger className="h-8 text-xs font-mono">
+                          <SelectTrigger className="h-8 text-xs font-mono bg-black/40 border-white/[0.1] text-white">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-[#15161B] border-white/[0.1] text-white">
                             {AVAILABLE_CHECKS.map((c) => (
                               <SelectItem key={c} value={c} className="font-mono text-xs">
                                 {c}
@@ -827,7 +917,7 @@ export default function PolicyEditor() {
                           max="1"
                           value={policy.block_threshold}
                           onChange={(e) => handleThresholdChange(idx, 'block_threshold', e.target.value)}
-                          className="h-8 text-xs font-mono"
+                          className="h-8 text-xs font-mono bg-black/40 border-white/[0.1] text-white"
                         />
                       </TableCell>
                       <TableCell>
@@ -838,7 +928,7 @@ export default function PolicyEditor() {
                           max="1"
                           value={policy.flag_threshold}
                           onChange={(e) => handleThresholdChange(idx, 'flag_threshold', e.target.value)}
-                          className="h-8 text-xs font-mono"
+                          className="h-8 text-xs font-mono bg-black/40 border-white/[0.1] text-white"
                         />
                       </TableCell>
                       <TableCell>
@@ -846,10 +936,10 @@ export default function PolicyEditor() {
                           value={policy.on_timeout}
                           onValueChange={(val) => handleUpdate(idx, 'on_timeout', val)}
                         >
-                          <SelectTrigger className="h-8 text-xs">
+                          <SelectTrigger className="h-8 text-xs bg-black/40 border-white/[0.1] text-white">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-[#15161B] border-white/[0.1] text-white">
                             <SelectItem value="allow">Allow (Fail Open)</SelectItem>
                             <SelectItem value="block">Block (Fail Closed)</SelectItem>
                           </SelectContent>
@@ -859,7 +949,7 @@ export default function PolicyEditor() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          className="h-8 w-8 text-zinc-400 hover:text-rose-400"
                           onClick={() => handleDelete(idx)}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -871,8 +961,8 @@ export default function PolicyEditor() {
               </Table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Upload Policy Modal / Dialog */}
       {isUploadOpen && (

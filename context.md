@@ -122,7 +122,7 @@ All services communicate via Pydantic schemas in `shared/schemas.py`:
 class InteractionEnvelope(BaseModel):
     interaction_id: str
     session_id: str
-    use_case: UseCase          # customer_support | internal_copilot | decision_support
+    use_case: UseCase          # customer_support | internal_copilot | decision_support | legal_compliance
     geography: Geography        # US | EU | IN
     direction: Direction        # input | output
     payload: Payload            # role, content
@@ -190,3 +190,18 @@ locust -f load_test/locustfile.py        # Web UI on http://localhost:8089
    * PRD Specification: 3-state NLI claim verification engine (`SUPPORTED`, `CONTRADICTED`, `UNVERIFIED`) against in-band RAG evidence chunks. Currently on hold per design decisions.
 2. **Large-Scale External Parquet Dataset Fine-Tuning:**
    * Optional scaling to 100k+ sample external datasets on cloud GPU clusters.
+
+---
+
+## 8. Data Persistence, Schemas & Unified Enterprise Workflows
+
+1. **Unified Enterprise Governed Workflows:**
+   * All endpoints across the router, load balancer, policy studio, and playground map to unified enterprise workflows (`customer_support`, `internal_copilot`, `decision_support`, `legal_compliance`, and custom registered workflows).
+   * Models (e.g. Gemini, Claude, OpenAI) serve as push targets / adapters under these governed enterprise workflows rather than redundant separate entities.
+2. **Persistent Storage & Database Schemas:**
+   * **Audit Store (`data/audit_store.db`):** `interaction_events`, `human_outcomes`, `registered_secrets`, `policy_records`, `use_case_configs` (with `pii_permissions JSON`), and `redaction_vault` (SQLite backed with TTL index).
+   * **Review Console (`data/review_console.db`):** `escalations` (full 17-field schema with triage status and reviewer rationale).
+   * **Immune System (`data/immune_system.db`):** `proposal_decisions` (historical accepted/dismissed threshold proposals).
+   * **Router (`data/custom_endpoints.json`):** Persistent custom workflow endpoints with vector index reload on boot.
+3. **Data Bridge Normalization:**
+   * Frontend `api.getEvents` automatically normalizes audit store `envelope` records into standard `interaction` objects, preventing stale states or missing payload errors in telemetry tables.

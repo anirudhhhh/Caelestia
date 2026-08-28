@@ -1,7 +1,8 @@
 export type UseCase =
   | "customer_support"
   | "internal_copilot"
-  | "decision_support";
+  | "decision_support"
+  | "legal_compliance";
 export type Geography = "US" | "EU" | "IN";
 export type Direction = "input" | "output";
 export type RiskTier = "low" | "medium" | "high";

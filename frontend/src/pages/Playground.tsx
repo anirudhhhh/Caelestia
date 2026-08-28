@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
   Send,
+  Shield,
   ShieldCheck,
   ShieldAlert,
   Activity,
@@ -18,8 +19,10 @@ import {
   XCircle,
   Zap,
   Globe,
-  RotateCcw
+  RotateCcw,
+  MessageSquare
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -64,14 +67,30 @@ export default function Playground() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [appealingId, setAppealingId] = useState<string | null>(null);
+  const [activePiiConfig, setActivePiiConfig] = useState<Record<string, 'allow' | 'block'>>({});
 
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
+
+  const activeScope = selectedEndpoint !== "auto" ? selectedEndpoint : useCase;
 
   useEffect(() => {
     if (endpoints.length === 0) {
       loadEndpoints();
     }
   }, []);
+
+  useEffect(() => {
+    loadActivePiiConfig();
+  }, [useCase, selectedEndpoint]);
+
+  const loadActivePiiConfig = async () => {
+    try {
+      const cfg = await api.getUseCaseConfig(activeScope);
+      if (cfg && cfg.pii_permissions) {
+        setActivePiiConfig(cfg.pii_permissions);
+      }
+    } catch {}
+  };
 
   const loadEndpoints = async () => {
     try {
@@ -291,15 +310,15 @@ export default function Playground() {
   const getDecisionBadge = (action?: string) => {
     switch (action?.toLowerCase()) {
       case "allow":
-        return <Badge className="bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 px-2 py-0.5 text-xs font-semibold">ALLOW</Badge>;
+        return <span className="faang-chip chip-emerald">ALLOW</span>;
       case "block":
-        return <Badge className="bg-rose-500/15 text-rose-500 border border-rose-500/30 px-2 py-0.5 text-xs font-semibold">BLOCK</Badge>;
+        return <span className="faang-chip chip-crimson">BLOCK</span>;
       case "flag":
-        return <Badge className="bg-amber-500/15 text-amber-500 border border-amber-500/30 px-2 py-0.5 text-xs font-semibold">FLAG</Badge>;
+        return <span className="faang-chip chip-amber">FLAG</span>;
       case "escalate":
-        return <Badge className="bg-violet-500/15 text-violet-500 border border-violet-500/30 px-2 py-0.5 text-xs font-semibold">ESCALATE</Badge>;
+        return <span className="faang-chip chip-violet">ESCALATE</span>;
       default:
-        return <Badge variant="outline" className="text-xs">UNKNOWN</Badge>;
+        return <span className="faang-chip chip-neutral">UNKNOWN</span>;
     }
   };
 
@@ -309,82 +328,155 @@ export default function Playground() {
     setTimeout(() => setCopiedSnippet(null), 2000);
   };
 
+  const [mobileTab, setMobileTab] = useState<'chat' | 'inspector'>('chat');
+
   return (
-    <div className="flex flex-col lg:flex-row h-full w-full gap-5 min-h-0 overflow-hidden">
-      {/* Left Panel: Chat Interface */}
-      <div className="flex-1 flex flex-col min-w-0 h-full bg-card rounded-xl border border-border/80 overflow-hidden shadow-sm">
-        {/* Top Filter & Route Bar */}
-        <div className="p-3 border-b border-border/80 bg-muted/20 flex flex-wrap gap-2.5 items-center justify-between shrink-0">
-          <div className="flex flex-wrap gap-2 items-center">
-            <Select value={selectedEndpoint} onValueChange={setSelectedEndpoint}>
-              <SelectTrigger className="w-[190px] h-8 text-xs font-medium bg-background">
-                <SelectValue placeholder="Destination Endpoint" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">
-                  <span className="flex items-center gap-1.5 text-primary font-medium">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Auto (Semantic LB)
-                  </span>
-                </SelectItem>
-                {endpoints.map((ep) => (
-                  <SelectItem key={ep.id} value={ep.id}>
-                    <span className="flex items-center gap-1.5">
-                      <Bot className="h-3.5 w-3.5 text-muted-foreground" />
-                      {ep.name}
+    <div className="flex flex-col h-full w-full gap-3.5 min-h-0 overflow-hidden font-sans">
+      {/* Mobile Tab Switcher (Visible only on < lg screens) */}
+      <div className="flex lg:hidden items-center p-1 bg-[#15161B] border border-white/[0.08] rounded-full shrink-0 shadow-lg backdrop-blur-xl">
+        <button
+          type="button"
+          onClick={() => setMobileTab('chat')}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-2 py-2 rounded-full text-xs font-bold transition-all",
+            mobileTab === 'chat' ? "bg-white text-black shadow-md" : "text-zinc-400 hover:text-white"
+          )}
+        >
+          <MessageSquare className="h-3.5 w-3.5" />
+          <span>Chat Bench</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileTab('inspector')}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-2 py-2 rounded-full text-xs font-bold transition-all",
+            mobileTab === 'inspector' ? "bg-white text-black shadow-md" : "text-zinc-400 hover:text-white"
+          )}
+        >
+          <Shield className="h-3.5 w-3.5" />
+          <span>Security Inspector</span>
+          {latestInteraction && (
+            <span className="faang-chip chip-violet text-[9px] px-1.5 py-0">NEW</span>
+          )}
+        </button>
+      </div>
+
+      <div className="flex flex-col lg:flex-row flex-1 h-full w-full gap-5 min-h-0 overflow-hidden">
+        {/* Left Panel: Chat Interface */}
+        <div className={cn(
+          "flex-1 flex flex-col min-w-0 h-full faang-card overflow-hidden",
+          mobileTab === 'inspector' ? "hidden lg:flex" : "flex"
+        )}>
+          {/* Top Filter & Route Bar */}
+          <div className="p-3.5 border-b border-white/[0.07] bg-[#15161B]/90 backdrop-blur-md flex flex-wrap gap-3 items-center justify-between shrink-0">
+            <div className="flex flex-wrap gap-2.5 items-center">
+              <Select 
+                value={selectedEndpoint} 
+                onValueChange={(val) => {
+                  setSelectedEndpoint(val);
+                  if (val !== 'auto') {
+                    setUseCase(val as UseCase);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-[270px] sm:w-[300px] h-9 text-xs font-bold bg-white/[0.04] border-white/[0.09] rounded-xl hover:border-white/[0.18] transition-all" aria-label="Select enterprise workflow endpoint">
+                  <div className="flex items-center gap-2 truncate">
+                    {selectedEndpoint === 'auto' ? (
+                      <span className="flex items-center gap-1.5 text-amber-400 font-bold truncate">
+                        <Sparkles className="h-4 w-4 shrink-0 text-amber-400" />
+                        Auto (Semantic AI Router)
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5 text-white font-bold truncate">
+                        <Bot className="h-4 w-4 text-violet-400 shrink-0" />
+                        {endpoints.find(e => e.id === selectedEndpoint)?.name || selectedEndpoint}
+                      </span>
+                    )}
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="bg-[#15161B] border-white/[0.1] rounded-xl shadow-2xl">
+                  <SelectItem value="auto">
+                    <span className="flex items-center gap-2 text-amber-400 font-bold">
+                      <Sparkles className="h-4 w-4" />
+                      Auto (Semantic AI Router)
                     </span>
                   </SelectItem>
+                  {endpoints.map((ep) => (
+                    <SelectItem key={ep.id} value={ep.id}>
+                      <span className="flex items-center gap-2 font-medium text-zinc-200">
+                        <Bot className="h-4 w-4 text-violet-400" />
+                        {ep.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={geography} onValueChange={(v) => setGeography(v as Geography)}>
+                <SelectTrigger className="w-[88px] h-9 text-xs font-bold bg-white/[0.04] border-white/[0.09] rounded-xl" aria-label="Select geography region">
+                  <SelectValue placeholder="Geo" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#15161B] border-white/[0.1] rounded-xl">
+                  <SelectItem value="US">🇺🇸 US</SelectItem>
+                  <SelectItem value="EU">🇪🇺 EU</SelectItem>
+                  <SelectItem value="IN">🇮🇳 IN</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="faang-btn-ghost text-xs h-9 px-3.5 gap-1.5"
+                onClick={() => setIsApiModalOpen(true)}
+              >
+                <Code2 className="h-3.5 w-3.5 text-violet-400" />
+                API Code
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-9 px-3 gap-1.5 text-zinc-400 hover:text-white rounded-full hover:bg-white/[0.06]"
+                onClick={clearSession}
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reset
+              </Button>
+            </div>
+          </div>
+
+          {/* Active PII Profile Strip */}
+          <div className="px-4 py-2.5 bg-black/40 border-b border-white/[0.06] flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <Shield className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+              <span className="font-bold text-zinc-200">Active PII Profile:</span>
+              <span className="faang-chip chip-neutral text-[11px]">
+                {activeScope}
+              </span>
+              <div className="flex flex-wrap items-center gap-1.5 ml-1">
+                {Object.entries(activePiiConfig).filter(([_, a]) => a === 'allow').map(([k]) => (
+                  <span key={k} className="faang-chip chip-emerald text-[10px]">
+                    ✓ {k}
+                  </span>
                 ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={useCase} onValueChange={(v) => setUseCase(v as UseCase)}>
-              <SelectTrigger className="w-[150px] h-8 text-xs bg-background">
-                <SelectValue placeholder="Use Case" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="customer_support">Customer Support</SelectItem>
-                <SelectItem value="internal_copilot">Internal Copilot</SelectItem>
-                <SelectItem value="decision_support">Decision Support</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={geography} onValueChange={(v) => setGeography(v as Geography)}>
-              <SelectTrigger className="w-[85px] h-8 text-xs bg-background">
-                <SelectValue placeholder="Geo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="US">US</SelectItem>
-                <SelectItem value="EU">EU</SelectItem>
-                <SelectItem value="IN">IN</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs h-8 gap-1.5 bg-background"
-              onClick={() => setIsApiModalOpen(true)}
+                {Object.entries(activePiiConfig).filter(([_, a]) => a === 'block').slice(0, 3).map(([k]) => (
+                  <span key={k} className="faang-chip chip-crimson text-[10px]">
+                    ✕ {k}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <a
+              href={`/policies?scope=${activeScope}`}
+              className="text-amber-400 hover:text-amber-300 font-bold text-xs transition-colors whitespace-nowrap"
             >
-              <Code2 className="h-3.5 w-3.5" />
-              API Code
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs h-8 gap-1.5 text-muted-foreground hover:text-foreground"
-              onClick={clearSession}
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              Reset
-            </Button>
+              Configure Whitelist →
+            </a>
           </div>
-        </div>
 
         {/* Message Thread */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
           <div className="max-w-3xl mx-auto space-y-4">
             {messages.map((msg, idx) => {
               const isDenied = msg.action === "deny" || msg.isHumanDenied || msg.content.includes("reviewed and denied");
@@ -394,17 +486,23 @@ export default function Playground() {
               if (msg.role === "assistant" && isDenied) {
                 return (
                   <div key={idx} className="flex w-full justify-start">
-                    <div className="max-w-[85%] rounded-xl p-4 bg-rose-500/10 border border-rose-500/30 text-foreground space-y-2.5 shadow-sm">
-                      <div className="flex items-center gap-2 text-xs font-semibold text-rose-500">
-                        <XCircle className="h-4 w-4 shrink-0" />
-                        <span>Human Review Verdict: Request Denied</span>
-                        <Badge variant="outline" className="ml-auto text-[10px] text-rose-500 border-rose-500/40 bg-rose-500/10">
-                          Denied (Final)
-                        </Badge>
+                    <div className="max-w-[85%] rounded-2xl p-4 bg-[#16171D] border border-rose-500/25 space-y-3 shadow-xl">
+                      <div className="flex items-center justify-between border-b border-white/[0.06] pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-7 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">
+                            <XCircle className="h-4 w-4 shrink-0" />
+                          </div>
+                          <span className="text-xs font-bold text-rose-300">Human Review Verdict: Request Denied</span>
+                        </div>
+                        <span className="faang-chip chip-crimson text-[10px] font-bold">
+                          DENIED
+                        </span>
                       </div>
-                      <p className="whitespace-pre-wrap text-xs text-foreground/90 font-mono bg-background/80 p-3 rounded-lg border border-rose-500/20">
-                        {msg.content}
-                      </p>
+                      <div className="p-3 bg-black/30 rounded-xl border border-white/[0.06]">
+                        <p className="whitespace-pre-wrap text-xs text-zinc-300 leading-relaxed font-sans font-medium">
+                          {msg.content}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 );
@@ -416,50 +514,58 @@ export default function Playground() {
 
                 return (
                   <div key={idx} className="flex w-full justify-start">
-                    <div className="max-w-[85%] rounded-xl p-4 bg-rose-500/10 border border-rose-500/30 text-foreground space-y-3 shadow-sm">
-                      <div className="flex items-center gap-2 text-xs font-semibold text-rose-500">
-                        <ShieldAlert className="h-4 w-4 shrink-0" />
-                        <span>Blocked by ControlPlane.ai Firewall</span>
-                        <Badge variant="outline" className="ml-auto text-[10px] text-rose-500 border-rose-500/30 font-mono">
-                          Perimeter Guard
-                        </Badge>
+                    <div className="max-w-[85%] rounded-2xl p-4 bg-[#16171D] border border-rose-500/25 space-y-3 shadow-xl">
+                      <div className="flex items-center justify-between border-b border-white/[0.06] pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-7 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">
+                            <ShieldAlert className="h-4 w-4 shrink-0" />
+                          </div>
+                          <span className="text-xs font-bold text-rose-300">Blocked by ControlPlane.ai Firewall</span>
+                        </div>
+                        <span className="faang-chip chip-crimson text-[10px] font-bold">
+                          PERIMETER BLOCKED
+                        </span>
                       </div>
-                      <p className="whitespace-pre-wrap text-xs text-foreground/90 font-mono bg-background/80 p-3 rounded-lg border border-rose-500/20">
-                        {msg.content}
-                      </p>
+                      
+                      <div className="p-3 bg-black/30 rounded-xl border border-white/[0.06]">
+                        <p className="whitespace-pre-wrap text-xs text-zinc-300 leading-relaxed font-sans font-medium">
+                          {msg.content}
+                        </p>
+                      </div>
+
                       {latestInteraction?.decision?.blocked_entities && latestInteraction.decision.blocked_entities.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                          <span className="text-[11px] font-medium text-rose-500">Prohibited PII:</span>
+                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                          <span className="text-xs font-bold text-rose-400">Prohibited PII:</span>
                           {latestInteraction.decision.blocked_entities.map((etype, eidx) => (
-                            <Badge key={eidx} variant="outline" className="text-[10px] font-mono bg-rose-500/15 border-rose-500/30 text-rose-400 font-bold">
+                            <span key={eidx} className="faang-chip chip-crimson text-[10px]">
                               {etype}
-                            </Badge>
+                            </span>
                           ))}
                         </div>
                       )}
-                      <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-rose-500/20">
-                        <span className="text-[11px] text-muted-foreground">
+
+                      <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06]">
+                        <span className="text-xs text-zinc-400 font-medium">
                           Believe this was an over-strict block?
                         </span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs border-rose-500/40 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 font-medium"
+                        <button
+                          type="button"
+                          className="faang-btn-ghost hover:bg-white/[0.08] text-white border border-white/[0.12] h-7.5 px-3.5 rounded-full text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                           disabled={isCurrentlyAppealing}
                           onClick={() => handleAppealBlock(idx, targetInteractionId)}
                         >
                           {isCurrentlyAppealing ? (
                             <>
-                              <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
-                              Escalating...
+                              <Loader2 className="h-3 w-3 animate-spin text-amber-400" />
+                              <span>Escalating...</span>
                             </>
                           ) : (
                             <>
-                              <UserCheck className="h-3.5 w-3.5 mr-1.5" />
-                              Appeal to Human Review
+                              <UserCheck className="h-3.5 w-3.5 text-zinc-300" />
+                              <span>Appeal to Human Review</span>
                             </>
                           )}
-                        </Button>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -469,17 +575,23 @@ export default function Playground() {
               if (msg.role === "assistant" && isEscalated) {
                 return (
                   <div key={idx} className="flex w-full justify-start">
-                    <div className="max-w-[85%] rounded-xl p-4 bg-violet-500/10 border border-violet-500/30 text-foreground space-y-2 shadow-sm">
-                      <div className="flex items-center gap-2 text-xs font-semibold text-violet-500">
-                        <AlertTriangle className="h-4 w-4 shrink-0" />
-                        <span>Escalated to Human Review</span>
-                        <Badge variant="outline" className="ml-auto text-[10px] text-violet-500 border-violet-500/30 font-mono">
-                          Review Queue
-                        </Badge>
+                    <div className="max-w-[85%] rounded-2xl p-4 bg-[#16171D] border border-violet-500/25 space-y-3 shadow-xl">
+                      <div className="flex items-center justify-between border-b border-white/[0.06] pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-7 rounded-lg bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400">
+                            <AlertTriangle className="h-4 w-4 shrink-0" />
+                          </div>
+                          <span className="text-xs font-bold text-violet-300">Escalated to Human Review</span>
+                        </div>
+                        <span className="faang-chip chip-violet text-[10px] font-bold">
+                          REVIEW QUEUE
+                        </span>
                       </div>
-                      <p className="whitespace-pre-wrap text-xs text-muted-foreground">
-                        {msg.content}
-                      </p>
+                      <div className="p-3 bg-black/30 rounded-xl border border-white/[0.06]">
+                        <p className="whitespace-pre-wrap text-xs text-zinc-300 leading-relaxed font-sans font-medium">
+                          {msg.content}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 );
@@ -491,15 +603,15 @@ export default function Playground() {
                   className={`flex w-full ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-xl p-3.5 text-xs leading-relaxed ${
+                    className={`max-w-[82%] rounded-2xl p-4 text-sm leading-relaxed shadow-md ${
                       msg.role === "user"
-                        ? "bg-primary text-primary-foreground font-medium shadow-sm"
-                        : "bg-muted/70 border border-border/80 text-foreground space-y-2"
+                        ? "bg-white text-black font-semibold rounded-br-sm"
+                        : "bg-[#181920] border border-white/[0.08] text-zinc-100 rounded-bl-sm space-y-2.5"
                     }`}
                   >
                     {msg.role === "assistant" && idx === messages.length - 1 && latestInteraction?.warnings && latestInteraction.warnings.length > 0 && (
-                      <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-500 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-md">
-                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      <div className="flex items-center gap-2 text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-xl">
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
                         <span>PII Policy Notice: Permitted PII detected and passed raw without redaction.</span>
                       </div>
                     )}
@@ -511,9 +623,9 @@ export default function Playground() {
 
             {isLoading && (
               <div className="flex justify-start">
-                <div className="bg-muted/60 border border-border text-foreground max-w-[80%] rounded-xl p-3.5 flex items-center gap-3">
-                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                  <span className="text-xs text-muted-foreground font-medium">
+                <div className="bg-[#181920] border border-white/[0.08] text-zinc-200 max-w-[80%] rounded-2xl p-4 flex items-center gap-3 shadow-lg">
+                  <Loader2 className="h-4 w-4 animate-spin text-amber-400" />
+                  <span className="text-xs font-semibold text-zinc-300">
                     Evaluating perimeter guardrails via ControlPlane...
                   </span>
                 </div>
@@ -522,8 +634,8 @@ export default function Playground() {
 
             {error && (
               <div className="flex justify-start">
-                <div className="bg-destructive/10 border border-destructive/20 text-destructive max-w-[80%] rounded-xl p-3">
-                  <p className="text-xs font-medium">{error}</p>
+                <div className="bg-rose-500/10 border border-rose-500/25 text-rose-300 max-w-[80%] rounded-2xl p-3.5">
+                  <p className="text-xs font-semibold">{error}</p>
                 </div>
               </div>
             )}
@@ -532,101 +644,114 @@ export default function Playground() {
         </div>
 
         {/* Input Bar */}
-        <div className="p-3.5 bg-card border-t border-border/80 shrink-0">
-          <div className="max-w-3xl mx-auto flex items-end gap-2.5">
+        <div className="p-4 bg-[#15161B]/80 border-t border-white/[0.07] backdrop-blur-xl shrink-0">
+          <div className="max-w-3xl mx-auto flex items-end gap-3">
             <div className="flex-1 relative">
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Enter prompt or test payload (e.g. Try prompt injection, SSN, API keys, or normal queries)..."
-                className="min-h-[70px] max-h-[160px] resize-none text-xs bg-background/80 rounded-xl pr-12 focus-visible:ring-1"
+                className="min-h-[72px] max-h-[160px] resize-none text-sm bg-black/40 border border-white/[0.1] rounded-2xl p-3.5 pr-14 focus-visible:border-white/40 focus-visible:ring-1 focus-visible:ring-white/20 text-white placeholder:text-zinc-500 shadow-inner"
               />
-              <div className="absolute right-2.5 bottom-2.5 text-[10px] text-muted-foreground/60 font-mono pointer-events-none">
+              <div className="absolute right-3.5 bottom-3.5 text-[11px] text-zinc-500 font-medium pointer-events-none">
                 Enter ↵
               </div>
             </div>
-            <Button
+            <button
+              type="button"
               onClick={handleSend}
               disabled={!input.trim() || isLoading}
-              className="h-[70px] w-12 rounded-xl shrink-0"
-              size="icon"
+              className="faang-btn-primary h-[72px] w-14 rounded-2xl shrink-0 flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+              aria-label="Send test message"
             >
-              <Send className="h-4 w-4" />
-            </Button>
+              <Send className="h-5 w-5" />
+            </button>
           </div>
         </div>
       </div>
 
       {/* Right Panel: Analysis & Inspector */}
-      <div className="w-full lg:w-[420px] xl:w-[460px] h-full shrink-0 flex flex-col gap-3 min-h-0 overflow-y-auto pr-1 pb-8">
+      <div className={cn(
+        "w-full lg:w-[420px] xl:w-[460px] h-full shrink-0 flex flex-col gap-3.5 min-h-0 overflow-y-auto pr-1 pb-8",
+        mobileTab === 'chat' ? "hidden lg:flex" : "flex"
+      )}>
         {!latestInteraction ? (
-          <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center border border-dashed border-border/80 rounded-xl bg-card/30">
-            <ShieldCheck className="h-10 w-10 mb-3 text-muted-foreground/40" />
-            <h3 className="text-sm font-semibold mb-1 text-foreground">Awaiting Ingress Stream</h3>
-            <p className="text-xs text-muted-foreground max-w-[240px] leading-relaxed">
-              Send a test message from the left bench to inspect sub-millisecond guardrails, ML scores, and policy decisions.
+          <div className="h-full flex flex-col items-center justify-center text-zinc-400 p-8 text-center border border-dashed border-white/[0.1] rounded-3xl bg-[#15161B]/60 backdrop-blur-xl">
+            <div className="h-14 w-14 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-zinc-400 mb-4 shadow-inner">
+              <ShieldCheck className="h-7 w-7 text-amber-400" />
+            </div>
+            <h3 className="text-base font-extrabold mb-1.5 text-white">Awaiting Ingress Stream</h3>
+            <p className="text-xs text-zinc-400 max-w-[260px] leading-relaxed font-medium">
+              Send a test message from the left bench to inspect sub-millisecond guardrails, ML scores, and zero-trust policies.
             </p>
           </div>
         ) : (
           <>
             {/* Top Decision Card */}
-            <Card className="border-border/80 shadow-sm bg-card/90">
-              <CardHeader className="p-3.5 pb-2.5 border-b border-border/60 bg-muted/20">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-primary" />
-                    <CardTitle className="text-xs font-semibold">Firewall Decision</CardTitle>
+            <div className="faang-card p-4.5 space-y-4">
+              <div className="flex items-center justify-between border-b border-white/[0.07] pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400">
+                    <Zap className="h-4 w-4 text-amber-400" />
                   </div>
-                  {getDecisionBadge(latestInteraction.decision.action)}
-                </div>
-              </CardHeader>
-              <CardContent className="p-3.5 space-y-3">
-                <div>
-                  <div className="text-[11px] text-muted-foreground mb-0.5 font-medium">Policy Reason</div>
-                  <div className="text-xs font-medium text-foreground bg-muted/40 p-2.5 rounded-lg border border-border/60 leading-relaxed font-mono">
-                    {latestInteraction.decision.reason}
+                  <div>
+                    <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider">Firewall Decision</span>
+                    <div className="text-sm font-extrabold text-white">Perimeter Verdict</div>
                   </div>
                 </div>
+                {getDecisionBadge(latestInteraction.decision.action)}
+              </div>
 
-                <div className="grid grid-cols-2 gap-3 pt-1 border-t border-border/50 text-xs">
-                  <div>
-                    <span className="text-[11px] text-muted-foreground">Confidence</span>
-                    <div className="font-semibold text-foreground mt-0.5">
-                      {(latestInteraction.decision.confidence * 100).toFixed(1)}%
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-[11px] text-muted-foreground">Risk Tier</span>
-                    <div className="mt-0.5">
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] px-1.5 py-0 font-bold uppercase ${
-                          latestInteraction.risk_assessment.tier === "high"
-                            ? "border-rose-500/40 text-rose-500 bg-rose-500/10"
-                            : latestInteraction.risk_assessment.tier === "medium"
-                            ? "border-amber-500/40 text-amber-500 bg-amber-500/10"
-                            : "border-emerald-500/40 text-emerald-500 bg-emerald-500/10"
-                        }`}
-                      >
-                        {latestInteraction.risk_assessment.tier}
-                      </Badge>
-                    </div>
+              <div className="space-y-1.5">
+                <div className="text-xs font-semibold text-zinc-300">Policy Reason</div>
+                <div className="text-xs font-medium text-zinc-100 bg-black/40 p-3 rounded-xl border border-white/[0.08] leading-relaxed">
+                  {latestInteraction.decision.reason}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1 border-t border-white/[0.07] text-xs">
+                <div>
+                  <span className="text-xs text-zinc-400 font-medium">Confidence Score</span>
+                  <div className="font-extrabold text-base text-white mt-0.5">
+                    {(latestInteraction.decision.confidence * 100).toFixed(1)}%
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+                <div>
+                  <span className="text-xs text-zinc-400 font-medium">Assessed Risk Tier</span>
+                  <div className="mt-1">
+                    <span
+                      className={`faang-chip uppercase text-[10px] font-bold ${
+                        latestInteraction.risk_assessment.tier === "high"
+                          ? "chip-crimson"
+                          : latestInteraction.risk_assessment.tier === "medium"
+                          ? "chip-amber"
+                          : "chip-emerald"
+                      }`}
+                    >
+                      {latestInteraction.risk_assessment.tier} Tier
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* Detailed Tabs */}
             <Tabs defaultValue="checks" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 h-8 bg-muted/40 p-0.5">
-                <TabsTrigger value="checks" className="text-xs">Checks ({latestInteraction.checks.length})</TabsTrigger>
-                <TabsTrigger value="trace" className="text-xs">Latency Trace</TabsTrigger>
-                <TabsTrigger value="json" className="text-xs">Envelope JSON</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-3 h-10 bg-[#15161B] p-1 rounded-full border border-white/[0.08]">
+                <TabsTrigger value="checks" className="text-xs font-bold rounded-full data-[state=active]:bg-white data-[state=active]:text-black">
+                  Checks ({latestInteraction.checks.length})
+                </TabsTrigger>
+                <TabsTrigger value="trace" className="text-xs font-bold rounded-full data-[state=active]:bg-white data-[state=active]:text-black">
+                  Trace
+                </TabsTrigger>
+                <TabsTrigger value="json" className="text-xs font-bold rounded-full data-[state=active]:bg-white data-[state=active]:text-black">
+                  JSON
+                </TabsTrigger>
               </TabsList>
 
               {/* Checks Tab */}
-              <TabsContent value="checks" className="mt-2.5 space-y-2">
+              <TabsContent value="checks" className="mt-3 space-y-2.5">
                 {latestInteraction.checks.map((check, idx) => {
                   const isInput = ["prompt_injection", "secrets"].includes(check.check_name);
                   const isOutput = ["sensitive_data", "system_prompt_leakage"].includes(check.check_name);
@@ -651,51 +776,47 @@ export default function Playground() {
                   return (
                     <div 
                       key={idx} 
-                      className="p-3 rounded-xl border border-border/70 bg-card/80 space-y-2 shadow-sm"
+                      className="p-3.5 rounded-2xl border border-white/[0.08] bg-[#15161B]/80 backdrop-blur-md space-y-2.5 shadow-sm hover:border-white/[0.15] transition-all"
                     >
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <span 
-                            className={`w-2 h-2 rounded-full shrink-0 ${
-                              isFail ? "bg-rose-500 animate-pulse" : (isWarn ? "bg-amber-500" : "bg-emerald-500")
-                            }`} 
-                          />
-                          <span className="text-xs font-semibold text-foreground">{displayName}</span>
-                          <Badge variant="outline" className="text-[9px] px-1 py-0 text-muted-foreground font-mono">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-white">{displayName}</span>
+                          <span className="faang-chip chip-neutral text-[9px] px-1.5 py-0">
                             {boundaryLabel}
-                          </Badge>
+                          </span>
                         </div>
-                        <Badge
-                          variant="outline"
-                          className={`text-[9px] font-bold px-1.5 py-0 uppercase ${
+                        <span
+                          className={`faang-chip text-[10px] font-bold uppercase ${
                             isFail
-                              ? "border-rose-500/50 text-rose-500 bg-rose-500/10"
+                              ? "chip-crimson"
                               : isWarn
-                              ? "border-amber-500/50 text-amber-500 bg-amber-500/10"
-                              : "border-emerald-500/40 text-emerald-500 bg-emerald-500/10"
+                              ? "chip-amber"
+                              : "chip-emerald"
                           }`}
                         >
                           {isFail ? "FAIL" : (isWarn ? "FLAG" : "PASS")}
-                        </Badge>
+                        </span>
                       </div>
 
-                      <div className="flex items-center justify-between text-[11px] text-muted-foreground font-mono">
-                        <span className="truncate max-w-[200px]">{check.engine || "stateless_evaluator"}</span>
-                        <div className="flex items-center gap-1">
-                          <span className={`font-semibold ${isFail ? "text-rose-500" : (isWarn ? "text-amber-500" : "text-emerald-500")}`}>
+                      <div className="flex items-center justify-between text-xs text-zinc-400">
+                        <span className="truncate max-w-[200px] font-medium">{check.engine || "stateless_evaluator"}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`font-bold ${isFail ? "text-rose-400" : (isWarn ? "text-amber-400" : "text-emerald-400")}`}>
                             {scorePercent}%
                           </span>
-                          <span className="text-[10px] text-muted-foreground/60">({check.score.toFixed(2)})</span>
+                          <span className="text-[10px] text-zinc-500">({check.score.toFixed(2)})</span>
                         </div>
                       </div>
 
-                      {/* Smooth Progress Bar */}
-                      <div className="w-full bg-secondary/80 h-1.5 rounded-full overflow-hidden">
+                      {/* Multi-Color Progress Bar */}
+                      <div className="w-full bg-black/60 h-2 rounded-full overflow-hidden p-0.5 border border-white/[0.04]">
                         <div
                           className={`h-full rounded-full transition-all duration-300 ${
-                            isFail ? "bg-rose-500" : (isWarn ? "bg-amber-500" : "bg-emerald-500")
+                            isFail ? "bg-rose-500" : 
+                            isWarn ? "bg-amber-400" : 
+                            "bg-violet-400"
                           }`}
-                          style={{ width: `${check.score <= 0.005 ? 0 : Math.max(check.score * 100, 2)}%` }}
+                          style={{ width: `${check.score <= 0.005 ? 0 : Math.max(check.score * 100, 4)}%` }}
                         />
                       </div>
                     </div>
@@ -704,35 +825,33 @@ export default function Playground() {
               </TabsContent>
 
               {/* Trace Tab */}
-              <TabsContent value="trace" className="mt-2.5 space-y-2">
-                <Card className="border-border/70 shadow-none bg-card/80">
-                  <CardHeader className="p-3 border-b border-border/60 bg-muted/20">
-                    <CardTitle className="text-xs font-semibold flex items-center gap-2">
-                      <Activity className="h-3.5 w-3.5 text-primary" />
-                      Execution Latency Breakdown
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-3 space-y-2.5 text-xs">
+              <TabsContent value="trace" className="mt-3 space-y-2.5">
+                <div className="faang-card p-4 space-y-3">
+                  <div className="flex items-center gap-2 pb-2 border-b border-white/[0.07]">
+                    <Activity className="h-4 w-4 text-violet-400" />
+                    <span className="text-xs font-bold text-white">Execution Latency Breakdown</span>
+                  </div>
+                  <div className="space-y-2 text-xs">
                     {Object.entries(latestInteraction.latency_breakdown).map(([stage, ms]) => (
-                      <div key={stage} className="flex items-center justify-between">
-                        <span className="text-muted-foreground capitalize font-medium">{stage.replace(/_/g, " ")}</span>
-                        <span className="font-mono font-semibold">{String(ms)}ms</span>
+                      <div key={stage} className="flex items-center justify-between py-1 border-b border-white/[0.04]">
+                        <span className="text-zinc-400 capitalize font-medium">{stage.replace(/_/g, " ")}</span>
+                        <span className="font-semibold text-zinc-200">{String(ms)}ms</span>
                       </div>
                     ))}
-                    <div className="pt-2 border-t border-border/60 flex items-center justify-between font-semibold">
-                      <span>Total Firewall Overhead</span>
-                      <span className="font-mono text-emerald-500">
+                    <div className="pt-2 flex items-center justify-between font-bold text-sm">
+                      <span className="text-white">Total Firewall Overhead</span>
+                      <span className="text-amber-400 font-extrabold">
                         {(Object.values(latestInteraction.latency_breakdown) as number[]).reduce((a, b) => Number(a) + Number(b), 0)}ms
                       </span>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               </TabsContent>
 
               {/* JSON Tab */}
-              <TabsContent value="json" className="mt-2.5">
-                <div className="p-3 bg-muted/40 border border-border/70 rounded-xl max-h-[380px] overflow-y-auto">
-                  <pre className="text-[11px] font-mono text-foreground/90 whitespace-pre-wrap break-all">
+              <TabsContent value="json" className="mt-3">
+                <div className="p-4 bg-black/50 border border-white/[0.08] rounded-2xl max-h-[380px] overflow-y-auto shadow-inner">
+                  <pre className="text-xs font-mono text-zinc-300 whitespace-pre-wrap break-all leading-relaxed">
                     {JSON.stringify(latestInteraction, null, 2)}
                   </pre>
                 </div>
@@ -741,28 +860,29 @@ export default function Playground() {
           </>
         )}
       </div>
+      </div>
 
       {/* Connect API Dialog */}
       <Dialog open={isApiModalOpen} onOpenChange={setIsApiModalOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl bg-[#15161B] border-white/[0.1] text-white">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold">Connect via API</DialogTitle>
-            <DialogDescription className="text-xs">
+            <DialogTitle className="text-base font-bold text-white">Connect via API</DialogTitle>
+            <DialogDescription className="text-xs text-zinc-400">
               Call ControlPlane.ai Gateway directly from your backend services:
             </DialogDescription>
           </DialogHeader>
           <div className="mt-2 space-y-2">
-            <div className="p-3 bg-muted/60 border border-border rounded-lg relative">
+            <div className="p-3 bg-black/60 border border-white/[0.08] rounded-xl relative">
               <Button
                 size="sm"
                 variant="ghost"
-                className="absolute top-2 right-2 h-7 text-xs gap-1"
+                className="absolute top-2 right-2 h-7 text-xs gap-1 text-zinc-300 hover:text-white"
                 onClick={() => copyCode(`curl -X POST http://localhost:8000/v1/chat/completions \\\n  -H "Content-Type: application/json" \\\n  -d '{"messages": [{"role": "user", "content": "Hello!"}], "use_case": "${useCase}"}'`, "curl")}
               >
-                {copiedSnippet === "curl" ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                {copiedSnippet === "curl" ? <Check className="h-3.5 w-3.5 text-amber-400" /> : <Copy className="h-3.5 w-3.5" />}
                 {copiedSnippet === "curl" ? "Copied" : "Copy"}
               </Button>
-              <pre className="text-[11px] font-mono whitespace-pre-wrap text-foreground pr-14">
+              <pre className="text-[11px] font-mono whitespace-pre-wrap text-zinc-200 pr-14 leading-relaxed">
 {`curl -X POST http://localhost:8000/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -d '{

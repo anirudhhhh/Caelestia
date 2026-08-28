@@ -29,15 +29,22 @@ export const api = {
 
   getInteraction: (id: string) => fetchApi<any>(`/interactions/${id}`),
 
-  // ── Audit ─────────────────────────────────────────────────────────────────
-  // Backend returns { events: [...] } — unwrap here so callers get AuditEvent[]
   getEvents: async (filters?: Record<string, string>): Promise<AuditEvent[]> => {
     const params = filters
       ? '?' + new URLSearchParams(Object.fromEntries(Object.entries(filters).filter(([, v]) => v))).toString()
       : '';
     const data = await fetchApi<{ events: any[] } | any[]>(`/audit/events${params}`);
-    // Handle both wrapped { events: [...] } and plain array
-    return Array.isArray(data) ? data : (data as any).events ?? [];
+    const rawList: any[] = Array.isArray(data) ? data : (data as any).events ?? [];
+    return rawList.map((e: any) => ({
+      interaction_id: e.interaction_id,
+      timestamp: e.created_at || e.timestamp || new Date().toISOString(),
+      use_case: e.use_case,
+      geography: e.geography,
+      direction: e.direction,
+      decision_action: e.decision_action,
+      risk_tier: e.envelope?.risk_assessment?.tier || 'low',
+      interaction: e.envelope || e.interaction || {},
+    }));
   },
 
   getEventStats: () => fetchApi<any>('/audit/stats'),

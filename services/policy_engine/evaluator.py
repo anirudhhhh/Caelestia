@@ -100,9 +100,13 @@ class PolicyEvaluator:
 
             if check.verdict == CheckVerdict.FAIL:
                 trigger_layer = check.layer or check.engine or "L1_lexicon"
+                if check.check_name == "pii" and check.details.get("blocked_pii"):
+                    reason_msg = f"Blocked by enterprise PII policy: prohibited PII detected ({', '.join(check.details['blocked_pii'])})"
+                else:
+                    reason_msg = f"Failed {check.check_name} check (score: {score:.2f} >= {block_thresh})"
                 return self._create_response(
                     DecisionAction.BLOCK,
-                    f"Failed {check.check_name} check (score: {score:.2f} >= {block_thresh})",
+                    reason_msg,
                     RiskTier.HIGH,
                     score,
                     checks=req.checks,

@@ -25,17 +25,19 @@ logger = setup_logging("policy_engine")
 CONFIG_DIR = Path(__file__).parent / "config"
 POLICIES_DIR = CONFIG_DIR / "policies"
 DEFAULT_POLICY_FILE = POLICIES_DIR / "default.yaml"
+MASTER_POLICY_FILE = Path(__file__).parent.parent.parent / "policies" / "default_policy.yaml"
 
 evaluator = PolicyEvaluator()
 
 def reload_evaluator():
-    if DEFAULT_POLICY_FILE.exists():
-        with open(DEFAULT_POLICY_FILE, "r") as f:
+    target_file = MASTER_POLICY_FILE if MASTER_POLICY_FILE.exists() else DEFAULT_POLICY_FILE
+    if target_file.exists():
+        with open(target_file, "r") as f:
             content = f.read()
             config_hash = hashlib.sha256(content.encode()).hexdigest()[:8]
             data = yaml.safe_load(content)
             evaluator.update_policies(data, config_hash)
-            logger.info(f"Policies reloaded. Version: {config_hash}")
+            logger.info(f"Policies reloaded from {target_file.name}. Version: {config_hash}")
 
 app = FastAPI(title="Policy Engine Service")
 app.add_middleware(
@@ -48,13 +50,8 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
-    # Make sure dirs exist
     POLICIES_DIR.mkdir(parents=True, exist_ok=True)
-    if not DEFAULT_POLICY_FILE.exists():
-        logger.warning(f"Policy file {DEFAULT_POLICY_FILE} not found. Using empty policies.")
-        evaluator.update_policies({}, "initial")
-    else:
-        reload_evaluator()
+    reload_evaluator()
 
 @app.post("/decide", response_model=PolicyDecisionResponse)
 async def decide(req: PolicyDecisionRequest):
@@ -62,15 +59,23 @@ async def decide(req: PolicyDecisionRequest):
 
 @app.get("/policies")
 async def get_policies():
-    if not DEFAULT_POLICY_FILE.exists():
+    target_file = MASTER_POLICY_FILE if MASTER_POLICY_FILE.exists() else DEFAULT_POLICY_FILE
+    if not target_file.exists():
         return {"policies": [], "defaults": {}}
-    with open(DEFAULT_POLICY_FILE, "r") as f:
+    with open(target_file, "r") as f:
         data = yaml.safe_load(f)
     return {"version": evaluator.version, "config": data}
 
 @app.put("/policies")
 async def update_policies(new_config: Dict[str, Any]):
     try:
+        if MASTER_POLICY_FILE.exists():
+            # Preserve pii_permissions and other top-level keys if new_config only contains policies
+            with open(MASTER_POLICY_FILE, "r") as f:
+                existing = yaml.safe_load(f) or {}
+            existing.update(new_config)
+            with open(MASTER_POLICY_FILE, "w") as f:
+                yaml.dump(existing, f, default_flow_style=False)
         with open(DEFAULT_POLICY_FILE, "w") as f:
             yaml.dump(new_config, f, default_flow_style=False)
         reload_evaluator()

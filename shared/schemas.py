@@ -22,6 +22,7 @@ class UseCase(str, Enum):
     CUSTOMER_SUPPORT = "customer_support"
     INTERNAL_COPILOT = "internal_copilot"
     DECISION_SUPPORT = "decision_support"
+    LEGAL_COMPLIANCE = "legal_compliance"
 
 
 class Geography(str, Enum):
@@ -236,6 +237,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     model: Optional[str] = None
+    endpoint_id: Optional[str] = None
     use_case: UseCase = UseCase.CUSTOMER_SUPPORT
     geography: Geography = Geography.US
     session_id: Optional[str] = None

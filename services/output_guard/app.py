@@ -166,10 +166,30 @@ async def scan_output(envelope: InteractionEnvelope):
         )
 
     system_prompt = envelope.metadata.get("system_prompt")
+    model_req = envelope.model.requested if envelope.model else None
+    use_case_id = envelope.use_case.value if hasattr(envelope.use_case, 'value') else str(envelope.use_case)
+
+    # Fetch component or use-case specific PII permissions
+    pii_perms = None
+    try:
+        client = get_http_client()
+        if model_req:
+            cfg_resp = await client.get(f"{AUDIT_STORE_URL}/v1/configs/{model_req}", timeout=2.0)
+            if cfg_resp.status_code == 200:
+                cfg = cfg_resp.json()
+                if cfg.get("pii_permissions"):
+                    pii_perms = cfg["pii_permissions"]
+        if pii_perms is None:
+            cfg_resp = await client.get(f"{AUDIT_STORE_URL}/v1/configs/{use_case_id}", timeout=2.0)
+            if cfg_resp.status_code == 200:
+                pii_perms = cfg_resp.json().get("pii_permissions")
+    except Exception:
+        pass
+
     tasks = [
         asyncio.to_thread(scan_sensitive_data, text),
         asyncio.to_thread(scan_system_prompt_leakage, text, system_prompt),
-        scan_pii(text)
+        scan_pii(text, pii_perms)
     ]
     
     # L4 AI-as-judge for medium/high/critical risk tiers

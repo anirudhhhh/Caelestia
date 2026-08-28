@@ -79,118 +79,129 @@ export default function SecretRegistration() {
   };
 
   return (
-    <div className="h-full w-full overflow-y-auto space-y-6 pr-2 pb-10">
+    <div className="h-full w-full overflow-y-auto space-y-6 pr-2 pb-12 font-sans">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border/40 pb-5">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/[0.07] pb-5">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <KeyRound className="w-6 h-6 text-primary" />
-            Enterprise Secret Registration
+          <h1 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400">
+              <KeyRound className="w-4.5 h-4.5 text-amber-400" />
+            </div>
+            Enterprise Secret Vault & HMAC Registry
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">
+          <p className="text-zinc-400 text-xs mt-1 font-medium max-w-2xl">
             Register enterprise API keys and credentials for zero-knowledge HMAC-SHA256 fingerprint matching.
           </p>
         </div>
-        <Button onClick={() => { setIsRegisterOpen(true); setRegistrationSuccess(null); }} className="gap-2 shadow-sm">
+        <button 
+          type="button"
+          onClick={() => { setIsRegisterOpen(true); setRegistrationSuccess(null); }} 
+          className="faang-btn-primary h-9 px-4 gap-2 text-xs flex items-center justify-center shadow-lg font-bold cursor-pointer"
+        >
           <KeyRound className="w-4 h-4" />
-          Register New Secret
-        </Button>
+          <span>Register New Secret</span>
+        </button>
       </div>
 
       {/* Security Guarantee Alert */}
-      <Card className="bg-primary/5 border-primary/20">
-        <CardContent className="p-4 flex items-center gap-3 text-sm">
-          <Lock className="w-5 h-5 text-primary shrink-0" />
-          <div>
-            <span className="font-semibold text-foreground">Zero Plaintext Persistence Guarantee:</span> Raw secret values are processed in volatile memory to compute an immutable HMAC-SHA256 fingerprint and discarded immediately. Plaintext secrets are never written to disk, databases, or logs.
-          </div>
-        </CardContent>
-      </Card>
+      <div className="faang-card p-4.5 flex items-center gap-3.5 border-amber-500/30 bg-amber-500/[0.04]">
+        <div className="h-9 w-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+          <Lock className="w-5 h-5" />
+        </div>
+        <div className="text-xs text-zinc-300 leading-relaxed font-medium">
+          <strong className="text-amber-400 font-bold">Zero Plaintext Persistence Guarantee:</strong> Raw secret values are processed in volatile memory to compute an immutable HMAC-SHA256 fingerprint and discarded immediately. Plaintext secrets are never written to disk, databases, or logs.
+        </div>
+      </div>
 
       {/* Registered Secrets Table */}
-      <Card className="shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between pb-3">
+      <div className="faang-card overflow-hidden">
+        <div className="p-4.5 flex flex-row items-center justify-between border-b border-white/[0.07]">
           <div>
-            <CardTitle className="text-lg">Active Fingerprints</CardTitle>
-            <CardDescription>All registered credentials currently protected by perimeter firewall.</CardDescription>
+            <h3 className="text-sm font-bold text-white">Active HMAC Fingerprints ({secrets.length})</h3>
+            <p className="text-xs text-zinc-400 mt-0.5 font-medium">All registered credentials currently protected by perimeter firewall.</p>
           </div>
-          <Button variant="outline" size="sm" onClick={loadSecrets} className="gap-1 text-xs">
+          <Button variant="ghost" size="sm" onClick={loadSecrets} className="faang-btn-ghost h-8 px-3 gap-1.5 text-xs text-zinc-300 hover:text-white">
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-        </CardHeader>
-        <CardContent>
+        </div>
+        <div className="overflow-x-auto">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Secret ID</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Firewall Action</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Registered</TableHead>
-                <TableHead>Last Matched</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+            <TableHeader className="bg-[#15161B] backdrop-blur-md border-b border-white/[0.08]">
+              <TableRow className="border-white/[0.08] hover:bg-transparent">
+                <TableHead className="text-xs font-bold text-zinc-300">Secret ID</TableHead>
+                <TableHead className="text-xs font-bold text-zinc-300">Type</TableHead>
+                <TableHead className="text-xs font-bold text-zinc-300">Firewall Action</TableHead>
+                <TableHead className="text-xs font-bold text-zinc-300">Status</TableHead>
+                <TableHead className="text-xs font-bold text-zinc-300">Registered</TableHead>
+                <TableHead className="text-xs font-bold text-zinc-300">Last Matched</TableHead>
+                <TableHead className="text-xs font-bold text-zinc-300 text-right pr-5">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {secrets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-16 text-zinc-400 text-xs font-medium">
                     {isLoading ? 'Loading registered secrets...' : 'No secrets registered yet. Click "Register New Secret" to protect enterprise credentials.'}
                   </TableCell>
                 </TableRow>
               ) : (
                 secrets.map((sec) => (
-                  <TableRow key={sec.secret_id}>
-                    <TableCell className="font-mono text-xs font-semibold">
+                  <TableRow key={sec.secret_id} className="hover:bg-white/[0.03] transition-colors border-white/[0.06]">
+                    <TableCell className="font-mono text-xs font-bold text-zinc-300">
                       <div className="flex items-center gap-1.5">
                         {sec.secret_id}
                         <button 
                           onClick={() => handleCopyId(sec.secret_id)} 
-                          className="text-muted-foreground hover:text-foreground transition-colors"
+                          className="text-zinc-500 hover:text-amber-400 transition-colors"
                           title="Copy Secret ID"
                         >
-                          {copiedId === sec.secret_id ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                          {copiedId === sec.secret_id ? <Check className="w-3.5 h-3.5 text-amber-400" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="capitalize text-xs font-medium">
+                      <span className="faang-chip chip-azure text-[10px] capitalize">
                         {sec.secret_type.replace('_', ' ')}
-                      </Badge>
+                      </span>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={sec.action_on_match === 'block' ? 'destructive' : 'secondary'} className="uppercase text-[10px] font-bold tracking-wider">
+                      <span 
+                        className={`faang-chip uppercase text-[10px] font-bold ${
+                          sec.action_on_match === 'block' 
+                            ? 'chip-crimson' 
+                            : 'chip-neutral'
+                        }`}
+                      >
                         {sec.action_on_match}
-                      </Badge>
+                      </span>
                     </TableCell>
                     <TableCell>
                       {sec.status === 'active' ? (
-                        <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-xs gap-1">
-                          <CheckCircle2 className="w-3 h-3" /> Active
-                        </Badge>
+                        <span className="faang-chip chip-emerald text-[10px] font-bold">
+                          <CheckCircle2 className="w-3 h-3" /> ACTIVE
+                        </span>
                       ) : (
-                        <Badge variant="secondary" className="text-muted-foreground text-xs gap-1">
-                          <XCircle className="w-3 h-3" /> Revoked
-                        </Badge>
+                        <span className="faang-chip chip-neutral text-[10px]">
+                          <XCircle className="w-3 h-3" /> REVOKED
+                        </span>
                       )}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className="text-xs text-zinc-400">
                       {new Date(sec.date_registered).toLocaleString()}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className="text-xs text-zinc-400">
                       {sec.date_last_matched ? new Date(sec.date_last_matched).toLocaleString() : 'Never'}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right pr-4">
                       {sec.status === 'active' && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <button 
+                          type="button"
                           onClick={() => setRevokingSecret(sec)}
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10 text-xs h-8"
+                          className="faang-btn-crimson text-xs h-7 px-3 font-bold cursor-pointer"
                         >
                           Revoke
-                        </Button>
+                        </button>
                       )}
                     </TableCell>
                   </TableRow>
@@ -198,44 +209,44 @@ export default function SecretRegistration() {
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Registration Modal */}
       <Dialog open={isRegisterOpen} onOpenChange={setIsRegisterOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] bg-[#15161B] border-white/[0.1] text-white">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <KeyRound className="w-5 h-5 text-primary" />
+            <DialogTitle className="flex items-center gap-2 text-white">
+              <KeyRound className="w-5 h-5 text-amber-400" />
               Register Enterprise Secret
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-zinc-400">
               Submit an enterprise secret token to compute a zero-knowledge HMAC fingerprint. The plaintext value is immediately discarded.
             </DialogDescription>
           </DialogHeader>
 
           {registrationSuccess ? (
             <div className="space-y-4 py-3">
-              <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex items-start gap-3">
-                <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Secret Registered Successfully</h4>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <h4 className="text-sm font-bold text-amber-400">Secret Registered Successfully</h4>
+                  <p className="text-xs text-zinc-300 mt-1">
                     The HMAC-SHA256 fingerprint has been generated and activated across perimeter firewalls.
                   </p>
-                  <div className="mt-3 font-mono text-xs bg-background p-2 rounded border border-border">
+                  <div className="mt-3 font-mono text-xs bg-black/50 p-2.5 rounded-lg border border-white/[0.08] text-white">
                     ID: {registrationSuccess.secret_id}
                   </div>
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={() => setIsRegisterOpen(false)}>Done</Button>
+                <button type="button" className="faang-btn-primary h-8 px-4 text-xs font-bold" onClick={() => setIsRegisterOpen(false)}>Done</button>
               </DialogFooter>
             </div>
           ) : (
             <form onSubmit={handleRegister} className="space-y-4 py-2">
               <div className="space-y-2">
-                <Label htmlFor="rawSecret">Raw Secret Value (Single-Use)</Label>
+                <Label htmlFor="rawSecret" className="text-zinc-300 font-bold text-xs">Raw Secret Value (Single-Use)</Label>
                 <Input 
                   id="rawSecret"
                   type="password"
@@ -244,20 +255,21 @@ export default function SecretRegistration() {
                   placeholder="e.g. sk-proj-1234567890abcdef..."
                   required
                   autoFocus
+                  className="bg-black/40 border-white/[0.1] text-white h-9"
                 />
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-[11px] text-zinc-400">
                   * Explicitly guaranteed: Raw secret is never saved, cached, or displayed.
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label>Secret Type</Label>
+                  <Label htmlFor="secretTypeSelect" className="text-zinc-300 font-bold text-xs">Secret Type</Label>
                   <Select value={secretType} onValueChange={setSecretType}>
-                    <SelectTrigger>
+                    <SelectTrigger id="secretTypeSelect" aria-label="Select secret type" className="bg-black/40 border-white/[0.1] text-white h-9">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-[#15161B] border-white/[0.1] text-white">
                       <SelectItem value="api_key">API Key</SelectItem>
                       <SelectItem value="database_credential">Database Credential</SelectItem>
                       <SelectItem value="private_key">Private Key</SelectItem>
@@ -268,12 +280,12 @@ export default function SecretRegistration() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Action on Match</Label>
+                  <Label htmlFor="actionSelect" className="text-zinc-300 font-bold text-xs">Action on Match</Label>
                   <Select value={actionOnMatch} onValueChange={setActionOnMatch}>
-                    <SelectTrigger>
+                    <SelectTrigger id="actionSelect" aria-label="Select action on match" className="bg-black/40 border-white/[0.1] text-white h-9">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-[#15161B] border-white/[0.1] text-white">
                       <SelectItem value="block">Block Immediately</SelectItem>
                       <SelectItem value="block_escalate">Block & Escalate</SelectItem>
                     </SelectContent>
@@ -281,11 +293,11 @@ export default function SecretRegistration() {
                 </div>
               </div>
 
-              <DialogFooter className="pt-2">
-                <Button type="button" variant="outline" onClick={() => setIsRegisterOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={isSubmitting || !rawSecret.trim()}>
+              <DialogFooter className="pt-2 gap-2">
+                <Button type="button" variant="outline" className="faang-btn-ghost text-xs h-9 text-zinc-300" onClick={() => setIsRegisterOpen(false)}>Cancel</Button>
+                <button type="submit" disabled={isSubmitting || !rawSecret.trim()} className="faang-btn-primary text-xs h-9 px-4 font-bold cursor-pointer disabled:opacity-50">
                   {isSubmitting ? 'Computing Fingerprint...' : 'Register Fingerprint'}
-                </Button>
+                </button>
               </DialogFooter>
             </form>
           )}
@@ -294,24 +306,24 @@ export default function SecretRegistration() {
 
       {/* Revocation Confirmation Dialog */}
       <Dialog open={!!revokingSecret} onOpenChange={() => setRevokingSecret(null)}>
-        <DialogContent className="sm:max-w-[440px]">
+        <DialogContent className="sm:max-w-[440px] bg-[#15161B] border-white/[0.1] text-white">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
+            <DialogTitle className="flex items-center gap-2 text-rose-400">
               <AlertTriangle className="w-5 h-5" />
               Revoke Secret Fingerprint?
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-zinc-400">
               Revoking this fingerprint means future occurrences of this secret will no longer be automatically blocked by the firewall. Confirm this credential has been rotated in your systems.
             </DialogDescription>
           </DialogHeader>
           <div className="py-2">
-            <div className="text-xs font-mono bg-muted p-2.5 rounded">
+            <div className="text-xs font-mono bg-black/50 p-2.5 rounded-xl border border-white/[0.08] text-zinc-200">
               Secret ID: {revokingSecret?.secret_id} ({revokingSecret?.secret_type})
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRevokingSecret(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleRevoke}>Confirm Revocation</Button>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" className="faang-btn-ghost text-xs h-9 text-zinc-300" onClick={() => setRevokingSecret(null)}>Cancel</Button>
+            <button type="button" className="faang-btn-crimson text-xs h-9 px-4 font-bold cursor-pointer" onClick={handleRevoke}>Confirm Revocation</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

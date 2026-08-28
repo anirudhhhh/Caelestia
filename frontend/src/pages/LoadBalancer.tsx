@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Network, Plus, Trash2, CheckCircle2, 
   Sparkles, ArrowRight, Server, Globe,
-  RefreshCw, Code2, Copy, Check, Send
+  RefreshCw, Code2, Copy, Check, Send, Shield, Settings2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,7 +24,9 @@ const SAMPLE_PROMPTS = [
 ];
 
 export default function LoadBalancer() {
+  const navigate = useNavigate();
   const [endpoints, setEndpoints] = useState<WorkflowEndpoint[]>([]);
+  const [endpointPiiMap, setEndpointPiiMap] = useState<Record<string, Record<string, 'allow' | 'block'>>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -48,6 +51,23 @@ export default function LoadBalancer() {
     try {
       const data = await api.getEndpoints().catch(() => []);
       setEndpoints(data);
+
+      // Load PII configs for each endpoint in parallel
+      const piiEntries = await Promise.all(
+        data.map(async (ep: any) => {
+          try {
+            const cfg = await api.getUseCaseConfig(ep.id);
+            return { id: ep.id, pii: cfg?.pii_permissions || {} };
+          } catch {
+            return { id: ep.id, pii: {} };
+          }
+        })
+      );
+      const newMap: Record<string, Record<string, 'allow' | 'block'>> = {};
+      piiEntries.forEach(e => {
+        newMap[e.id] = e.pii;
+      });
+      setEndpointPiiMap(newMap);
     } finally {
       setIsLoading(false);
     }
@@ -139,109 +159,114 @@ print("Verdict:", data["decision"]["action"])
 print("Response:", data["content"])`;
 
   return (
-    <div className="h-full w-full overflow-y-auto space-y-6 pr-2 pb-10">
+    <div className="h-full w-full overflow-y-auto space-y-6 pr-2 pb-12 font-sans">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-medium flex items-center gap-2">
-            <Network className="h-5 w-5 text-primary" />
-            Enterprise Load Balancer & Semantic Router
+          <h2 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400">
+              <Network className="h-4.5 w-4.5 text-amber-400" />
+            </div>
+            Enterprise Semantic Router & Gateway
           </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-xs text-zinc-400 mt-1 font-medium max-w-2xl">
             Matches incoming prompts against enterprise workflow instructions, pushes filtered requests to the destination endpoint, and returns governed responses.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={loadEndpoints} disabled={isLoading}>
+        <div className="flex items-center gap-2.5">
+          <Button variant="outline" size="sm" onClick={loadEndpoints} disabled={isLoading} aria-label="Refresh endpoints" className="faang-btn-ghost h-9 px-3.5 gap-2 text-xs">
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>Sync</span>
           </Button>
-          <Button size="sm" onClick={() => setIsRegisterOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Enterprise Endpoint
-          </Button>
+          <button 
+            type="button"
+            className="faang-btn-primary h-9 px-4 gap-2 text-xs flex items-center justify-center cursor-pointer font-bold"
+            onClick={() => setIsRegisterOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Workflow Endpoint</span>
+          </button>
         </div>
       </div>
 
       {/* Semantic Intent Simulator */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center justify-between">
-            <span className="flex items-center gap-2 text-primary">
-              <Sparkles className="h-4 w-4" />
-              Live Semantic Routing Matcher
-            </span>
-            <Badge variant="outline" className="bg-background text-[10px]">
-              Intent Matching Active
-            </Badge>
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Type any prompt to see which enterprise workflow instruction matches best and where the filtered request will be pushed.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              value={testPrompt}
-              onChange={(e) => setTestPrompt(e.target.value)}
-              placeholder="Type a test query to simulate semantic destination..."
-              className="bg-background"
-            />
+      <div className="faang-card p-5 space-y-4 border-violet-500/30 bg-gradient-to-b from-violet-500/[0.08] to-[#15161B]">
+        <div className="flex items-center justify-between border-b border-white/[0.07] pb-3">
+          <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+            <Sparkles className="h-4 w-4 text-amber-400" />
+            <span>Live Semantic Routing Matcher</span>
           </div>
+          <span className="faang-chip chip-violet text-[10px] font-bold">
+            VECTOR MATCHER ACTIVE
+          </span>
+        </div>
+        <p className="text-xs text-zinc-300 font-medium">
+          Type any prompt to simulate how ControlPlane vector search classifies intent and assigns the target workflow endpoint.
+        </p>
+
+        <div className="space-y-3">
+          <Input
+            value={testPrompt}
+            onChange={(e) => setTestPrompt(e.target.value)}
+            placeholder="Type a test query to simulate semantic destination..."
+            className="bg-black/40 border-white/[0.1] h-10 text-sm rounded-xl text-white placeholder:text-zinc-500 focus-visible:ring-1 focus-visible:ring-white/30"
+          />
 
           {/* Quick sample chips */}
-          <div className="flex flex-wrap gap-1.5 items-center">
-            <span className="text-[11px] text-muted-foreground mr-1">Sample queries:</span>
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-bold text-zinc-400 mr-1">Sample queries:</span>
             {SAMPLE_PROMPTS.map((p, i) => (
               <button
                 key={i}
+                type="button"
                 onClick={() => setTestPrompt(p)}
-                className="text-[11px] px-2 py-0.5 rounded-full bg-background border border-border hover:border-primary/50 text-muted-foreground hover:text-foreground transition-colors"
+                className="faang-btn-ghost px-3 py-1 text-zinc-300 text-xs transition-all font-medium"
               >
-                {p.slice(0, 35)}...
+                {p.slice(0, 36)}...
               </button>
             ))}
           </div>
 
           {/* Real-time Match Scores */}
           {!testPrompt.trim() ? (
-            <div className="py-6 text-center text-xs text-muted-foreground border-t border-border/40 font-mono">
+            <div className="py-6 text-center text-xs text-zinc-400 border-t border-white/[0.06] font-medium">
               Type a test prompt or click a sample query above to simulate live vector routing across endpoints.
             </div>
           ) : (
-            <div className="space-y-2.5 pt-2 border-t border-primary/10">
+            <div className="space-y-3 pt-3 border-t border-white/[0.07]">
               {matchResults.map((res, i) => {
                 const isWinner = i === 0;
                 return (
-                  <div key={res.id} className="space-y-1">
+                  <div key={res.id} className="space-y-1.5 p-3 rounded-xl bg-black/40 border border-white/[0.06]">
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
                         {isWinner ? (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                          <CheckCircle2 className="h-4 w-4 text-amber-400 shrink-0" />
                         ) : (
-                          <div className="w-3.5" />
+                          <div className="w-4" />
                         )}
-                        <span className={`font-medium ${isWinner ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
+                        <span className={`font-bold ${isWinner ? 'text-white text-sm' : 'text-zinc-400'}`}>
                           {res.name}
                         </span>
                         {isWinner && (
-                          <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-500 text-[10px] py-0 px-1.5 border-emerald-500/20">
-                            Pushes To → {res.target}
-                          </Badge>
+                          <span className="faang-chip chip-amber text-[10px] font-bold">
+                            Destination → {res.target}
+                          </span>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`font-mono font-medium ${isWinner ? 'text-emerald-500 font-semibold' : 'text-muted-foreground'}`}>
+                        <span className={`font-extrabold ${isWinner ? 'text-amber-400 text-sm' : 'text-zinc-400'}`}>
                           {(res.score * 100).toFixed(1)}% match
                         </span>
                       </div>
                     </div>
-                    {/* Custom Pixel-Perfect Progress Bar */}
-                    <div className="w-full bg-secondary/80 h-1.5 rounded-full overflow-hidden">
+                    {/* Multi-color Progress Bar */}
+                    <div className="w-full bg-black/60 h-2 rounded-full overflow-hidden p-0.5 border border-white/[0.04]">
                       <div 
                         className={`h-full rounded-full transition-all duration-300 ${
                           isWinner 
-                            ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' 
-                            : 'bg-muted-foreground/30'
+                            ? 'bg-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.4)]' 
+                            : 'bg-zinc-700'
                         }`}
                         style={{ width: `${Math.max(res.score * 100, 0)}%` }}
                       />
@@ -251,153 +276,220 @@ print("Response:", data["content"])`;
               })}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Registered Endpoints Grid */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium text-muted-foreground">
-          Enterprise Workflow Endpoints ({endpoints.length})
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {endpoints.map((ep) => (
-            <Card key={ep.id} className="border-border hover:border-border/80 transition-colors">
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Server className="h-4 w-4 text-primary" />
-                      <h4 className="font-medium text-sm">{ep.name}</h4>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+            Enterprise Workflow Endpoints ({endpoints.length})
+          </h3>
+          <span className="text-xs text-zinc-400 font-medium">
+            Each endpoint maintains an independent PII Governance Whitelist
+          </span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {endpoints.map((ep) => {
+            const piiForEp = endpointPiiMap[ep.id] || {
+              EMAIL: 'allow',
+              PHONE: 'allow',
+              ADDRESS: 'allow',
+              SSN: 'block',
+              CREDIT_CARD: 'block',
+              PAN: 'block',
+              AADHAAR: 'block',
+              BANK_ACCOUNT: 'block',
+              GOVERNMENT_ID: 'block'
+            };
+            const allowedList = Object.entries(piiForEp).filter(([_, action]) => action === 'allow').map(([k]) => k);
+            const blockedList = Object.entries(piiForEp).filter(([_, action]) => action === 'block').map(([k]) => k);
+
+            return (
+              <div key={ep.id} className="faang-card p-5 flex flex-col justify-between space-y-4 hover:border-white/[0.18]">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-7 w-7 rounded-lg bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400">
+                          <Server className="h-4 w-4 text-amber-400" />
+                        </div>
+                        <h4 className="font-bold text-sm text-white">{ep.name}</h4>
+                      </div>
+                      <span className="faang-chip chip-neutral text-[10px] font-mono mt-1">
+                        {ep.id}
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-zinc-400 hover:text-rose-400 rounded-full hover:bg-rose-500/10"
+                      aria-label={`Delete endpoint ${ep.name}`}
+                      onClick={() => handleDelete(ep.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="bg-black/40 p-3 rounded-xl border border-white/[0.06] text-xs text-zinc-300 space-y-1">
+                    <span className="font-bold text-zinc-200">Semantic Matching Instruction:</span>
+                    <p className="text-xs text-zinc-300 leading-relaxed font-medium">{ep.instructions}</p>
+                  </div>
+
+                  {/* Component PII Governance Whitelist */}
+                  <div className="p-3 rounded-xl border border-white/[0.07] bg-black/30 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold flex items-center gap-1.5 text-zinc-200">
+                        <Shield className="h-3.5 w-3.5 text-amber-400" />
+                        Scoped PII Policy Matrix
+                      </span>
+                      <button
+                        type="button"
+                        className="faang-chip chip-amber font-bold transition-all cursor-pointer"
+                        onClick={() => navigate(`/policies?scope=${ep.id}`)}
+                      >
+                        <Settings2 className="h-3 w-3 mr-1" />
+                        Configure Whitelist
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {allowedList.slice(0, 4).map(k => (
+                        <span key={k} className="faang-chip chip-emerald text-[10px]">
+                          ✓ {k}
+                        </span>
+                      ))}
+                      {blockedList.slice(0, 3).map(k => (
+                        <span key={k} className="faang-chip chip-crimson text-[10px]">
+                          ✕ {k}
+                        </span>
+                      ))}
+                      {blockedList.length > 3 && (
+                        <span className="faang-chip chip-neutral text-[10px]">
+                          +{blockedList.length - 3} more
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    onClick={() => handleDelete(ep.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
                 </div>
 
-                <div className="bg-muted/40 p-2.5 rounded text-xs text-muted-foreground space-y-1">
-                  <span className="font-medium text-foreground">Instruction for Search: </span>
-                  <p className="text-xs text-foreground/80 mt-0.5">{ep.instructions}</p>
-                </div>
-
-                <div className="flex items-center justify-between text-xs pt-1 border-t border-border/50 text-muted-foreground">
+                <div className="flex items-center justify-between text-xs pt-3 border-t border-white/[0.06] text-zinc-400">
                   <div className="flex items-center gap-1.5">
-                    <Send className="h-3 w-3 text-primary" />
-                    <span className="text-[11px] font-medium text-foreground">Pushes to Endpoint:</span>
+                    <Send className="h-3.5 w-3.5 text-amber-400" />
+                    <span className="text-xs font-semibold text-zinc-300">Pushes to Target:</span>
                   </div>
-                  <span className="font-mono text-[11px] text-primary truncate max-w-[240px]">
+                  <span className="font-mono text-xs text-violet-400 font-bold truncate max-w-[200px]">
                     {ep.target_model_or_url || (ep as any).endpoint}
                   </span>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            );
+          })}
         </div>
       </div>
 
       {/* External Service Integration Guide */}
-      <Card className="border-border">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Code2 className="h-4 w-4 text-primary" />
-            Connect External Services to ControlPlane Gateway
-          </CardTitle>
-          <CardDescription className="text-xs">
-            External applications push prompts to port 8000. ControlPlane filters the input, semantically routes to the target workflow endpoint, inspects the response, and returns it.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="curl" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 max-w-[240px]">
-              <TabsTrigger value="curl">cURL</TabsTrigger>
-              <TabsTrigger value="python">Python</TabsTrigger>
-            </TabsList>
-            <TabsContent value="curl" className="mt-3 relative">
-              <pre className="p-4 bg-zinc-950 text-zinc-300 rounded-md text-xs font-mono overflow-x-auto">
-                {curlSnippet}
-              </pre>
-              <Button
-                size="sm"
-                variant="outline"
-                className="absolute top-2 right-2 h-7 text-xs bg-background/80"
-                onClick={() => copyToClipboard(curlSnippet, 'curl')}
-              >
-                {copiedCode === 'curl' ? <Check className="h-3 w-3 text-emerald-500 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
-                {copiedCode === 'curl' ? 'Copied' : 'Copy'}
-              </Button>
-            </TabsContent>
-            <TabsContent value="python" className="mt-3 relative">
-              <pre className="p-4 bg-zinc-950 text-zinc-300 rounded-md text-xs font-mono overflow-x-auto">
-                {pythonSnippet}
-              </pre>
-              <Button
-                size="sm"
-                variant="outline"
-                className="absolute top-2 right-2 h-7 text-xs bg-background/80"
-                onClick={() => copyToClipboard(pythonSnippet, 'python')}
-              >
-                {copiedCode === 'python' ? <Check className="h-3 w-3 text-emerald-500 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
-                {copiedCode === 'python' ? 'Copied' : 'Copy'}
-              </Button>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+      <div className="faang-card p-5 space-y-4">
+        <div className="flex items-center justify-between border-b border-white/[0.07] pb-3">
+          <div className="flex items-center gap-2">
+            <Code2 className="h-4.5 w-4.5 text-violet-400" />
+            <span className="text-sm font-bold text-white">Connect External Services to ControlPlane Gateway</span>
+          </div>
+          <span className="faang-chip chip-amber text-[10px]">PORT: 8000</span>
+        </div>
+        <p className="text-xs text-zinc-300 font-medium">
+          External applications push prompts to port 8000. ControlPlane filters the input, semantically routes to the target workflow endpoint, inspects the response, and returns it.
+        </p>
+
+        <Tabs defaultValue="curl" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 max-w-[220px] bg-[#111216] p-1 rounded-full border border-white/[0.08]">
+            <TabsTrigger value="curl" className="text-xs font-bold rounded-full data-[state=active]:bg-white data-[state=active]:text-black">cURL</TabsTrigger>
+            <TabsTrigger value="python" className="text-xs font-bold rounded-full data-[state=active]:bg-white data-[state=active]:text-black">Python</TabsTrigger>
+          </TabsList>
+          <TabsContent value="curl" className="mt-3 relative">
+            <pre className="p-4 bg-black/50 border border-white/[0.08] text-zinc-300 rounded-2xl text-xs font-mono overflow-x-auto leading-relaxed">
+              {curlSnippet}
+            </pre>
+            <Button
+              size="sm"
+              variant="outline"
+              className="absolute top-2.5 right-2.5 h-8 text-xs faang-btn-ghost px-3 text-zinc-300 hover:text-white"
+              onClick={() => copyToClipboard(curlSnippet, 'curl')}
+            >
+              {copiedCode === 'curl' ? <Check className="h-3.5 w-3.5 text-amber-400 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+              {copiedCode === 'curl' ? 'Copied' : 'Copy'}
+            </Button>
+          </TabsContent>
+          <TabsContent value="python" className="mt-3 relative">
+            <pre className="p-4 bg-black/50 border border-white/[0.08] text-zinc-300 rounded-2xl text-xs font-mono overflow-x-auto leading-relaxed">
+              {pythonSnippet}
+            </pre>
+            <Button
+              size="sm"
+              variant="outline"
+              className="absolute top-2.5 right-2.5 h-8 text-xs faang-btn-ghost px-3 text-zinc-300 hover:text-white"
+              onClick={() => copyToClipboard(pythonSnippet, 'python')}
+            >
+              {copiedCode === 'python' ? <Check className="h-3.5 w-3.5 text-amber-400 mr-1" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+              {copiedCode === 'python' ? 'Copied' : 'Copy'}
+            </Button>
+          </TabsContent>
+        </Tabs>
+      </div>
 
       {/* Add Enterprise Endpoint Dialog */}
       <Dialog open={isRegisterOpen} onOpenChange={setIsRegisterOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] bg-[#15161B] border-white/[0.1] text-white">
           <DialogHeader>
-            <DialogTitle>Add Enterprise Endpoint</DialogTitle>
-            <DialogDescription className="text-xs">
+            <DialogTitle className="text-white font-bold">Add Enterprise Endpoint</DialogTitle>
+            <DialogDescription className="text-xs text-zinc-400">
               Register a downstream workflow with its name, instruction for semantic search, and the destination endpoint to push requests to.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div>
-              <label className="text-xs font-medium mb-1 block">1. Enterprise Workflow Name</label>
+              <label className="text-xs font-bold mb-1 block text-zinc-300">1. Enterprise Workflow Name</label>
               <Input
                 placeholder="e.g. Customer Support & Refund Workflow"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                className="text-xs"
+                className="text-xs bg-black/40 border-white/[0.1] text-white"
               />
             </div>
             <div>
-              <label className="text-xs font-medium mb-1 block">
+              <label className="text-xs font-bold mb-1 block text-zinc-300">
                 2. Instruction for Search
               </label>
               <Textarea
                 placeholder="Describe what tasks, queries, and intents this workflow handles. The Load Balancer uses this instruction to match incoming prompts."
                 value={formInstructions}
                 onChange={(e) => setFormInstructions(e.target.value)}
-                className="text-xs min-h-[90px]"
+                className="text-xs min-h-[90px] bg-black/40 border-white/[0.1] text-white"
               />
             </div>
             <div>
-              <label className="text-xs font-medium mb-1 block">
+              <label className="text-xs font-bold mb-1 block text-zinc-300">
                 3. Endpoint to Push Request To
               </label>
               <Input
                 placeholder="e.g. http://localhost:8006/complete or https://api.mycorp.internal/orders/process"
                 value={formEndpoint}
                 onChange={(e) => setFormEndpoint(e.target.value)}
-                className="font-mono text-xs"
+                className="font-mono text-xs bg-black/40 border-white/[0.1] text-white"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setIsRegisterOpen(false)}>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" className="faang-btn-ghost text-xs" onClick={() => setIsRegisterOpen(false)}>
               Cancel
             </Button>
-            <Button size="sm" onClick={handleRegister} disabled={isSubmitting || !formName || !formInstructions || !formEndpoint}>
+            <button 
+              type="button" 
+              className="faang-btn-primary text-xs px-4 h-9 font-bold flex items-center justify-center cursor-pointer"
+              onClick={handleRegister} 
+              disabled={isSubmitting || !formName || !formInstructions || !formEndpoint}
+            >
               {isSubmitting ? 'Adding...' : 'Add Endpoint'}
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

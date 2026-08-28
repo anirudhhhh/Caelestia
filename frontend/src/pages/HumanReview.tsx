@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { EscalationItem, ReviewAction, CheckResult } from '@/types';
 import { api } from '@/lib/api';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 export default function HumanReview() {
   const [escalations, setEscalations] = useState<EscalationItem[]>([]);
@@ -109,13 +110,13 @@ export default function HumanReview() {
   const getRiskBadge = (tier: string) => {
     switch (tier?.toLowerCase()) {
       case 'high':
-        return <Badge variant="outline" className="text-[10px] font-mono border-rose-500/50 text-rose-500 bg-rose-500/10 shrink-0">HIGH</Badge>;
+        return <span className="faang-chip chip-crimson text-[10px]">HIGH RISK</span>;
       case 'medium':
-        return <Badge variant="outline" className="text-[10px] font-mono border-amber-500/50 text-amber-500 bg-amber-500/10 shrink-0">MEDIUM</Badge>;
+        return <span className="faang-chip chip-amber text-[10px]">MEDIUM</span>;
       case 'low':
-        return <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/50 text-emerald-500 bg-emerald-500/10 shrink-0">LOW</Badge>;
+        return <span className="faang-chip chip-emerald text-[10px]">LOW</span>;
       default:
-        return <Badge variant="outline" className="text-[10px] font-mono shrink-0">{tier?.toUpperCase() || 'UNKNOWN'}</Badge>;
+        return <span className="faang-chip chip-neutral text-[10px]">{tier?.toUpperCase() || 'UNKNOWN'}</span>;
     }
   };
 
@@ -124,28 +125,28 @@ export default function HumanReview() {
       const res = (item.resolution || '').toLowerCase();
       if (res.includes('deny') || res === 'block') {
         return (
-          <Badge variant="outline" className="text-[10px] font-mono border-rose-500/50 text-rose-400 bg-rose-500/10 flex items-center gap-1">
+          <span className="faang-chip chip-crimson text-[10px]">
             <XCircle className="h-3 w-3" /> DENIED (BLOCKED)
-          </Badge>
+          </span>
         );
       }
       if (res.includes('edit')) {
         return (
-          <Badge variant="outline" className="text-[10px] font-mono border-sky-500/50 text-sky-400 bg-sky-500/10 flex items-center gap-1">
+          <span className="faang-chip chip-azure text-[10px]">
             <Edit className="h-3 w-3" /> EDITED & APPROVED
-          </Badge>
+          </span>
         );
       }
       return (
-        <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/50 text-emerald-400 bg-emerald-500/10 flex items-center gap-1">
+        <span className="faang-chip chip-emerald text-[10px]">
           <CheckCircle2 className="h-3 w-3" /> APPROVED (ALLOWED)
-        </Badge>
+        </span>
       );
     }
     return (
-      <Badge variant="outline" className="text-[10px] font-mono border-amber-500/50 text-amber-400 bg-amber-500/10 flex items-center gap-1">
+      <span className="faang-chip chip-amber text-[10px]">
         <Clock className="h-3 w-3" /> PENDING REVIEW
-      </Badge>
+      </span>
     );
   };
 
@@ -175,163 +176,184 @@ export default function HumanReview() {
   });
 
   return (
-    <div className="h-full w-full flex flex-col gap-4 min-h-0 overflow-hidden">
+    <div className="h-full w-full flex flex-col gap-4 sm:gap-5 min-h-0 overflow-hidden font-sans">
       {/* Top Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 shrink-0">
-        <Card 
-          className={`cursor-pointer transition-all border-border/80 bg-card/80 shadow-sm ${statusFilter === 'pending' ? 'ring-1 ring-amber-500/50 bg-amber-500/5' : ''}`}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 shrink-0">
+        <div 
+          className={cn(
+            "faang-card p-4.5 sm:p-5 cursor-pointer transition-all duration-200",
+            statusFilter === 'pending' ? "border-amber-500/40 bg-amber-500/10 shadow-[0_0_20px_rgba(245,158,11,0.15)]" : "hover:border-white/[0.15]"
+          )}
           onClick={() => setStatusFilter('pending')}
         >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-xs font-medium text-muted-foreground">Pending Queue</span>
-              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+          <div className="flex items-center justify-between pb-1.5">
+            <span className="text-xs font-bold text-zinc-400">Pending Queue</span>
+            <div className="h-8 w-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <AlertTriangle className="h-4 w-4" />
             </div>
-            <div className="text-2xl font-bold tracking-tight text-amber-500">{pendingCount}</div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Awaiting human operator review</p>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-amber-400">{pendingCount}</div>
+          <p className="text-xs text-zinc-400 mt-1 truncate font-medium">Awaiting operator review</p>
+        </div>
 
-        <Card 
-          className={`cursor-pointer transition-all border-border/80 bg-card/80 shadow-sm ${statusFilter === 'resolved' ? 'ring-1 ring-emerald-500/50 bg-emerald-500/5' : ''}`}
+        <div 
+          className={cn(
+            "faang-card p-4.5 sm:p-5 cursor-pointer transition-all duration-200",
+            statusFilter === 'resolved' ? "border-violet-500/40 bg-violet-500/10 shadow-[0_0_20px_rgba(139,92,246,0.15)]" : "hover:border-white/[0.15]"
+          )}
           onClick={() => setStatusFilter('resolved')}
         >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-xs font-medium text-muted-foreground">Resolved History</span>
-              <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+          <div className="flex items-center justify-between pb-1.5">
+            <span className="text-xs font-bold text-zinc-400">Resolved History</span>
+            <div className="h-8 w-8 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400">
+              <CheckCircle2 className="h-4 w-4" />
             </div>
-            <div className="text-2xl font-bold tracking-tight text-emerald-500">{resolvedCount}</div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Audited and calibrated items</p>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-violet-400">{resolvedCount}</div>
+          <p className="text-xs text-zinc-400 mt-1 truncate font-medium">Calibrated items</p>
+        </div>
 
-        <Card className="border-border/80 bg-card/80 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-xs font-medium text-muted-foreground">Average SLA</span>
-              <Clock className="h-4 w-4 text-primary shrink-0" />
+        <div className="faang-card p-4.5 sm:p-5">
+          <div className="flex items-center justify-between pb-1.5">
+            <span className="text-xs font-bold text-zinc-400">Average SLA</span>
+            <div className="h-8 w-8 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400">
+              <Clock className="h-4 w-4" />
             </div>
-            <div className="text-2xl font-bold tracking-tight">1.2m</div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Real-time triage turnaround</p>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">1.2m</div>
+          <p className="text-xs text-zinc-400 mt-1 truncate font-medium">Triage turnaround</p>
+        </div>
 
-        <Card className="border-border/80 bg-card/80 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-xs font-medium text-muted-foreground">Immune Accuracy</span>
-              <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
+        <div className="faang-card p-4.5 sm:p-5">
+          <div className="flex items-center justify-between pb-1.5">
+            <span className="text-xs font-bold text-zinc-400">Immune Accuracy</span>
+            <div className="h-8 w-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <ShieldCheck className="h-4 w-4" />
             </div>
-            <div className="text-2xl font-bold tracking-tight text-emerald-500">100%</div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Self-healing feedback loop</p>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-amber-400">100%</div>
+          <p className="text-xs text-zinc-400 mt-1 truncate font-medium">Self-healing loop</p>
+        </div>
       </div>
 
       {resolvedSuccess && (
-        <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-xs flex items-center gap-2 shrink-0">
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
+        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-2.5 shadow-lg shrink-0">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-amber-400" />
           <span>{resolvedSuccess}</span>
         </div>
       )}
 
       {/* Filter Toolbar */}
-      <Card className="border-border/80 bg-card/80 shadow-sm shrink-0">
-        <div className="p-2.5 flex flex-wrap items-center gap-2.5">
-          <div className="flex items-center bg-muted/40 p-0.5 rounded-lg border border-border/60">
-            <Button
-              variant={statusFilter === 'pending' ? 'default' : 'ghost'}
-              size="sm"
-              className="h-7 text-xs px-3"
-              onClick={() => setStatusFilter('pending')}
-            >
-              Pending ({pendingCount})
-            </Button>
-            <Button
-              variant={statusFilter === 'resolved' ? 'default' : 'ghost'}
-              size="sm"
-              className="h-7 text-xs px-3"
-              onClick={() => setStatusFilter('resolved')}
-            >
-              Resolved ({resolvedCount})
-            </Button>
-            <Button
-              variant={statusFilter === 'all' ? 'default' : 'ghost'}
-              size="sm"
-              className="h-7 text-xs px-3"
-              onClick={() => setStatusFilter('all')}
-            >
-              All ({escalations.length})
-            </Button>
-          </div>
-
-          <div className="relative flex-1 min-w-[180px] max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search interaction ID, reason, or content..."
-              className="pl-8 h-8 text-xs bg-background/80"
-            />
-          </div>
-
-          <Select value={directionFilter} onValueChange={setDirectionFilter}>
-            <SelectTrigger className="w-[130px] h-8 text-xs bg-background/80">
-              <SelectValue placeholder="Direction" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Directions</SelectItem>
-              <SelectItem value="input">Input (Prompt)</SelectItem>
-              <SelectItem value="output">Output (Response)</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={riskFilter} onValueChange={setRiskFilter}>
-            <SelectTrigger className="w-[120px] h-8 text-xs bg-background/80">
-              <SelectValue placeholder="Risk Tier" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Tiers</SelectItem>
-              <SelectItem value="high">High Risk</SelectItem>
-              <SelectItem value="medium">Medium Risk</SelectItem>
-              <SelectItem value="low">Low Risk</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Button variant="ghost" size="sm" onClick={loadEscalations} className="ml-auto text-xs h-8 gap-1.5 text-muted-foreground hover:text-foreground">
-            <RefreshCw className="h-3.5 w-3.5" />
-            Refresh
-          </Button>
+      <div className="faang-card p-3 flex flex-wrap items-center gap-3 shrink-0">
+        <div className="flex items-center bg-black/40 p-1 rounded-full border border-white/[0.08]">
+          <button
+            type="button"
+            className={cn(
+              "px-3.5 py-1.5 rounded-full text-xs font-bold transition-all",
+              statusFilter === 'pending' ? "bg-white text-black shadow-md" : "text-zinc-400 hover:text-white"
+            )}
+            onClick={() => setStatusFilter('pending')}
+          >
+            Pending ({pendingCount})
+          </button>
+          <button
+            type="button"
+            className={cn(
+              "px-3.5 py-1.5 rounded-full text-xs font-bold transition-all",
+              statusFilter === 'resolved' ? "bg-white text-black shadow-md" : "text-zinc-400 hover:text-white"
+            )}
+            onClick={() => setStatusFilter('resolved')}
+          >
+            Resolved ({resolvedCount})
+          </button>
+          <button
+            type="button"
+            className={cn(
+              "px-3.5 py-1.5 rounded-full text-xs font-bold transition-all",
+              statusFilter === 'all' ? "bg-white text-black shadow-md" : "text-zinc-400 hover:text-white"
+            )}
+            onClick={() => setStatusFilter('all')}
+          >
+            All ({escalations.length})
+          </button>
         </div>
-      </Card>
+
+        <div className="relative flex-1 min-w-[180px] max-w-sm">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search incident ID, reason, or content..."
+            aria-label="Search escalations"
+            className="pl-9 h-9 text-xs bg-black/40 border-white/[0.09] rounded-xl text-white placeholder:text-zinc-500 focus-visible:ring-1 focus-visible:ring-white/30"
+          />
+        </div>
+
+        <Select value={directionFilter} onValueChange={setDirectionFilter}>
+          <SelectTrigger className="w-[160px] h-9 text-xs font-bold bg-white/[0.04] border-white/[0.09] rounded-xl text-white" aria-label="Filter by stream direction">
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="text-zinc-400 text-xs">Stream:</span>
+              <span className="text-white font-bold truncate">
+                {directionFilter === 'all' ? 'All Streams' : directionFilter === 'input' ? 'Input' : 'Output'}
+              </span>
+            </div>
+          </SelectTrigger>
+          <SelectContent className="bg-[#15161B] border-white/[0.1] rounded-xl">
+            <SelectItem value="all">All Streams</SelectItem>
+            <SelectItem value="input">Input (Ingress)</SelectItem>
+            <SelectItem value="output">Output (Egress)</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={riskFilter} onValueChange={setRiskFilter}>
+          <SelectTrigger className="w-[150px] h-9 text-xs font-bold bg-white/[0.04] border-white/[0.09] rounded-xl text-white" aria-label="Filter by risk tier">
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="text-zinc-400 text-xs">Risk:</span>
+              <span className="text-white font-bold capitalize truncate">
+                {riskFilter === 'all' ? 'All Tiers' : `${riskFilter} Risk`}
+              </span>
+            </div>
+          </SelectTrigger>
+          <SelectContent className="bg-[#15161B] border-white/[0.1] rounded-xl">
+            <SelectItem value="all">All Tiers</SelectItem>
+            <SelectItem value="high">High Risk</SelectItem>
+            <SelectItem value="medium">Medium Risk</SelectItem>
+            <SelectItem value="low">Low Risk</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Button variant="ghost" size="sm" onClick={loadEscalations} aria-label="Refresh escalations" className="ml-auto text-xs h-9 px-3 gap-1.5 text-zinc-400 hover:text-white rounded-full hover:bg-white/[0.06]">
+          <RefreshCw className="h-3.5 w-3.5" />
+          Refresh
+        </Button>
+      </div>
 
       {/* Main Table */}
-      <Card className="flex-1 min-h-0 border-border/80 bg-card/80 shadow-sm overflow-hidden flex flex-col">
+      <div className="faang-card flex-1 min-h-0 overflow-hidden flex flex-col">
         <div className="overflow-auto flex-1 w-full">
           <Table>
-            <TableHeader className="sticky top-0 bg-muted/60 backdrop-blur-md z-10">
-              <TableRow>
-                <TableHead className="text-xs w-[80px] font-semibold">Risk</TableHead>
-                <TableHead className="text-xs w-[90px] font-semibold">Direction</TableHead>
-                <TableHead className="text-xs w-[140px] font-semibold">Status / Resolution</TableHead>
-                <TableHead className="text-xs w-[110px] font-semibold">Interaction ID</TableHead>
-                <TableHead className="text-xs w-[130px] font-semibold">Use Case</TableHead>
-                <TableHead className="text-xs min-w-[180px] font-semibold">Escalation Trigger</TableHead>
-                <TableHead className="text-xs min-w-[140px] font-semibold">Findings</TableHead>
-                <TableHead className="text-xs text-right w-[90px] font-semibold">Action</TableHead>
+            <TableHeader className="sticky top-0 bg-[#15161B] backdrop-blur-md z-10 border-b border-white/[0.08]">
+              <TableRow className="border-white/[0.08] hover:bg-transparent">
+                <TableHead className="text-xs w-[100px] font-bold text-zinc-300">Risk</TableHead>
+                <TableHead className="text-xs w-[105px] font-bold text-zinc-300">Direction</TableHead>
+                <TableHead className="text-xs w-[155px] font-bold text-zinc-300">Status / Verdict</TableHead>
+                <TableHead className="text-xs w-[110px] font-bold text-zinc-300">Incident ID</TableHead>
+                <TableHead className="text-xs w-[140px] font-bold text-zinc-300">Workflow</TableHead>
+                <TableHead className="text-xs min-w-[280px] font-bold text-zinc-300">Escalation Trigger</TableHead>
+                <TableHead className="text-xs min-w-[140px] font-bold text-zinc-300">Findings</TableHead>
+                <TableHead className="text-xs text-right w-[110px] pr-4 font-bold text-zinc-300">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground text-xs">
+                  <TableCell colSpan={8} className="text-center py-16 text-zinc-400 text-xs font-medium">
                     Loading escalation queue...
                   </TableCell>
                 </TableRow>
               ) : filteredEscalations.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground text-xs">
+                  <TableCell colSpan={8} className="text-center py-16 text-zinc-400 text-xs font-medium">
                     No escalations in queue matching current filters.
                   </TableCell>
                 </TableRow>
@@ -342,66 +364,74 @@ export default function HumanReview() {
                   const isInput = (item as any).direction === 'input' || item.payload?.role === 'user' || !item.payload?.role;
 
                   return (
-                    <TableRow key={item.interaction_id ? `${item.interaction_id}-${idx}` : idx} className="hover:bg-muted/30 transition-colors">
+                    <TableRow key={item.interaction_id ? `${item.interaction_id}-${idx}` : idx} className="hover:bg-white/[0.03] transition-colors border-white/[0.06]">
                       <TableCell>{getRiskBadge(item.risk_tier)}</TableCell>
                       
                       <TableCell>
                         {isInput ? (
-                          <Badge variant="outline" className="text-[10px] font-mono bg-sky-500/10 text-sky-400 border-sky-500/30 gap-1 w-fit">
-                            <ArrowDownLeft className="h-3 w-3 shrink-0" /> INPUT
-                          </Badge>
+                          <span className="faang-chip chip-azure text-[10px] w-fit">
+                            <ArrowDownLeft className="h-3 w-3 shrink-0" /> Ingress
+                          </span>
                         ) : (
-                          <Badge variant="outline" className="text-[10px] font-mono bg-purple-500/10 text-purple-400 border-purple-500/30 gap-1 w-fit">
-                            <ArrowUpRight className="h-3 w-3 shrink-0" /> OUTPUT
-                          </Badge>
+                          <span className="faang-chip chip-violet text-[10px] w-fit">
+                            <ArrowUpRight className="h-3 w-3 shrink-0" /> Egress
+                          </span>
                         )}
                       </TableCell>
 
                       <TableCell>{getStatusBadge(item)}</TableCell>
 
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {item.interaction_id?.substring(0, 8)}...
+                      <TableCell className="text-xs text-zinc-400">
+                        <button
+                          onClick={() => handleCopyId(item.interaction_id)}
+                          className="hover:text-amber-400 transition-colors flex items-center gap-1 group font-mono"
+                          title="Click to copy interaction ID"
+                        >
+                          <span>{item.interaction_id?.substring(0, 8)}...</span>
+                          <Copy className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </button>
                       </TableCell>
 
-                      <TableCell className="text-xs font-medium">{item.use_case}</TableCell>
+                      <TableCell className="text-xs font-bold text-zinc-200">{item.use_case}</TableCell>
 
-                      <TableCell className="text-xs text-muted-foreground max-w-[240px] truncate font-mono">
-                        {item.escalation_reason}
+                      <TableCell className="text-xs text-zinc-300 leading-relaxed min-w-[260px] max-w-md font-medium" title={item.escalation_reason}>
+                        <div className="line-clamp-2 hover:line-clamp-none transition-all">
+                          {item.escalation_reason}
+                        </div>
                       </TableCell>
 
                       <TableCell>
                         {issues.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {issues.map((iss: CheckResult, i: number) => (
-                              <Badge key={i} variant="outline" className="text-[10px] font-mono bg-amber-500/10 text-amber-400 border-amber-500/30 shrink-0">
+                              <span key={i} className="faang-chip chip-amber text-[10px]">
                                 {iss.check_name}: {iss.score.toFixed(2)}
-                              </Badge>
+                              </span>
                             ))}
                           </div>
                         ) : (
-                          <span className="text-[11px] text-muted-foreground">Policy Warning</span>
+                          <span className="text-xs text-zinc-400 font-medium">Policy Warning</span>
                         )}
                       </TableCell>
 
-                      <TableCell className="text-right">
+                      <TableCell className="text-right pr-4">
                         {isResolved ? (
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                            className="h-8 text-xs text-zinc-400 hover:text-white rounded-full hover:bg-white/[0.08]"
                             onClick={() => handleOpenReview(item)}
                           >
-                            <History className="h-3 w-3 mr-1" /> View
+                            <History className="h-3.5 w-3.5 mr-1" /> View
                           </Button>
                         ) : (
-                          <Button
-                            variant="default"
-                            size="sm"
-                            className="h-7 text-xs bg-primary text-primary-foreground font-medium"
+                          <button
+                            type="button"
+                            className="faang-btn-primary text-xs h-8 px-3.5 gap-1.5 flex items-center justify-center whitespace-nowrap font-bold cursor-pointer"
                             onClick={() => handleOpenReview(item)}
                           >
-                            Review <ArrowRight className="ml-1 h-3 w-3" />
-                          </Button>
+                            <UserCheck className="h-3.5 w-3.5 mr-1" /> Triage
+                          </button>
                         )}
                       </TableCell>
                     </TableRow>
@@ -411,20 +441,20 @@ export default function HumanReview() {
             </TableBody>
           </Table>
         </div>
-      </Card>
+      </div>
 
       {/* Review Dialog */}
       <Dialog open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
-        <DialogContent className="max-w-4xl max-h-[88vh] flex flex-col p-6 overflow-hidden">
+        <DialogContent className="max-w-4xl max-h-[88vh] flex flex-col p-6 overflow-hidden bg-[#15161B] border-white/[0.1] text-white">
           {selectedItem && (
             <>
-              <DialogHeader className="pb-3 border-b border-border/80">
+              <DialogHeader className="pb-3 border-b border-white/[0.08]">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <DialogTitle className="text-sm font-bold">
+                    <DialogTitle className="text-sm font-bold text-white">
                       {selectedItem.status === 'resolved' ? 'Escalation Audit Record' : 'Human Review & Triage'}
                     </DialogTitle>
-                    <Badge variant="outline" className="font-mono text-[10px]">{selectedItem.interaction_id}</Badge>
+                    <span className="faang-chip chip-neutral font-mono text-[10px]">{selectedItem.interaction_id}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {getStatusBadge(selectedItem)}
@@ -435,28 +465,28 @@ export default function HumanReview() {
 
               <div className="flex-1 overflow-y-auto space-y-4 py-3 text-xs">
                 <div>
-                  <span className="font-semibold text-amber-500 uppercase tracking-wider text-[11px]">Escalation Reason:</span>
-                  <div className="mt-1 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg font-mono text-foreground leading-relaxed">
+                  <span className="font-bold text-amber-400 uppercase tracking-wider text-[11px]">Escalation Reason:</span>
+                  <div className="mt-1 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl font-mono text-zinc-100 leading-relaxed">
                     {selectedItem.escalation_reason}
                   </div>
                 </div>
 
                 <div>
-                  <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[11px]">Content Payload:</span>
-                  <div className="mt-1 p-3 bg-background border border-border rounded-lg font-mono whitespace-pre-wrap break-all leading-relaxed max-h-[160px] overflow-y-auto">
+                  <span className="font-bold text-zinc-400 uppercase tracking-wider text-[11px]">Content Payload:</span>
+                  <div className="mt-1 p-3 bg-black/50 border border-white/[0.08] rounded-xl font-mono whitespace-pre-wrap break-all leading-relaxed max-h-[160px] overflow-y-auto text-zinc-200">
                     {selectedItem.payload?.content || selectedItem.interaction?.payload?.content || 'No content payload'}
                   </div>
                 </div>
 
                 {selectedItem.status !== 'resolved' && (
-                  <div className="space-y-3 pt-2 border-t border-border">
+                  <div className="space-y-3 pt-2 border-t border-white/[0.08]">
                     <div>
-                      <Label className="text-xs font-semibold text-muted-foreground">Resolution Note / Rationale:</Label>
+                      <Label className="text-xs font-bold text-zinc-300">Resolution Note / Rationale:</Label>
                       <Input
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
                         placeholder="Explain resolution rationale (e.g. Verified benign developer query)..."
-                        className="mt-1 h-8 text-xs font-mono"
+                        className="mt-1 h-8 text-xs font-mono bg-black/40 border-white/[0.1] text-white"
                       />
                     </div>
 
@@ -466,7 +496,7 @@ export default function HumanReview() {
                         checked={wasFlagCorrect}
                         onCheckedChange={setWasFlagCorrect}
                       />
-                      <Label htmlFor="flag-correct" className="text-xs cursor-pointer">
+                      <Label htmlFor="flag-correct" className="text-xs cursor-pointer text-zinc-200 font-medium">
                         {wasFlagCorrect ? 'Confirm flag was a genuine threat' : 'Mark as False Positive (immune calibration)'}
                       </Label>
                     </div>
@@ -475,23 +505,21 @@ export default function HumanReview() {
               </div>
 
               {selectedItem.status !== 'resolved' && (
-                <DialogFooter className="pt-3 border-t border-border flex items-center justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-rose-500/40 text-rose-500 hover:bg-rose-500/10 h-8 text-xs font-semibold"
+                <DialogFooter className="pt-3 border-t border-white/[0.08] flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    className="faang-btn-crimson h-9 px-4 text-xs font-bold flex items-center justify-center cursor-pointer"
                     onClick={() => handleAction('deny')}
                   >
                     <XCircle className="h-3.5 w-3.5 mr-1" /> Deny & Block
-                  </Button>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white h-8 text-xs font-semibold"
+                  </button>
+                  <button
+                    type="button"
+                    className="faang-btn-primary h-9 px-4 text-xs font-bold flex items-center justify-center cursor-pointer"
                     onClick={() => handleAction('approve')}
                   >
                     <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Approve & Allow
-                  </Button>
+                  </button>
                 </DialogFooter>
               )}
             </>

@@ -23,6 +23,7 @@ function normalizeHealth(raw: any): Array<{ name: string; status: string; latenc
     review_console: 'Review Console',
     immune_system: 'Immune System',
     action_guard: 'Action Guard',
+    guardrails_ml: 'Guardrails ML',
   };
   return Object.entries(raw).map(([key, val]: [string, any]) => ({
     name: NAME_MAP[key] ?? key,
@@ -86,30 +87,33 @@ export default function SystemHealth() {
   const overallStatus = unhealthyCount === 0 ? 'operational' : unhealthyCount <= 2 ? 'degraded' : 'critical';
 
   return (
-    <div className="h-full w-full overflow-y-auto space-y-6 pr-2 pb-10">
+    <div className="h-full w-full overflow-y-auto space-y-6 pr-2 pb-12 font-sans">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-medium">System Health</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Last refreshed {format(lastRefresh, 'HH:mm:ss')} · Auto-refreshes every 30s
+          <h2 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400">
+              <Activity className="h-4.5 w-4.5 text-amber-400" />
+            </div>
+            Microservice Cluster & Mesh Health
+          </h2>
+          <p className="text-xs text-zinc-400 mt-1 font-medium">
+            Last refreshed {format(lastRefresh, 'HH:mm:ss')} · Realtime 30s heartbeat probe
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge
-            variant="outline"
-            className={
-              overallStatus === 'operational' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
-              overallStatus === 'degraded' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
-              'bg-rose-500/10 text-rose-500 border-rose-500/20'
-            }
+          <span
+            className={`faang-chip text-xs font-bold ${
+              overallStatus === 'operational' ? 'chip-emerald shadow-[0_0_15px_rgba(16,185,129,0.2)]' :
+              overallStatus === 'degraded' ? 'chip-amber' :
+              'chip-crimson'
+            }`}
           >
-            {overallStatus === 'operational' && <CheckCircle className="mr-1 h-3 w-3" />}
-            {overallStatus === 'degraded' && <AlertTriangle className="mr-1 h-3 w-3" />}
-            {overallStatus === 'critical' && <XCircle className="mr-1 h-3 w-3" />}
-            {overallStatus.charAt(0).toUpperCase() + overallStatus.slice(1)}
-          </Badge>
-          <Button variant="outline" size="sm" onClick={loadData} disabled={isLoading}>
+            {overallStatus === 'degraded' && <AlertTriangle className="mr-1 h-3.5 w-3.5" />}
+            {overallStatus === 'critical' && <XCircle className="mr-1 h-3.5 w-3.5" />}
+            MESH {overallStatus.toUpperCase()} ({components.length}/{components.length})
+          </span>
+          <Button variant="ghost" size="sm" onClick={loadData} disabled={isLoading} className="faang-btn-ghost h-9 px-3 gap-2 text-xs text-zinc-300 hover:text-white">
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
@@ -117,76 +121,76 @@ export default function SystemHealth() {
 
       {/* Active Alerts */}
       {alerts.length > 0 && (
-        <Card className="border-amber-500/50 bg-amber-500/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-amber-500">
-              <AlertTriangle className="h-4 w-4" />
-              Active Anomalies ({alerts.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {alerts.map(alert => (
-                <div key={alert.id} className="flex items-center justify-between bg-background/80 p-3 rounded-md border border-border">
-                  <div className="flex items-center gap-3">
-                    <Badge variant="outline" className={
-                      alert.severity === 'high' ? 'border-rose-500 text-rose-500' :
-                      alert.severity === 'medium' ? 'border-amber-500 text-amber-500' :
-                      'border-emerald-500 text-emerald-500'
-                    }>
-                      {alert.severity.toUpperCase()}
-                    </Badge>
-                    <span className="font-medium text-sm">{alert.metric}</span>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="font-mono text-muted-foreground">
-                      <span className="line-through mr-2">{alert.baseline_value}</span>
-                      <span className="text-amber-500 font-bold">{alert.current_value}</span>
-                    </div>
-                    {alert.timestamp && (
-                      <span className="text-xs text-muted-foreground">
-                        {format(new Date(alert.timestamp), 'HH:mm')}
-                      </span>
-                    )}
-                  </div>
+        <div className="faang-card p-5 space-y-3.5 border-amber-500/30 bg-amber-500/[0.04]">
+          <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
+            <AlertTriangle className="h-4 w-4" />
+            <span>Active Perimeter Anomalies ({alerts.length})</span>
+          </div>
+          <div className="space-y-2.5">
+            {alerts.map(alert => (
+              <div key={alert.id} className="flex items-center justify-between bg-black/40 p-3.5 rounded-xl border border-white/[0.08]">
+                <div className="flex items-center gap-3">
+                  <span className={`faang-chip text-[10px] font-bold uppercase ${
+                    alert.severity === 'high' ? 'chip-crimson' :
+                    alert.severity === 'medium' ? 'chip-amber' :
+                    'chip-emerald'
+                  }`}>
+                    {alert.severity}
+                  </span>
+                  <span className="font-bold text-xs text-white">{alert.metric}</span>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                <div className="flex items-center gap-4 text-xs">
+                  <div className="text-zinc-400 font-medium">
+                    <span className="line-through mr-2 text-zinc-500">{alert.baseline_value}</span>
+                    <span className="text-amber-400 font-extrabold">{alert.current_value}</span>
+                  </div>
+                  {alert.timestamp && (
+                    <span className="text-xs text-zinc-500 font-medium">
+                      {format(new Date(alert.timestamp), 'HH:mm')}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Component Grid */}
       {isLoading && components.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground text-sm">Checking service health...</div>
+        <div className="text-center py-16 text-zinc-400 text-xs font-medium">Checking service mesh health...</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {components.map((comp, idx) => (
-            <Card key={idx} className={`border ${getStatusColor(comp.status)} transition-colors`}>
-              <CardContent className="p-4">
+          {components.map((comp, idx) => {
+            const isHealthy = comp.status === 'healthy';
+            return (
+              <div key={idx} className="faang-card p-4.5 flex flex-col justify-between space-y-3 hover:border-white/[0.18]">
                 <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 bg-background rounded-md border border-border">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 bg-black/50 rounded-xl border border-white/[0.08] flex items-center justify-center text-amber-400">
                       {getComponentIcon(comp.name)}
                     </div>
                     <div>
-                      <h4 className="font-medium text-sm">{comp.name}</h4>
-                      <p className="text-xs text-muted-foreground capitalize">{comp.status}</p>
+                      <h4 className="font-bold text-xs text-white">{comp.name}</h4>
+                      <div className="mt-1">
+                        <span className={`faang-chip text-[9px] font-bold uppercase ${isHealthy ? 'chip-emerald' : 'chip-crimson'}`}>
+                          {comp.status}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  {getStatusIcon(comp.status)}
                 </div>
-                <div className="mt-4 pt-4 border-t border-border flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">
-                    Latency: <span className={`font-mono font-medium ${comp.latency > 500 ? 'text-amber-500' : 'text-foreground'}`}>
+                <div className="pt-2.5 border-t border-white/[0.06] flex items-center justify-between text-xs">
+                  <span className="text-zinc-400 font-medium">
+                    Latency: <strong className={`font-bold ${comp.latency > 500 ? 'text-amber-400' : 'text-zinc-200'}`}>
                       {comp.latency}ms
-                    </span>
+                    </strong>
                   </span>
-                  <span className="text-muted-foreground">{format(new Date(comp.last_check), 'HH:mm:ss')}</span>
+                  <span className="text-zinc-500 text-[10px] font-mono font-medium">{format(new Date(comp.last_check), 'HH:mm:ss')}</span>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

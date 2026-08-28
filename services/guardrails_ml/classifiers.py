@@ -147,12 +147,16 @@ class ContextualToxicityClassifier:
                     reframed_reason = f"Matched reframed hostility pattern: {category}"
 
         # Heuristic Lexicon Fallback
-        toxic_terms = ["kill", "murder", "hate", "rape", "die", "attack", "destroy", "abuse", "trash", "idiot", "bitch", "shit", "fuck"]
+        toxic_terms = [
+            "kill", "murder", "hate", "rape", "die", "attack", "destroy", "abuse", "trash", "idiot",
+            "bitch", "shit", "fuck", "nigger", "nigga", "niggaz", "faggot", "fag", "kike", "chink",
+            "spic", "gook", "wetback", "coon", "retard", "kys", "suicide"
+        ]
         words = set(re.findall(r'\b\w+\b', norm.canonical))
         hits = words.intersection(toxic_terms)
         heuristic_score = 0.0
         if hits:
-            heuristic_score = min(0.85 + (len(hits) - 1) * 0.05, 0.98)
+            heuristic_score = min(0.90 + (len(hits) - 1) * 0.05, 0.99)
 
         calibrated_neural = calibrate_probability(neural_score)
         final_score = max(calibrated_neural, reframed_score, heuristic_score)

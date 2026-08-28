@@ -40,9 +40,9 @@ class WorkflowEndpoint(BaseModel):
 
 # In-memory registry of enterprise workflow endpoints with semantic instructions
 DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
-    "customer_support_workflow": WorkflowEndpoint(
-        id="customer_support_workflow",
-        name="Customer Support & Success Workflow",
+    "customer_support": WorkflowEndpoint(
+        id="customer_support",
+        name="Customer Support & Success",
         instructions="Handles general customer inquiries, product questions, order status, returns, refunds, user onboarding, and satisfaction surveys.",
         endpoint="google/gemini-2.5-flash",
         target_model_or_url="google/gemini-2.5-flash",
@@ -50,9 +50,9 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
         keywords=["order", "refund", "customer", "return", "product", "account", "help", "support", "ticket", "status"],
         weight=1.0
     ),
-    "technical_troubleshooting_workflow": WorkflowEndpoint(
-        id="technical_troubleshooting_workflow",
-        name="Technical & Engineering Diagnostics Workflow",
+    "internal_copilot": WorkflowEndpoint(
+        id="internal_copilot",
+        name="Engineering & Internal Copilot",
         instructions="Specialized in software debugging, Python, API integrations, cloud architecture, stack traces, code generation, and developer diagnostics.",
         endpoint="google/gemini-2.5-flash",
         target_model_or_url="google/gemini-2.5-flash",
@@ -60,9 +60,9 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
         keywords=["code", "debug", "python", "api", "function", "error", "script", "database", "sql", "bug", "aws", "docker"],
         weight=1.0
     ),
-    "billing_and_finance_workflow": WorkflowEndpoint(
-        id="billing_and_finance_workflow",
-        name="Billing, Invoicing & Finance Workflow",
+    "decision_support": WorkflowEndpoint(
+        id="decision_support",
+        name="Billing & Financial Decision Support",
         instructions="Handles enterprise subscription plans, payment processing, invoices, receipts, contract terms, billing disputes, and price tiers.",
         endpoint="google/gemini-2.5-flash",
         target_model_or_url="google/gemini-2.5-flash",
@@ -70,9 +70,9 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
         keywords=["billing", "invoice", "payment", "subscription", "price", "charge", "credit", "receipt", "plan", "cost"],
         weight=1.0
     ),
-    "legal_and_compliance_workflow": WorkflowEndpoint(
-        id="legal_and_compliance_workflow",
-        name="Security, Governance & Policy Workflow",
+    "legal_compliance": WorkflowEndpoint(
+        id="legal_compliance",
+        name="Security & Legal Compliance",
         instructions="Specialized in terms of service, GDPR, compliance requirements, enterprise privacy policies, data governance, and regulatory guidelines.",
         endpoint="google/gemini-2.5-flash",
         target_model_or_url="google/gemini-2.5-flash",
@@ -82,10 +82,31 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
     ),
 }
 
+DATA_DIR = Path(__file__).parent / "data"
+ENDPOINTS_FILE = DATA_DIR / "custom_endpoints.json"
+
 from services.router.vector_router import vector_db_router
 
-# Initialize Pinecone-style Vector Index with default enterprise endpoints
+def _save_custom_endpoints():
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        custom = {k: v.model_dump() for k, v in DEFAULT_ENDPOINTS.items()}
+        with open(ENDPOINTS_FILE, "w") as f:
+            json.dump(custom, f, indent=2)
+    except Exception as e:
+        logger.warning(f"Failed to save custom endpoints: {e}")
+
+# Initialize Pinecone-style Vector Index with default enterprise endpoints + saved custom endpoints
 def _init_vector_index():
+    if ENDPOINTS_FILE.exists():
+        try:
+            with open(ENDPOINTS_FILE, "r") as f:
+                saved = json.load(f)
+                for eid, edata in saved.items():
+                    DEFAULT_ENDPOINTS[eid] = WorkflowEndpoint(**edata)
+        except Exception as e:
+            logger.warning(f"Failed to load custom endpoints from file: {e}")
+
     for ep in DEFAULT_ENDPOINTS.values():
         vector_db_router.index_endpoint(
             endpoint_id=ep.id,
@@ -121,6 +142,7 @@ async def register_endpoint(endpoint: WorkflowEndpoint):
         use_case=endpoint.use_case,
         weight=endpoint.weight
     )
+    _save_custom_endpoints()
     logger.info(f"Registered and indexed workflow endpoint: {endpoint.id} ({endpoint.name})")
     return {"status": "registered", "endpoint": endpoint}
 
@@ -157,6 +179,7 @@ async def delete_endpoint(endpoint_id: str):
     if endpoint_id in DEFAULT_ENDPOINTS:
         del DEFAULT_ENDPOINTS[endpoint_id]
         vector_db_router.remove_endpoint(endpoint_id)
+        _save_custom_endpoints()
         logger.info(f"Deleted workflow endpoint: {endpoint_id}")
         return {"status": "deleted", "id": endpoint_id}
     raise HTTPException(status_code=404, detail="Endpoint not found")

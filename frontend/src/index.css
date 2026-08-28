@@ -1,13 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/plus-jakarta-sans";
+@import "@fontsource-variable/inter";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-heading: 'Plus Jakarta Sans Variable', -apple-system, sans-serif;
+    --font-sans: 'Plus Jakarta Sans Variable', 'Inter Variable', -apple-system, BlinkMacSystemFont, sans-serif;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -39,82 +40,69 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
-    --radius-sm: calc(var(--radius) * 0.6);
-    --radius-md: calc(var(--radius) * 0.8);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) * 1.4);
-    --radius-2xl: calc(var(--radius) * 1.8);
-    --radius-3xl: calc(var(--radius) * 2.2);
-    --radius-4xl: calc(var(--radius) * 2.6);
+    --radius-sm: 0.5rem;
+    --radius-md: 0.75rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1.25rem;
+    --radius-2xl: 1.5rem;
+    --radius-3xl: 2rem;
+    --radius-full: 9999px;
 }
 
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --background: #FFFFFF;
+    --foreground: #0E0F12;
+    --card: #FFFFFF;
+    --card-foreground: #0E0F12;
+    --popover: #FFFFFF;
+    --popover-foreground: #0E0F12;
+    --primary: #FFFFFF;
+    --primary-foreground: #0E0F12;
+    --secondary: #F4F4F5;
+    --secondary-foreground: #0E0F12;
+    --muted: #F4F4F5;
+    --muted-foreground: #71717A;
+    --accent: #F4F4F5;
+    --accent-foreground: #0E0F12;
+    --destructive: #EF4444;
+    --border: #E4E4E7;
+    --input: #E4E4E7;
+    --ring: #FFFFFF;
+    --radius: 0.75rem;
 }
 
 .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    --background: #0E0F12;
+    --foreground: #F4F4F6;
+    --card: #15161B;
+    --card-foreground: #F4F4F6;
+    --popover: #181920;
+    --popover-foreground: #F4F4F6;
+    --primary: #FFFFFF;
+    --primary-foreground: #0E0F12;
+    --secondary: #1E2028;
+    --secondary-foreground: #F4F4F6;
+    --muted: #16171E;
+    --muted-foreground: #A1A1AA;
+    --accent: #22242D;
+    --accent-foreground: #F4F4F6;
+    --destructive: #EF4444;
+    --border: rgba(255, 255, 255, 0.08);
+    --input: rgba(255, 255, 255, 0.1);
+    --ring: #FFFFFF;
+    --chart-1: #8B5CF6;
+    --chart-2: #F59E0B;
+    --chart-3: #EF4444;
+    --chart-4: #007AFF;
+    --chart-5: #10B981;
+    --sidebar: #111216;
+    --sidebar-foreground: #F4F4F6;
+    --sidebar-primary: #FFFFFF;
+    --sidebar-primary-foreground: #0E0F12;
+    --sidebar-accent: #1C1D24;
+    --sidebar-accent-foreground: #F4F4F6;
+    --sidebar-border: rgba(255, 255, 255, 0.07);
+    --sidebar-ring: #FFFFFF;
 }
 
 @layer base {
@@ -123,7 +111,14 @@
     box-sizing: border-box;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    background-color: var(--background);
+    background-image: 
+      radial-gradient(ellipse 90% 60% at 50% -15%, rgba(139, 92, 246, 0.04), transparent 70%),
+      radial-gradient(ellipse 70% 40% at 85% 15%, rgba(245, 158, 11, 0.03), transparent 60%),
+      radial-gradient(ellipse 60% 40% at 15% 85%, rgba(239, 68, 68, 0.03), transparent 60%);
+    background-attachment: fixed;
+    color: var(--foreground);
+    @apply antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
   html {
@@ -139,10 +134,199 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: oklch(1 0 0 / 14%);
+    background: rgba(255, 255, 255, 0.12);
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: oklch(1 0 0 / 28%);
+    background: rgba(255, 255, 255, 0.25);
   }
+}
+
+/* ==========================================================================
+   Google AI Studio / FAANG Multi-Color Design Tokens
+   ========================================================================== */
+
+.glass-surface {
+  background: rgba(21, 22, 27, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.6), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+.faang-card,
+.bubble-card {
+  background: rgba(21, 22, 27, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1.25rem;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.faang-card:hover,
+.bubble-card:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 14px 44px -4px rgba(0, 0, 0, 0.65), inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+}
+
+.faang-card-highlight,
+.bubble-card-highlight {
+  background: linear-gradient(180deg, rgba(139, 92, 246, 0.09) 0%, rgba(21, 22, 27, 0.85) 100%);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 1.25rem;
+  box-shadow: 0 10px 36px -4px rgba(139, 92, 246, 0.18), inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+}
+
+/* Primary High-Contrast Button (Stark Pure White on Dark) */
+.faang-btn-primary,
+.bubble-btn-primary {
+  background: #FFFFFF;
+  color: #0E0F12;
+  font-weight: 700;
+  border-radius: 9999px;
+  border: none;
+  box-shadow: 0 4px 20px rgba(255, 255, 255, 0.18);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.faang-btn-primary:hover,
+.bubble-btn-primary:hover {
+  background: #E4E4E7;
+  color: #000000;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(255, 255, 255, 0.28);
+}
+
+.faang-btn-primary:active,
+.bubble-btn-primary:active {
+  transform: scale(0.97);
+}
+
+/* Borderless & Ghost Buttons */
+.faang-btn-ghost,
+.faang-btn-borderless,
+.bubble-btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  color: #F4F4F6;
+  font-weight: 600;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.faang-btn-ghost:hover,
+.faang-btn-borderless:hover,
+.bubble-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #FFFFFF;
+  transform: translateY(-1px);
+}
+
+.faang-btn-ghost:active,
+.faang-btn-borderless:active,
+.bubble-btn-secondary:active {
+  transform: scale(0.97);
+}
+
+/* Multi-Color Action Buttons */
+.faang-btn-crimson {
+  background: #EF4444;
+  color: #FFFFFF;
+  font-weight: 700;
+  border-radius: 9999px;
+  border: none;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.faang-btn-crimson:hover {
+  background: #DC2626;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.45);
+}
+
+.faang-btn-amber {
+  background: #F59E0B;
+  color: #0E0F12;
+  font-weight: 700;
+  border-radius: 9999px;
+  border: none;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.faang-btn-amber:hover {
+  background: #D97706;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.45);
+}
+
+.faang-btn-violet {
+  background: #8B5CF6;
+  color: #FFFFFF;
+  font-weight: 700;
+  border-radius: 9999px;
+  border: none;
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.3);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.faang-btn-violet:hover {
+  background: #7C3AED;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.45);
+}
+
+/* Multi-Color Typographic Status Chips (No AI Green Dots) */
+.faang-chip,
+.bubble-pill {
+  border-radius: 9999px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.2rem 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+}
+
+.chip-crimson {
+  background: rgba(239, 68, 68, 0.12);
+  color: #FCA5A5;
+  border: 1px solid rgba(239, 68, 68, 0.28);
+}
+
+.chip-amber {
+  background: rgba(245, 158, 11, 0.12);
+  color: #FCD34D;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+}
+
+.chip-violet {
+  background: rgba(139, 92, 246, 0.12);
+  color: #C4B5FD;
+  border: 1px solid rgba(139, 92, 246, 0.28);
+}
+
+.chip-azure {
+  background: rgba(0, 122, 255, 0.12);
+  color: #93C5FD;
+  border: 1px solid rgba(0, 122, 255, 0.28);
+}
+
+.chip-emerald {
+  background: rgba(16, 185, 129, 0.12);
+  color: #6EE7B7;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+}
+
+.chip-neutral {
+  background: rgba(255, 255, 255, 0.06);
+  color: #E4E4E7;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }

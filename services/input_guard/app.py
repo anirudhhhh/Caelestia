@@ -102,9 +102,21 @@ async def check_pii(text: str, geography: str, timeout: float) -> Tuple[CheckRes
             details={"error": str(e)}
         ), []
 
-async def fetch_use_case_config(use_case: str) -> Dict[str, Any]:
+async def fetch_use_case_config(use_case: str, model: str = None) -> Dict[str, Any]:
+    client = get_http_client()
+    # 1. If specific model/endpoint is specified, check for component-level config
+    if model:
+        try:
+            resp = await client.get(f"{AUDIT_STORE_URL}/v1/configs/{model}", timeout=2.0)
+            if resp.status_code == 200:
+                cfg = resp.json()
+                if cfg.get("pii_permissions"):
+                    return cfg
+        except Exception:
+            pass
+
+    # 2. Check use_case level config
     try:
-        client = get_http_client()
         resp = await client.get(f"{AUDIT_STORE_URL}/v1/configs/{use_case}", timeout=2.0)
         if resp.status_code == 200:
             return resp.json()
@@ -176,7 +188,8 @@ async def scan_input(envelope: InteractionEnvelope):
     norm = normalize_text(text)
 
     # ── Fetch Config ────────────────────────────────────────────────────────
-    use_case_cfg = await fetch_use_case_config(envelope.use_case.value)
+    model_req = envelope.model.requested if envelope.model else None
+    use_case_cfg = await fetch_use_case_config(envelope.use_case.value, model=model_req)
 
     # ── L1: Fast Aho-Corasick Lexicon & Heuristics ──────────────────────────
     l1_res = lexicon_scanner.scan_text(text)
