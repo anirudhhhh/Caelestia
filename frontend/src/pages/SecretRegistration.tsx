@@ -79,7 +79,7 @@ export default function SecretRegistration() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="h-[calc(100vh-8.5rem)] flex flex-col gap-5 min-h-0 overflow-y-auto pr-1 pb-8">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border/40 pb-5">
         <div>
