@@ -62,14 +62,14 @@ policies:
     geography: "*"
     check: toxicity
     block_threshold: 0.80
-    flag_threshold: 0.40
+    flag_threshold: 0.60
     on_timeout: allow
 
   - use_case: "*"
     geography: "*"
     check: pii
     block_threshold: 0.75
-    flag_threshold: 0.40
+    flag_threshold: 0.50
     on_timeout: allow
 
   - use_case: "*"
@@ -82,8 +82,8 @@ policies:
   - use_case: "*"
     geography: "*"
     check: system_prompt_leakage
-    block_threshold: 0.70
-    flag_threshold: 0.40
+    block_threshold: 0.80
+    flag_threshold: 0.60
     on_timeout: block
 
   - use_case: "*"

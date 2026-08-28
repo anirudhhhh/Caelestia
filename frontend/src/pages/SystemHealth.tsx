@@ -86,7 +86,7 @@ export default function SystemHealth() {
   const overallStatus = unhealthyCount === 0 ? 'operational' : unhealthyCount <= 2 ? 'degraded' : 'critical';
 
   return (
-    <div className="space-y-6">
+    <div className="h-full w-full overflow-y-auto space-y-6 pr-2 pb-10">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

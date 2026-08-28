@@ -150,7 +150,7 @@ export default function Playground() {
         geography: geography,
         session_id: sessionId || undefined,
         endpoint_id: selectedEndpoint !== "auto" ? selectedEndpoint : undefined,
-      });
+      } as any);
 
       if (data.session_id) {
         setSessionId(data.session_id);
@@ -160,7 +160,7 @@ export default function Playground() {
 
       if (data.interaction_id) {
         try {
-          const detail = await api.getEventDetail(data.interaction_id);
+          const detail = await api.getInteraction(data.interaction_id);
           if (detail && detail.interaction) {
             syntheticEnvelope = detail.interaction;
           }
@@ -170,31 +170,23 @@ export default function Playground() {
       if (!syntheticEnvelope) {
         syntheticEnvelope = {
           interaction_id: data.interaction_id,
-          session_id: data.session_id,
+          timestamp: new Date().toISOString(),
           use_case: useCase,
           geography: geography,
           direction: "output",
           payload: { role: "assistant", content: data.content },
-          model: {
-            requested: "google/gemini-2.5-flash",
-            routed_to: data.model_used || "google/gemini-2.5-flash",
-            provider: "google",
-            temperature: 0.7,
-            max_tokens: 1024,
-          },
           decision: {
             action: data.decision?.action || "allow",
             reason: data.decision?.reason || "Request allowed by policy",
             policy_version: "v1.0.0",
-            decided_by: "policy_engine",
             confidence: data.decision?.confidence ?? 1.0,
             blocked_entities: data.blocked_pii || [],
-            warnings: data.warnings || [],
           },
           risk_assessment: {
             tier: data.risk?.tier || "low",
-            score: data.risk?.score || 0.0,
-            factors: data.risk?.factors || [],
+            confidence: data.risk?.confidence || 0.0,
+            blast_radius: "low",
+            reasoning: "Automated risk assessment",
           },
           checks: data.checks_summary || [],
           latency_breakdown: {
@@ -203,8 +195,6 @@ export default function Playground() {
             adapter: Math.max(Number(data.latency_ms) - 20, 30),
             output_guard: 8.2,
           },
-          metadata: {},
-          timestamp: new Date().toISOString(),
           warnings: data.warnings || [],
         };
       }
@@ -320,9 +310,9 @@ export default function Playground() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-[calc(100vh-8.5rem)] gap-5 min-h-0 overflow-hidden">
+    <div className="flex flex-col lg:flex-row h-full w-full gap-5 min-h-0 overflow-hidden">
       {/* Left Panel: Chat Interface */}
-      <div className="flex-1 flex flex-col min-w-0 bg-card rounded-xl border border-border/80 overflow-hidden shadow-sm">
+      <div className="flex-1 flex flex-col min-w-0 h-full bg-card rounded-xl border border-border/80 overflow-hidden shadow-sm">
         {/* Top Filter & Route Bar */}
         <div className="p-3 border-b border-border/80 bg-muted/20 flex flex-wrap gap-2.5 items-center justify-between shrink-0">
           <div className="flex flex-wrap gap-2 items-center">
@@ -569,7 +559,7 @@ export default function Playground() {
       </div>
 
       {/* Right Panel: Analysis & Inspector */}
-      <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 flex flex-col gap-3 min-h-0 overflow-y-auto pr-1">
+      <div className="w-full lg:w-[420px] xl:w-[460px] h-full shrink-0 flex flex-col gap-3 min-h-0 overflow-y-auto pr-1 pb-8">
         {!latestInteraction ? (
           <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center border border-dashed border-border/80 rounded-xl bg-card/30">
             <ShieldCheck className="h-10 w-10 mb-3 text-muted-foreground/40" />
@@ -705,7 +695,7 @@ export default function Playground() {
                           className={`h-full rounded-full transition-all duration-300 ${
                             isFail ? "bg-rose-500" : (isWarn ? "bg-amber-500" : "bg-emerald-500")
                           }`}
-                          style={{ width: `${Math.max(check.score * 100, 3)}%` }}
+                          style={{ width: `${check.score <= 0.005 ? 0 : Math.max(check.score * 100, 2)}%` }}
                         />
                       </div>
                     </div>

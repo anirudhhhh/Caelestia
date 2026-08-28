@@ -67,6 +67,18 @@ PROMPT_INJECTION_NEURAL_PATTERNS = [
 ]
 
 
+def calibrate_probability(raw_prob: float, noise_floor: float = 0.35) -> float:
+    """
+    Calibrates raw neural sequence classifier probability to remove ambient noise floor
+    and map clean benign queries to true ~0.0% confidence.
+    """
+    if raw_prob <= 0.0:
+        return 0.0
+    if raw_prob < noise_floor:
+        return (raw_prob / noise_floor) * 0.02
+    return 0.02 + ((raw_prob - noise_floor) / (1.0 - noise_floor)) * 0.98
+
+
 class ContextualToxicityClassifier:
     """Evaluates contextual toxicity using fine-tuned neural models & technical filtering."""
 
@@ -95,7 +107,7 @@ class ContextualToxicityClassifier:
         for pattern in TECHNICAL_SAFE_CONTEXTS:
             if re.search(pattern, text_lower):
                 return {
-                    "score": 0.05,
+                    "score": 0.01,
                     "verdict": "safe_technical_context",
                     "reason": "Matched technical command context (e.g. process/thread/table operation)",
                     "engine": "contextual_neural_classifier",
@@ -106,7 +118,7 @@ class ContextualToxicityClassifier:
         for pattern in POP_CULTURE_SAFE_CONTEXTS:
             if re.search(pattern, text_lower):
                 return {
-                    "score": 0.05,
+                    "score": 0.01,
                     "verdict": "safe_pop_culture_context",
                     "reason": "Matched pop-culture, media, or gaming title context (e.g. Killer Bunnies, Monty Python)",
                     "engine": "contextual_neural_classifier",
@@ -142,12 +154,14 @@ class ContextualToxicityClassifier:
         if hits:
             heuristic_score = min(0.85 + (len(hits) - 1) * 0.05, 0.98)
 
-        final_score = max(neural_score, reframed_score, heuristic_score)
+        calibrated_neural = calibrate_probability(neural_score)
+        final_score = max(calibrated_neural, reframed_score, heuristic_score)
 
         return {
             "score": round(final_score, 4),
             "verdict": "toxic" if final_score >= 0.70 else ("warn" if final_score >= 0.40 else "safe"),
             "neural_score": round(neural_score, 4),
+            "calibrated_score": round(calibrated_neural, 4),
             "engine": "contextual_neural_classifier",
             "hits": list(hits) if hits else [],
             "reframed_reason": reframed_reason,
@@ -203,12 +217,14 @@ class PromptInjectionClassifier:
                     if category not in matched_categories:
                         matched_categories.append(category)
 
-        final_score = max(neural_score, pattern_score)
+        calibrated_neural = calibrate_probability(neural_score)
+        final_score = max(calibrated_neural, pattern_score)
 
         return {
             "score": round(final_score, 4),
             "verdict": "injection_detected" if final_score >= 0.70 else ("warn" if final_score >= 0.40 else "safe"),
             "neural_score": round(neural_score, 4),
+            "calibrated_score": round(calibrated_neural, 4),
             "pattern_score": round(pattern_score, 4),
             "categories": matched_categories,
             "engine": "deberta_neural_classifier",

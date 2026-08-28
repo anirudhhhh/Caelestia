@@ -175,7 +175,7 @@ export default function HumanReview() {
   });
 
   return (
-    <div className="h-[calc(100vh-8.5rem)] flex flex-col gap-4 min-h-0 overflow-hidden">
+    <div className="h-full w-full flex flex-col gap-4 min-h-0 overflow-hidden">
       {/* Top Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 shrink-0">
         <Card 
@@ -488,7 +488,7 @@ export default function HumanReview() {
                     variant="default"
                     size="sm"
                     className="bg-emerald-600 hover:bg-emerald-500 text-white h-8 text-xs font-semibold"
-                    onClick={() => handleAction('allow')}
+                    onClick={() => handleAction('approve')}
                   >
                     <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Approve & Allow
                   </Button>

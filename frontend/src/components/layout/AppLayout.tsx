@@ -24,8 +24,8 @@ export default function AppLayout() {
   return (
     <div className="flex h-screen w-screen bg-background text-foreground overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-border/70 bg-card/60 backdrop-blur-xl flex flex-col shrink-0 z-20">
-        <div className="p-4 flex items-center justify-between border-b border-border/70 h-16">
+      <aside className="w-64 border-r border-border/70 bg-card/70 backdrop-blur-xl flex flex-col shrink-0 z-20 select-none">
+        <div className="p-4 flex items-center justify-between border-b border-border/70 h-16 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-sm">
               <ShieldCheck className="h-5 w-5" />
@@ -53,7 +53,7 @@ export default function AppLayout() {
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all group relative",
+                  "flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all group relative",
                   isActive 
                     ? "bg-primary text-primary-foreground shadow-sm font-semibold" 
                     : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
@@ -71,7 +71,7 @@ export default function AppLayout() {
           })}
         </nav>
         
-        <div className="p-3 border-t border-border/70 bg-muted/20">
+        <div className="p-3 border-t border-border/70 bg-muted/20 shrink-0">
           <div className="flex items-center justify-between px-2 py-1">
             <div className="flex items-center gap-2">
               <Radio className="h-3.5 w-3.5 text-emerald-500 animate-pulse" />
@@ -84,7 +84,7 @@ export default function AppLayout() {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-background">
-        <header className="h-16 border-b border-border/70 bg-card/40 backdrop-blur-md flex items-center justify-between px-6 shrink-0 z-10">
+        <header className="h-16 border-b border-border/70 bg-card/40 backdrop-blur-md flex items-center justify-between px-6 shrink-0 z-10 select-none">
           <div>
             <h1 className="text-base font-bold tracking-tight">
               {currentNav?.name || 'Dashboard'}
@@ -103,7 +103,8 @@ export default function AppLayout() {
           </div>
         </header>
         
-        <div className="flex-1 overflow-hidden p-6 bg-background/50">
+        {/* Full-Height Responsive Workspace Container */}
+        <div className="flex-1 min-h-0 flex flex-col p-4 lg:p-6 overflow-hidden bg-background/50">
           <Outlet />
         </div>
       </main>

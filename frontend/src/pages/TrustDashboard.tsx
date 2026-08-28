@@ -62,7 +62,7 @@ export default function TrustDashboard() {
   const noData = !stats || stats.total === 0;
 
   return (
-    <div className="space-y-6">
+    <div className="h-full w-full overflow-y-auto space-y-6 pr-2 pb-10">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

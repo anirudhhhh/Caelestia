@@ -83,7 +83,7 @@ export default function AuditTrail() {
   });
 
   return (
-    <div className="h-[calc(100vh-8.5rem)] flex flex-col gap-4 min-h-0 overflow-hidden">
+    <div className="h-full w-full flex flex-col gap-4 min-h-0 overflow-hidden">
       {/* Top Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 shrink-0">
         <Card className="border-border/80 bg-card/80 shadow-sm">
@@ -294,15 +294,15 @@ export default function AuditTrail() {
                       </TableCell>
 
                       <TableCell>
-                        {getActionBadge(event.action)}
+                        {getActionBadge((event as any).action || event.interaction?.decision?.action || 'allow')}
                       </TableCell>
 
                       <TableCell className="text-right">
                         <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-7 text-xs px-2.5">
+                          <DialogTrigger>
+                            <span className="inline-flex items-center justify-center rounded-md text-xs font-medium h-7 px-2.5 hover:bg-muted cursor-pointer">
                               View
-                            </Button>
+                            </span>
                           </DialogTrigger>
                           <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
                             <DialogHeader>

@@ -194,21 +194,22 @@ async def scan_input(envelope: InteractionEnvelope):
 
     # Combine L1 Lexicon + L2 Contextual ML + L3 Vector DB for Toxicity
     vec_tox_sim = ml_res.get("vector_toxicity_sim", 0.0)
+    vec_tox_contrib = vec_tox_sim if vec_tox_sim >= 0.70 else 0.0
     ml_tox_score = ml_res.get("toxicity_score", 0.0)
     l1_tox_score = l1_res["score"]
     
     if ml_res.get("verdict") in ("safe_technical_context", "safe_pop_culture_context"):
-        final_toxicity_score = 0.02
+        final_toxicity_score = 0.01
     else:
-        final_toxicity_score = max(l1_tox_score, ml_tox_score, vec_tox_sim)
+        final_toxicity_score = max(l1_tox_score, ml_tox_score, vec_tox_contrib)
 
     # Determine controlling layer for toxicity
-    toxicity_layer = "L3_vector_store" if vec_tox_sim >= max(l1_tox_score, ml_tox_score) else ("L2_contextual_ml" if ml_tox_score > l1_tox_score else "L1_lexicon")
+    toxicity_layer = "L3_vector_store" if vec_tox_contrib > max(l1_tox_score, ml_tox_score) else ("L2_contextual_ml" if ml_tox_score > l1_tox_score else "L1_lexicon")
 
     toxicity_check = CheckResult(
         check_name="toxicity",
         engine="aho_corasick_and_contextual_ml",
-        score=final_toxicity_score,
+        score=round(final_toxicity_score, 4),
         verdict=CheckVerdict.FAIL if final_toxicity_score >= 0.80 else (CheckVerdict.WARN if final_toxicity_score >= 0.40 else CheckVerdict.PASS),
         latency_ms=l1_res["latency_ms"] + ml_res["latency_ms"],
         layer=toxicity_layer,
@@ -223,16 +224,17 @@ async def scan_input(envelope: InteractionEnvelope):
     # Combine L1 Patterns + L2 ML + L3 Vector similarity for Prompt Injection
     fast_inj_score = max((p["score"] for p in fast_patterns if p["category"] == "prompt_injection"), default=0.0)
     vector_sim = ml_res.get("vector_similarity", 0.0)
+    vec_inj_contrib = vector_sim if vector_sim >= 0.70 else 0.0
     ml_inj_score = ml_res.get("injection_score", 0.0)
     
-    final_injection_score = max(fast_inj_score, ml_inj_score, vector_sim)
+    final_injection_score = max(fast_inj_score, ml_inj_score, vec_inj_contrib)
 
-    injection_layer = "L3_vector_store" if vector_sim >= max(fast_inj_score, ml_inj_score) else ("L2_contextual_ml" if ml_inj_score > fast_inj_score else "L1_lexicon")
+    injection_layer = "L3_vector_store" if vec_inj_contrib > max(fast_inj_score, ml_inj_score) else ("L2_contextual_ml" if ml_inj_score > fast_inj_score else "L1_lexicon")
 
     injection_check = CheckResult(
         check_name="prompt_injection",
         engine="aho_corasick_vector_deberta",
-        score=final_injection_score,
+        score=round(final_injection_score, 4),
         verdict=CheckVerdict.FAIL if final_injection_score >= 0.80 else (CheckVerdict.WARN if final_injection_score >= 0.40 else CheckVerdict.PASS),
         latency_ms=l1_res["latency_ms"] + ml_res["latency_ms"],
         layer=injection_layer,
@@ -245,7 +247,8 @@ async def scan_input(envelope: InteractionEnvelope):
 
     # Combine Deterministic Rules + Shannon Entropy + L3 Vector Secrets
     vec_sec_sim = ml_res.get("vector_secrets_sim", 0.0)
-    final_sec_score = max(secrets_res.score, vec_sec_sim)
+    vec_score_contrib = vec_sec_sim if vec_sec_sim >= 0.75 else 0.0
+    final_sec_score = max(secrets_res.score, vec_score_contrib)
     secrets_res.score = final_sec_score
     if final_sec_score >= 0.70:
         secrets_res.verdict = CheckVerdict.FAIL
@@ -254,7 +257,7 @@ async def scan_input(envelope: InteractionEnvelope):
     else:
         secrets_res.verdict = CheckVerdict.PASS
 
-    secrets_res.layer = "L3_vector_store" if vec_sec_sim > secrets_res.score else "detect_secrets"
+    secrets_res.layer = "L3_vector_store" if vec_score_contrib > secrets_res.score else "detect_secrets"
     secrets_res.details["vector_similarity"] = vec_sec_sim
 
     # Convert CheckResults to standardized Findings
