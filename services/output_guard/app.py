@@ -165,9 +165,10 @@ async def scan_output(envelope: InteractionEnvelope):
             details={"matches": l1_res["all_matches"], "ml_verdict": ml_verdict}
         )
 
+    system_prompt = envelope.metadata.get("system_prompt")
     tasks = [
         asyncio.to_thread(scan_sensitive_data, text),
-        asyncio.to_thread(scan_system_prompt_leakage, text),
+        asyncio.to_thread(scan_system_prompt_leakage, text, system_prompt),
         scan_pii(text)
     ]
     

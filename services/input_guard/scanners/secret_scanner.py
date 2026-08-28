@@ -1,15 +1,3 @@
-"""
-ControlPlane.ai — Enterprise Secret Detection Engine (§3.4 & §5.1)
-
-Combines:
-1. Registered HMAC-SHA256 Fingerprint Matching (zero raw secret storage)
-2. In-Process Gitleaks-derived Pattern Ruleset
-3. Shannon Entropy Scoring on Candidate Tokens
-4. Contextual Keyword Proximity Scoring
-5. Structural Validators (JWT, PEM, Luhn Algorithm)
-6. AST-Aware Code String Construction Unpacking
-"""
-
 import math
 import re
 from typing import List, Dict, Any, Optional, Tuple

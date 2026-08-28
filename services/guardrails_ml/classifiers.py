@@ -1,15 +1,26 @@
 """
 ControlPlane.ai — Layer 2 Contextual Neural Classifiers
 
-Evaluates contextual toxicity and prompt injection / jailbreak risk.
-Features context-aware technical disambiguation ("kill deployment" vs "kill him")
-and reframed hostility detection without explicit banned words.
+Evaluates contextual toxicity and prompt injection / jailbreak risk using:
+1. Fine-tuned PyTorch Sequence Classification Models (RoBERTa / DeBERTa / MiniLM)
+2. Context-aware technical disambiguation ("kill deployment" vs "kill him")
+3. Reframed hostility & dehumanization detection
+4. Delimiter and roleplay jailbreak detection
 """
 
 import re
 import time
+from pathlib import Path
 from typing import Dict, Any, List, Optional
+
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
 from shared.text_normalize import normalize_text
+
+MODELS_DIR = Path(__file__).parent.parent.parent / "models"
+TOXICITY_MODEL_DIR = MODELS_DIR / "toxicity_roberta"
+INJECTION_MODEL_DIR = MODELS_DIR / "prompt_injection_deberta"
 
 # Technical / Safe contextual phrases where terms like "kill", "execute", "terminate", "drop" are non-toxic
 TECHNICAL_SAFE_CONTEXTS = [
@@ -36,7 +47,7 @@ POP_CULTURE_SAFE_CONTEXTS = [
     r'\bmonty\s+python\b'
 ]
 
-# Reframed Hostility Patterns (No explicit profanity, but hateful/harassing framing)
+# Reframed Hostility Patterns
 REFRAMED_HOSTILITY_PATTERNS = [
     (r'\bpeople\s+like\s+you\s+(?:shouldn\'t|should\s+not)\s+be\s+allowed\b', 0.85, "marginalization"),
     (r'\byou\s+(?:are\s+a|are)\s+(?:parasite|cancer|disease|waste\s+of\s+oxygen)\b', 0.90, "dehumanization"),
@@ -45,7 +56,7 @@ REFRAMED_HOSTILITY_PATTERNS = [
     (r'\byour\s+kind\s+(?:does\s+not|doesn\'t)\s+belong\b', 0.85, "group_hate")
 ]
 
-# Advanced Prompt Injection & Jailbreak Neural Classifier Heuristics
+# Advanced Prompt Injection Patterns
 PROMPT_INJECTION_NEURAL_PATTERNS = [
     (r'(?:ignore|disregard|forget)\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions|prompts|rules)', 0.95, "instruction_override"),
     (r'(?:act\s+as|pretend\s+to\s+be|roleplay\s+as)\s+(?:an?\s+unfiltered|DAN|STAN|EvilAI|jailbroken|unrestricted)', 0.95, "roleplay_jailbreak"),
@@ -55,83 +66,151 @@ PROMPT_INJECTION_NEURAL_PATTERNS = [
     (r'(?:hypothetically|for\s+educational\s+purposes\s+only|in\s+a\s+fictional\s+story)\s+how\s+(?:to|can\s+I)\s+(?:make|build|create)\s+(?:a\s+bomb|poison|virus|weapon)', 0.92, "fictional_framing_bypass")
 ]
 
+
 class ContextualToxicityClassifier:
-    """Evaluates contextual toxicity with technical and pop-culture context filtering."""
+    """Evaluates contextual toxicity using fine-tuned neural models & technical filtering."""
+
+    def __init__(self):
+        self.device = torch.device("cpu")
+        self.tokenizer = None
+        self.model = None
+        self._load_model()
+
+    def _load_model(self):
+        try:
+            if TOXICITY_MODEL_DIR.exists():
+                self.tokenizer = AutoTokenizer.from_pretrained(str(TOXICITY_MODEL_DIR))
+                self.model = AutoModelForSequenceClassification.from_pretrained(str(TOXICITY_MODEL_DIR)).to(self.device)
+                self.model.eval()
+        except Exception:
+            self.tokenizer = None
+            self.model = None
 
     def predict(self, text: str) -> Dict[str, Any]:
         start = time.time()
         norm = normalize_text(text)
         text_lower = text.lower()
 
-        # 1. Check Technical Safe Contexts
+        # 1. Fast Path: Check Technical Safe Contexts
         for pattern in TECHNICAL_SAFE_CONTEXTS:
             if re.search(pattern, text_lower):
                 return {
                     "score": 0.05,
                     "verdict": "safe_technical_context",
                     "reason": "Matched technical command context (e.g. process/thread/table operation)",
+                    "engine": "contextual_neural_classifier",
                     "latency_ms": (time.time() - start) * 1000
                 }
 
-        # 2. Check Pop-Culture / Media / Gaming Safe Contexts
+        # 2. Fast Path: Check Pop-Culture / Media / Gaming Safe Contexts
         for pattern in POP_CULTURE_SAFE_CONTEXTS:
             if re.search(pattern, text_lower):
                 return {
                     "score": 0.05,
                     "verdict": "safe_pop_culture_context",
                     "reason": "Matched pop-culture, media, or gaming title context (e.g. Killer Bunnies, Monty Python)",
+                    "engine": "contextual_neural_classifier",
                     "latency_ms": (time.time() - start) * 1000
                 }
 
-        # 2. Check Reframed Hostility
+        # 3. Neural Classifier Inference
+        neural_score = 0.0
+        if self.model and self.tokenizer:
+            try:
+                inputs = self.tokenizer(text, return_tensors="pt", truncation=True, max_length=128, padding=True).to(self.device)
+                with torch.no_grad():
+                    outputs = self.model(**inputs)
+                    probs = torch.softmax(outputs.logits, dim=-1)[0]
+                    neural_score = float(probs[1].item()) if probs.shape[0] > 1 else float(probs[0].item())
+            except Exception:
+                neural_score = 0.0
+
+        # 4. Check Reframed Hostility
+        reframed_score = 0.0
+        reframed_reason = ""
         for pattern, score, category in REFRAMED_HOSTILITY_PATTERNS:
             if re.search(pattern, norm.canonical) or re.search(pattern, norm.leetspeak_normalized):
-                return {
-                    "score": score,
-                    "verdict": "toxic_reframed_hostility",
-                    "reason": f"Matched reframed hostility pattern: {category}",
-                    "latency_ms": (time.time() - start) * 1000
-                }
+                if score > reframed_score:
+                    reframed_score = score
+                    reframed_reason = f"Matched reframed hostility pattern: {category}"
 
-        # 3. Contextual Toxicity Heuristic / Classifier score
-        toxic_terms = ["kill", "murder", "hate", "rape", "die", "attack", "destroy", "abuse"]
+        # Heuristic Lexicon Fallback
+        toxic_terms = ["kill", "murder", "hate", "rape", "die", "attack", "destroy", "abuse", "trash", "idiot", "bitch", "shit", "fuck"]
         words = set(re.findall(r'\b\w+\b', norm.canonical))
         hits = words.intersection(toxic_terms)
-
-        score = 0.0
+        heuristic_score = 0.0
         if hits:
-            score = min(0.85 + (len(hits) - 1) * 0.05, 0.98)
+            heuristic_score = min(0.85 + (len(hits) - 1) * 0.05, 0.98)
+
+        final_score = max(neural_score, reframed_score, heuristic_score)
 
         return {
-            "score": round(score, 2),
-            "verdict": "toxic" if score >= 0.70 else "safe",
-            "hits": list(hits),
+            "score": round(final_score, 4),
+            "verdict": "toxic" if final_score >= 0.70 else ("warn" if final_score >= 0.40 else "safe"),
+            "neural_score": round(neural_score, 4),
+            "engine": "contextual_neural_classifier",
+            "hits": list(hits) if hits else [],
+            "reframed_reason": reframed_reason,
             "latency_ms": (time.time() - start) * 1000
         }
 
+
 class PromptInjectionClassifier:
-    """Neural & heuristic classifier for prompt injection and jailbreak attacks."""
+    """Evaluates prompt injection and jailbreak attacks using fine-tuned neural models."""
+
+    def __init__(self):
+        self.device = torch.device("cpu")
+        self.tokenizer = None
+        self.model = None
+        self._load_model()
+
+    def _load_model(self):
+        try:
+            if INJECTION_MODEL_DIR.exists():
+                self.tokenizer = AutoTokenizer.from_pretrained(str(INJECTION_MODEL_DIR))
+                self.model = AutoModelForSequenceClassification.from_pretrained(str(INJECTION_MODEL_DIR)).to(self.device)
+                self.model.eval()
+        except Exception:
+            self.tokenizer = None
+            self.model = None
 
     def predict(self, text: str) -> Dict[str, Any]:
         start = time.time()
         norm = normalize_text(text)
 
-        max_score = 0.0
-        matched_categories = []
+        # 1. Neural Classifier Inference
+        neural_score = 0.0
+        if self.model and self.tokenizer:
+            try:
+                inputs = self.tokenizer(text, return_tensors="pt", truncation=True, max_length=128, padding=True).to(self.device)
+                with torch.no_grad():
+                    outputs = self.model(**inputs)
+                    probs = torch.softmax(outputs.logits, dim=-1)[0]
+                    neural_score = float(probs[1].item()) if probs.shape[0] > 1 else float(probs[0].item())
+            except Exception:
+                neural_score = 0.0
 
+        # 2. Fast Pattern Heuristics
+        pattern_score = 0.0
+        matched_categories = []
         texts_to_check = [norm.canonical, norm.leetspeak_normalized] + norm.decoded_payloads
 
         for target_str in texts_to_check:
             for pattern, score, category in PROMPT_INJECTION_NEURAL_PATTERNS:
                 if re.search(pattern, target_str, re.IGNORECASE):
-                    if score > max_score:
-                        max_score = score
+                    if score > pattern_score:
+                        pattern_score = score
                     if category not in matched_categories:
                         matched_categories.append(category)
 
+        final_score = max(neural_score, pattern_score)
+
         return {
-            "score": round(max_score, 2),
-            "verdict": "injection_detected" if max_score >= 0.70 else "safe",
+            "score": round(final_score, 4),
+            "verdict": "injection_detected" if final_score >= 0.70 else ("warn" if final_score >= 0.40 else "safe"),
+            "neural_score": round(neural_score, 4),
+            "pattern_score": round(pattern_score, 4),
             "categories": matched_categories,
+            "engine": "deberta_neural_classifier",
             "latency_ms": (time.time() - start) * 1000
         }

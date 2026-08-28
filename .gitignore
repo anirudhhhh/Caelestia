@@ -1,4 +1,4 @@
-# ControlPlane.ai — Enterprise Git Ignore
+# ControlPlane.ai — Enterprise Production .gitignore
 
 # ─── Environment & Secrets ──────────────────────────────────────────────────
 .env
@@ -18,7 +18,18 @@ id_rsa*
 secrets/
 private/
 
-# ─── Databases & SQLite Stores (Global) ─────────────────────────────────────
+# ─── Large Model Binaries (Keep configs & metadata, ignore heavy weights) ─────
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+*.h5
+*.tflite
+!models/**/*.json
+!models/**/vocab.txt
+
+# ─── Databases & SQLite Stores ───────────────────────────────────────────────
 *.db
 *.db-journal
 *.db-wal
@@ -32,11 +43,10 @@ data/*.sqlite*
 **/data/*.db-journal
 **/data/*.db-wal
 services/*/data/
-data/immune_system.db
 services/audit_store/data/
 services/review_console/data/
 
-# ─── Python & Virtual Environments ──────────────────────────────────────────
+# ─── Python, Bytecode & Virtual Environments ────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
@@ -66,7 +76,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# ─── Logs & Temp Files ──────────────────────────────────────────────────────
+# ─── Hugging Face, Caches & Temp Files ───────────────────────────────────────
+.cache/
+hf_cache/
 *.log
 logs/
 *.out
@@ -74,7 +86,7 @@ logs/
 *.temp
 temp/
 tmp/
-files/
+/tmp/controlplane_pids.txt
 
 # ─── IDE & OS Metadata ──────────────────────────────────────────────────────
 .DS_Store

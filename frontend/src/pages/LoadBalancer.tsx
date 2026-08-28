@@ -139,7 +139,7 @@ print("Verdict:", data["decision"]["action"])
 print("Response:", data["content"])`;
 
   return (
-    <div className="space-y-6">
+    <div className="h-[calc(100vh-8.5rem)] flex flex-col gap-5 min-h-0 overflow-y-auto pr-1 pb-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

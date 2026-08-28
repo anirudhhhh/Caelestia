@@ -268,6 +268,15 @@ async def chat_completions(
         resp.raise_for_status()
         adapter_resp = resp.json()
 
+        # Extract system prompt if present
+        sys_prompt = getattr(req, "system_prompt", None)
+        if not sys_prompt:
+            for m in req.messages:
+                role_val = getattr(m, "role", None)
+                if role_val in ("system", PayloadRole.SYSTEM):
+                    sys_prompt = getattr(m, "content", "")
+                    break
+
         # 5. Output Guard
         output_envelope = InteractionEnvelope(
             interaction_id=interaction_id,
@@ -277,6 +286,7 @@ async def chat_completions(
             direction=Direction.OUTPUT,
             payload=Payload(role=PayloadRole.ASSISTANT, content=adapter_resp.get("content") or "Action executed successfully."),
             model=envelope.model,
+            metadata={"system_prompt": sys_prompt} if sys_prompt else {}
         )
 
         try:

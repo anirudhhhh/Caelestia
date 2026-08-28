@@ -1,0 +1,26 @@
+# ControlPlane.ai — Docker Build Ignore
+
+.git
+.github
+venv/
+.venv/
+env/
+frontend/node_modules/
+frontend/dist/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+logs/
+data/*.db
+data/*.sqlite*
+.DS_Store
+.idea/
+.vscode/
+.cache/
+hf_cache/
+*.safetensors

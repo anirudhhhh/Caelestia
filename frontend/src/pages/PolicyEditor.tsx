@@ -498,7 +498,7 @@ export default function PolicyEditor() {
   const hasChanges = JSON.stringify(policies) !== JSON.stringify(originalPolicies);
 
   return (
-    <div className="space-y-6">
+    <div className="h-[calc(100vh-8.5rem)] flex flex-col gap-5 min-h-0 overflow-y-auto pr-1 pb-8">
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
