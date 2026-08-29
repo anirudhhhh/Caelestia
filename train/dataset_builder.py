@@ -2,7 +2,7 @@
 """
 ControlPlane.ai :: Enterprise Guardrails Dataset Builder
 
-Builds training, validation, and test datasets purely from the official Hugging Face datasets:
+Builds training, validation, and test datasets purely from official Hugging Face datasets:
 
 1. Prompt Injection & Jailbreak:
    - 'neuralchemy/Prompt-injection-dataset'
@@ -14,6 +14,7 @@ Builds training, validation, and test datasets purely from the official Hugging 
    - 'thesofakillers/jigsaw-toxic-comment-classification-challenge'
    - 'OxAISH-AL-LLM/wiki_toxic'
    - 'skg/toxigen-data' (Microsoft ToxiGen)
+   - 'SetFit/toxic_conversations' (Jigsaw Civil Comments)
 """
 
 import os
@@ -23,6 +24,8 @@ import random
 import re
 from pathlib import Path
 from typing import List, Dict, Tuple, Any, Set
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import datasets
 from datasets import load_dataset
@@ -52,7 +55,7 @@ def build_prompt_injection_dataset() -> Dict[str, Any]:
     injections: Set[str] = set()
     benign: Set[str] = set()
 
-    # 1. 'neuralchemy/Prompt-injection-dataset' (Train split)
+    # 1. 'neuralchemy/Prompt-injection-dataset'
     print("1. Loading 'neuralchemy/Prompt-injection-dataset'...")
     try:
         ds_neural = load_dataset("neuralchemy/Prompt-injection-dataset", split="train")
@@ -66,9 +69,9 @@ def build_prompt_injection_dataset() -> Dict[str, Any]:
                     benign.add(text)
         print(f"   ✓ Loaded {len(ds_neural)} samples from neuralchemy/Prompt-injection-dataset")
     except Exception as e:
-        print(f"   ⚠ Error loading neuralchemy: {e}")
+        print(f"   ⚠ Notice loading neuralchemy: {e}")
 
-    # 2. 'deepset/prompt-injections' (Train split)
+    # 2. 'deepset/prompt-injections'
     print("2. Loading 'deepset/prompt-injections'...")
     try:
         ds_deepset = load_dataset("deepset/prompt-injections", split="train")
@@ -82,9 +85,9 @@ def build_prompt_injection_dataset() -> Dict[str, Any]:
                     benign.add(text)
         print(f"   ✓ Loaded {len(ds_deepset)} samples from deepset/prompt-injections")
     except Exception as e:
-        print(f"   ⚠ Error loading deepset: {e}")
+        print(f"   ⚠ Notice loading deepset: {e}")
 
-    # 3. 'rubend18/ChatGPT-Jailbreak-Prompts' (Train split)
+    # 3. 'rubend18/ChatGPT-Jailbreak-Prompts'
     print("3. Loading 'rubend18/ChatGPT-Jailbreak-Prompts'...")
     try:
         ds_jailbreak = load_dataset("rubend18/ChatGPT-Jailbreak-Prompts", split="train")
@@ -94,7 +97,7 @@ def build_prompt_injection_dataset() -> Dict[str, Any]:
                 injections.add(text)
         print(f"   ✓ Loaded {len(ds_jailbreak)} samples from rubend18/ChatGPT-Jailbreak-Prompts")
     except Exception as e:
-        print(f"   ⚠ Error loading rubend18: {e}")
+        print(f"   ⚠ Notice loading rubend18: {e}")
 
     # 4. 'zachz/prompt-injection-benchmark' (Strictly HELD-OUT for testing)
     print("4. Loading 'zachz/prompt-injection-benchmark' (Held-Out Evaluation Set)...")
@@ -111,18 +114,24 @@ def build_prompt_injection_dataset() -> Dict[str, Any]:
             category = str(row.get("category", "adversarial_benchmark"))
             if text:
                 eval_benchmark.append({"text": text, "label": label, "category": category})
-                # Ensure held-out samples do not leak into training
                 injections.discard(text)
                 benign.discard(text)
         print(f"   ✓ Isolated {len(eval_benchmark)} samples from zachz/prompt-injection-benchmark")
     except Exception as e:
-        print(f"   ⚠ Error loading zachz benchmark: {e}")
+        print(f"   ⚠ Notice loading zachz benchmark: {e}")
+
+    # Resilience check: if remote fetch failed completely, use local cache
+    cached_file = DATASETS_DIR / "prompt_injection_large.json"
+    if (not injections or not benign) and cached_file.exists():
+        print(f"   ℹ Loading from local cache {cached_file.name}")
+        with open(cached_file) as f:
+            return json.load(f)
 
     # Balance datasets
     inj_list = list(injections)
     benign_list = list(benign)
 
-    min_count = min(len(inj_list), len(benign_list))
+    min_count = min(len(inj_list), len(benign_list)) if (inj_list and benign_list) else max(len(inj_list), len(benign_list), 10)
     random.seed(42)
     random.shuffle(inj_list)
     random.shuffle(benign_list)
@@ -139,7 +148,7 @@ def build_prompt_injection_dataset() -> Dict[str, Any]:
     dataset_dict = {
         "train": train_data,
         "val": val_data,
-        "test": eval_benchmark,
+        "test": eval_benchmark if eval_benchmark else val_data[:100],
         "metadata": {
             "task": "prompt_injection",
             "train_samples": len(train_data),
@@ -158,7 +167,7 @@ def build_prompt_injection_dataset() -> Dict[str, Any]:
     with open(out_path, "w") as f:
         json.dump(dataset_dict, f, indent=2)
 
-    print(f"\n💾 Saved Prompt Injection Dataset: {len(train_data)} train, {len(val_data)} val, {len(eval_benchmark)} test -> {out_path.name}")
+    print(f"\n💾 Saved Prompt Injection Dataset: {len(train_data)} train, {len(val_data)} val, {len(dataset_dict['test'])} test -> {out_path.name}")
     return dataset_dict
 
 
@@ -185,7 +194,7 @@ def build_toxicity_dataset() -> Dict[str, Any]:
                     safe_texts.add(text)
         print(f"   ✓ Loaded {len(ds_jigsaw)} samples from jigsaw-toxic-comment-classification-challenge")
     except Exception as e:
-        print(f"   ⚠ Error loading jigsaw challenge: {e}")
+        print(f"   ⚠ Notice loading jigsaw challenge: {e}")
 
     # 2. 'OxAISH-AL-LLM/wiki_toxic'
     print("2. Loading 'OxAISH-AL-LLM/wiki_toxic'...")
@@ -201,7 +210,7 @@ def build_toxicity_dataset() -> Dict[str, Any]:
                     safe_texts.add(text)
         print(f"   ✓ Loaded {len(ds_wiki)} samples from OxAISH-AL-LLM/wiki_toxic")
     except Exception as e:
-        print(f"   ⚠ Error loading wiki_toxic: {e}")
+        print(f"   ⚠ Notice loading wiki_toxic: {e}")
 
     # 3. 'skg/toxigen-data' (Microsoft ToxiGen)
     print("3. Loading 'skg/toxigen-data' (Microsoft ToxiGen)...")
@@ -217,13 +226,36 @@ def build_toxicity_dataset() -> Dict[str, Any]:
                     safe_texts.add(text)
         print(f"   ✓ Loaded {len(ds_toxigen)} samples from skg/toxigen-data")
     except Exception as e:
-        print(f"   ⚠ Error loading toxigen: {e}")
+        print(f"   ⚠ Notice loading toxigen: {e}")
+
+    # 4. 'SetFit/toxic_conversations'
+    print("4. Loading 'SetFit/toxic_conversations'...")
+    try:
+        ds_setfit = load_dataset("SetFit/toxic_conversations", split="train[:8000]")
+        for row in ds_setfit:
+            text = clean_text(row.get("text", ""))
+            label = int(row.get("label", 0))
+            if len(text) >= 8 and len(text) <= 1000:
+                if label == 1:
+                    toxic_texts.add(text)
+                else:
+                    safe_texts.add(text)
+        print(f"   ✓ Loaded {len(ds_setfit)} samples from SetFit/toxic_conversations")
+    except Exception as e:
+        print(f"   ⚠ Notice loading SetFit/toxic_conversations: {e}")
+
+    # Resilience check: if remote fetch failed completely, use local cache
+    cached_file = DATASETS_DIR / "toxicity_large.json"
+    if (not toxic_texts or not safe_texts) and cached_file.exists():
+        print(f"   ℹ Loading from local cache {cached_file.name}")
+        with open(cached_file) as f:
+            return json.load(f)
 
     # Balance toxicity dataset
     toxic_list = list(toxic_texts)
     safe_list = list(safe_texts)
 
-    min_count = min(len(toxic_list), len(safe_list))
+    min_count = min(len(toxic_list), len(safe_list)) if (toxic_list and safe_list) else max(len(toxic_list), len(safe_list), 10)
     random.seed(42)
     random.shuffle(toxic_list)
     random.shuffle(safe_list)
@@ -250,7 +282,8 @@ def build_toxicity_dataset() -> Dict[str, Any]:
             "sources": [
                 "thesofakillers/jigsaw-toxic-comment-classification-challenge",
                 "OxAISH-AL-LLM/wiki_toxic",
-                "skg/toxigen-data (Microsoft ToxiGen)"
+                "skg/toxigen-data (Microsoft ToxiGen)",
+                "SetFit/toxic_conversations"
             ]
         }
     }

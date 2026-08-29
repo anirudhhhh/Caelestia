@@ -1,21 +1,21 @@
 {
   "task": "prompt_injection",
   "base_model": "sentence-transformers/all-MiniLM-L6-v2",
-  "epochs": 5,
+  "epochs": 1,
   "batch_size": 16,
   "lr": 3e-05,
   "best_metrics": {
-    "epoch": 3,
-    "val_accuracy": 0.969551282051282,
-    "val_precision": 0.9771986970684039,
-    "val_recall": 0.9615384615384616,
-    "val_f1": 0.9693053311793215,
-    "val_auc": 0.9964250493096647,
-    "val_loss": 0.04649656513554141
+    "epoch": 1,
+    "val_accuracy": 0.9631410256410257,
+    "val_precision": 0.976897689768977,
+    "val_recall": 0.9487179487179487,
+    "val_f1": 0.9626016260162602,
+    "val_auc": 0.9929117357001973,
+    "val_loss": 0.24766687972142415
   },
   "train_samples": 3534,
   "val_samples": 624,
   "test_samples": 303,
   "device": "mps",
-  "trained_at": 1788002872.4290419
+  "trained_at": 1788006097.873256
 }

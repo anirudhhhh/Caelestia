@@ -1,17 +1,11 @@
 #!/usr/bin/env python3
 """
 ControlPlane.ai :: Production Transformer Guardrails Training Engine
+Cross-Platform (macOS MPS, Arch Linux / Linux CUDA, and CPU)
 
-Trains sequence classification models using large-scale Hugging Face and curated datasets:
-- Prompt Injection & Jailbreak Classifier (DeBERTa / MiniLM)
-- Contextual Toxicity & Content Safety Classifier (RoBERTa / MiniLM)
-
-Features:
-- Automated dataset loading from data/datasets/ or Hugging Face
-- PyTorch AdamW optimizer with Cosine Annealing LR scheduler
-- Class-weighted CrossEntropyLoss for perfect precision/recall calibration
-- Device acceleration (Apple Silicon MPS / CUDA / CPU)
-- Best validation F1 checkpoint saving and metadata serialization
+Trains sequence classification models using large-scale Hugging Face datasets:
+- Prompt Injection & Jailbreak Classifier
+- Contextual Toxicity & Content Safety Classifier
 """
 
 import os
@@ -21,6 +15,8 @@ import time
 import argparse
 from pathlib import Path
 from typing import List, Dict, Tuple, Any
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -46,7 +42,7 @@ np.random.seed(42)
 class LargeScaleDataset(Dataset):
     """PyTorch Dataset wrapper with dynamic tokenization."""
     def __init__(self, data_list: List[Dict[str, Any]], tokenizer, max_length: int = 128):
-        texts = [item["text"] for item in data_list]
+        texts = [str(item["text"]) for item in data_list]
         labels = [int(item["label"]) for item in data_list]
         self.encodings = tokenizer(
             texts,
@@ -67,12 +63,13 @@ class LargeScaleDataset(Dataset):
 
 
 def get_device(requested: str = "auto") -> torch.device:
+    """Detects available acceleration hardware across macOS (MPS), Linux (CUDA), and CPU."""
     if requested != "auto":
         return torch.device(requested)
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
     if torch.cuda.is_available():
         return torch.device("cuda")
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available() and torch.backends.mps.is_built():
+        return torch.device("mps")
     return torch.device("cpu")
 
 
@@ -117,7 +114,7 @@ def train_task(
     val_data = data["val"]
     test_data = data["test"]
 
-    print(f"   Dataset Loaded: {len(train_data)} train, {len(val_data)} validation, {len(test_data)} test samples")
+    print(f"   Dataset Loaded: {len(train_data)} train, {len(val_data)} validation, {len(test_data)} test samples", flush=True)
 
     tokenizer = AutoTokenizer.from_pretrained(base_model_name)
     model = AutoModelForSequenceClassification.from_pretrained(base_model_name, num_labels=2).to(device)
@@ -128,11 +125,11 @@ def train_task(
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_ds, batch_size=batch_size * 2, shuffle=False)
 
-    # Class weight calculation for balanced gradient updates
+    # Dynamic class weight calculation for balanced gradient updates
     labels_arr = np.array([item["label"] for item in train_data])
-    pos_count = np.sum(labels_arr == 1)
-    neg_count = np.sum(labels_arr == 0)
-    pos_weight = float(neg_count / max(pos_count, 1))
+    pos_count = max(int(np.sum(labels_arr == 1)), 1)
+    neg_count = max(int(np.sum(labels_arr == 0)), 1)
+    pos_weight = float(neg_count / pos_count)
     class_weights = torch.tensor([1.0, pos_weight], dtype=torch.float).to(device)
     criterion = torch.nn.CrossEntropyLoss(weight=class_weights)
 
@@ -195,7 +192,7 @@ def train_task(
         current_lr = scheduler.get_last_lr()[0]
         print(f"   Epoch {epoch:02d}/{epochs:02d} | Train Loss: {avg_train_loss:.4f} | Val Acc: {acc*100:.1f}% | Prec: {precision*100:.1f}% | Rec: {recall*100:.1f}% | F1: {f1:.4f} | AUC: {auc:.4f} | LR: {current_lr:.2e}", flush=True)
 
-        if f1 >= best_val_f1:
+        if f1 >= best_val_f1 or epoch == 1:
             best_val_f1 = f1
             best_metrics = {
                 "epoch": epoch,
@@ -212,8 +209,8 @@ def train_task(
             tokenizer.save_pretrained(str(save_path))
 
     elapsed = time.time() - start_train_time
-    print(f"✔ Completed {task_name.upper()} in {elapsed:.1f}s (Best Val F1: {best_val_f1:.4f})")
-    print(f"  Checkpoint saved to: {save_path}")
+    print(f"✔ Completed {task_name.upper()} in {elapsed:.1f}s (Best Val F1: {best_val_f1:.4f})", flush=True)
+    print(f"  Checkpoint saved to: {save_path}", flush=True)
 
     # Write training metadata
     meta = {
@@ -233,6 +230,42 @@ def train_task(
         json.dump(meta, f, indent=2)
 
     return meta
+
+
+def run_all_training(
+    epochs: int = 5,
+    batch_size: int = 16,
+    lr: float = 3e-5,
+    model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+    device_name: str = "auto"
+) -> Dict[str, Any]:
+    """Executes training for both guardrail models."""
+    device = get_device(device_name)
+    results = {}
+
+    inj_path = MODELS_DIR / "prompt_injection_deberta"
+    results["prompt_injection"] = train_task(
+        task_name="prompt_injection",
+        base_model_name=model_name,
+        save_path=inj_path,
+        device=device,
+        epochs=epochs,
+        batch_size=batch_size,
+        lr=lr
+    )
+
+    tox_path = MODELS_DIR / "toxicity_roberta"
+    results["toxicity"] = train_task(
+        task_name="toxicity",
+        base_model_name=model_name,
+        save_path=tox_path,
+        device=device,
+        epochs=epochs,
+        batch_size=batch_size,
+        lr=lr
+    )
+
+    return results
 
 
 def main():
