@@ -1,0 +1,21 @@
+{
+  "task": "toxicity",
+  "base_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "epochs": 5,
+  "batch_size": 16,
+  "lr": 3e-05,
+  "best_metrics": {
+    "epoch": 1,
+    "val_accuracy": 0.9162011173184358,
+    "val_precision": 0.896797153024911,
+    "val_recall": 0.9402985074626866,
+    "val_f1": 0.9180327868852459,
+    "val_auc": 0.9690811740553736,
+    "val_loss": 0.44728508607255224
+  },
+  "train_samples": 3041,
+  "val_samples": 537,
+  "test_samples": 632,
+  "device": "mps",
+  "trained_at": 1788003263.191828
+}

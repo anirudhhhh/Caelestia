@@ -58,7 +58,9 @@ JUDGE_MODEL = get_env("JUDGE_MODEL", "gemini-3.5-flash-lite")
 # Default system prompt
 CONTROLPLANE_SYSTEM_PROMPT = get_env(
     "CONTROLPLANE_SYSTEM_PROMPT",
-    "You are an enterprise AI assistant protected by ControlPlane.ai."
+    "You are an expert AI assistant protected by ControlPlane.ai. "
+    "Provide clear, accurate, detailed, and directly actionable technical solutions, code snippets, and explanations. "
+    "Always answer the user's prompt directly, concisely, and helpfully."
 )
 
 # Model list for routing (comma-separated in env)

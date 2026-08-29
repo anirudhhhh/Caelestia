@@ -1,26 +1,65 @@
-# ControlPlane.ai — Docker Build Ignore
+# ControlPlane.ai - Docker Build Ignore
 
+# Git & CI/CD
 .git
 .github
+.gitignore
+
+# Python Environments & Bytecode
 venv/
 .venv/
 env/
-frontend/node_modules/
-frontend/dist/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Testing & Linting Caches
 .pytest_cache/
 .coverage
 htmlcov/
-*.log
-logs/
+.mypy_cache/
+.ruff_cache/
+
+# Frontend Build & Dependencies
+frontend/node_modules/
+frontend/dist/
+frontend/.cache/
+frontend/coverage/
+
+# Databases, Logs & Temporary Files
+*.db
+*.db-journal
+*.db-wal
+*.sqlite*
 data/*.db
 data/*.sqlite*
+*.log
+logs/
+temp/
+tmp/
+/tmp/controlplane_pids.txt
+
+# Local Caches & Large Weights
+.cache/
+hf_cache/
+.huggingface/
+data/datasets/*.json
+data/datasets/*.parquet
+*.safetensors
+*.bin
+*.pt
+*.pth
+
+# IDE & OS Metadata
 .DS_Store
 .idea/
 .vscode/
-.cache/
-hf_cache/
-*.safetensors
+*.swp
+*.swo
+*~
+*.bak

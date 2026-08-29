@@ -1,5 +1,3 @@
-version: '3.8'
-
 x-env-defaults: &env-defaults
   GATEWAY_URL: http://gateway:8000
   INPUT_GUARD_URL: http://input_guard:8001

@@ -1,7 +1,7 @@
 [project]
 name = "controlplane-ai"
 version = "0.1.0"
-description = "ControlPlane.ai — Responsible AI Control Plane Middleware"
+description = "ControlPlane.ai - Responsible AI Control Plane Middleware"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -20,7 +20,6 @@ dependencies = [
     "aiosqlite>=0.20.0",
 
     # Guardrail libraries
-    "llm-guard>=0.3.0",
     "detect-secrets>=1.4.0",
 
     # PII detection
@@ -28,18 +27,20 @@ dependencies = [
     "presidio-anonymizer>=2.2.0",
     "spacy>=3.7.0",
 
-    # LLM providers
-    "litellm>=1.40.0",
-    "openai>=1.30.0",
-    "google-generativeai>=0.8.0",
-
-    # Semantic routing
+    # ML Training, Classification & Embeddings
+    "torch>=2.4.0",
+    "transformers>=4.44.0",
     "sentence-transformers>=3.0.0",
+    "scikit-learn>=1.5.0",
     "numpy>=1.26.0",
+    "datasets>=3.0.0",
+    "huggingface-hub[cli]>=0.25.0",
+    "pandas>=2.0.0",
 
     # Utilities
     "pyyaml>=6.0",
     "redis>=5.0.0",
+    "tqdm>=4.66.0",
 ]
 
 [project.optional-dependencies]
@@ -58,4 +59,4 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [tool.setuptools.packages.find]
-include = ["services*", "shared*"]
+include = ["services*", "shared*", "train*"]

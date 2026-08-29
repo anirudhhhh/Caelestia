@@ -1,4 +1,4 @@
-# ControlPlane.ai — Unified Microservice Dockerfile
+# ControlPlane.ai - Unified Microservice Dockerfile
 FROM python:3.12-slim
 
 # Install system dependencies
@@ -25,9 +25,10 @@ COPY shared/ /app/shared/
 COPY policies/ /app/policies/
 COPY services/ /app/services/
 COPY models/ /app/models/
+COPY train/ /app/train/
 
 # Create data directory
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data /app/data/datasets
 
 ENV PYTHONPATH=/app \
     PYTHONUNBUFFERED=1

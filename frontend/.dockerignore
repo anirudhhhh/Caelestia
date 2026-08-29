@@ -1,0 +1,17 @@
+# ControlPlane.ai - Frontend Docker Build Ignore
+
+node_modules/
+dist/
+.cache/
+coverage/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.bak

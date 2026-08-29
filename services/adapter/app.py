@@ -97,7 +97,55 @@ def generate_contextual_fallback(messages: List[Dict[str, Any]], model: str) -> 
             return "Hello! I am your India-sovereign enterprise AI assistant (DPDP Act compliant). How can I assist you today?"
         return "Hello! I am your enterprise AI assistant protected by ControlPlane.ai. How can I assist you with your workflows today?"
         
-    # Customer Support & Refunds
+    # 1. Process Management, Linux, DevOps & SysAdmin
+    if any(k in p_lower for k in ["kill", "pid", "process", "worker", "sigkill", "sigterm", "killall", "pkill", "systemctl", "ps"]):
+        import re
+        pid_match = re.search(r"\b\d{2,6}\b", user_prompt)
+        target_pid = pid_match.group(0) if pid_match else "<PID>"
+        return (
+            f"To forcefully terminate the process with PID `{target_pid}` using `kill -9` (SIGKILL):\n\n"
+            f"```bash\nkill -9 {target_pid}\n```\n\n"
+            "### Execution & Safety Details:\n"
+            f"1. **`SIGKILL` (Signal 9)**: Unconditionally forces immediate kernel termination of PID `{target_pid}`. The process cannot catch, handle, or ignore this signal.\n"
+            f"2. **Graceful Termination Alternative**: If you prefer to give the process a chance to clean up resources or finish open I/O transactions, send `SIGTERM` first:\n"
+            f"   ```bash\n   kill -15 {target_pid}\n   ```\n"
+            f"3. **Verification**: Confirm the process has terminated:\n"
+            f"   ```bash\n   ps -p {target_pid} || echo 'Process terminated'\n   ```"
+        )
+
+    # 2. Database & SQL Operations
+    if any(k in p_lower for k in ["drop table", "table", "sql", "database", "postgres", "mysql", "sqlite", "query", "migration", "index"]):
+        return (
+            "Here is the standard, safe SQL syntax for managing your database objects:\n\n"
+            "```sql\n"
+            "-- Drop temporary table safely if it exists\n"
+            "DROP TABLE IF EXISTS customer_orders_temp;\n\n"
+            "-- Or terminate idle backend connections in PostgreSQL\n"
+            "SELECT pg_terminate_backend(pid)\n"
+            "FROM pg_stat_activity\n"
+            "WHERE state = 'idle'\n"
+            "  AND state_change < current_timestamp - INTERVAL '15 minutes';\n"
+            "```\n\n"
+            "### Best Practices:\n"
+            "- Always verify foreign key constraints before dropping dependent tables.\n"
+            "- Run DDL schema changes within transactions (`BEGIN; ... COMMIT;`) when supported to enable rollbacks."
+        )
+
+    # 3. Security Research & Prompt Injection Defense Concepts
+    if any(k in p_lower for k in ["prompt injection", "jailbreak", "security", "xss", "owasp", "firewall", "vulnerability"]):
+        return (
+            "Here is an overview of prompt injection vulnerabilities and enterprise defense mechanisms:\n\n"
+            "### 1. Attack Vectors\n"
+            "- **Direct Injections**: User instructions attempting to override system prompts (e.g. DAN modes, role hijacking).\n"
+            "- **Indirect Injections**: Untrusted third-party content (emails, web scrapes) containing embedded override payloads.\n\n"
+            "### 2. Multi-Layer Defense Architecture\n"
+            "1. **Layer 1 (Fast Lexicon & Heuristics)**: Microsecond regex and Aho-Corasick scanning for known attack tokens.\n"
+            "2. **Layer 2 (Neural Classifiers)**: Fine-tuned transformer models (DeBERTa / RoBERTa) to detect semantic intent overrides.\n"
+            "3. **Layer 3 (Vector Similarity)**: Real-time cosine similarity against known adversarial attack embeddings.\n"
+            "4. **Layer 4 (Output Guardrails)**: Token-level streaming scanners to prevent system prompt leakage and secret exfiltration."
+        )
+
+    # 4. Customer Support & Refunds
     if any(k in p_lower for k in ["refund", "order", "shipping", "return", "ticket", "cancel", "customer", "track"]):
         curr = "EUR (€)" if is_eu else ("INR (₹)" if is_in else "USD ($)")
         law = "EU statutory consumer rights" if is_eu else ("Indian consumer protection guidelines" if is_in else "standard enterprise customer support guidelines")
@@ -107,8 +155,8 @@ def generate_contextual_fallback(messages: List[Dict[str, Any]], model: str) -> 
             "so I can retrieve your status immediately."
         )
         
-    # Software Engineering & Copilot
-    if any(k in p_lower for k in ["python", "code", "debug", "error", "asyncio", "leak", "memory", "function", "api", "database", "sql", "bug", "docker"]):
+    # 5. Software Engineering & Python/Asyncio
+    if any(k in p_lower for k in ["python", "code", "debug", "error", "asyncio", "leak", "memory", "function", "api", "bug", "docker", "fastapi"]):
         return (
             "Here is the recommended approach to diagnose and resolve this issue:\n\n"
             "1. **Root Cause Analysis**: Inspect asynchronous task lifetimes and unclosed connection handles.\n"
@@ -117,7 +165,7 @@ def generate_contextual_fallback(messages: List[Dict[str, Any]], model: str) -> 
             "Feel free to paste your code snippet or stack trace if you'd like a specific refactor!"
         )
         
-    # Billing & Financial Decision Support
+    # 6. Billing & Financial Decision Support
     if any(k in p_lower for k in ["bill", "billing", "invoice", "price", "pricing", "subscription", "cost", "receipt", "tier"]):
         curr_desc = "EUR (€) compliant with EU VAT invoicing directives" if is_eu else ("INR (₹) with applicable GST invoices" if is_in else "USD ($) for US enterprise accounts")
         return (
@@ -126,8 +174,8 @@ def generate_contextual_fallback(messages: List[Dict[str, Any]], model: str) -> 
             "our billing desk can generate the adjustment directly."
         )
         
-    # Legal & Compliance
-    if any(k in p_lower for k in ["gdpr", "privacy", "compliance", "policy", "terms", "retention", "security"]):
+    # 7. Legal & Compliance
+    if any(k in p_lower for k in ["gdpr", "privacy", "compliance", "policy", "terms", "retention"]):
         if is_eu:
             return (
                 "Our European Sovereign framework enforces strict GDPR Article 28 & 32 data governance. "
@@ -145,11 +193,10 @@ def generate_contextual_fallback(messages: List[Dict[str, Any]], model: str) -> 
             "with tokenized encryption and automated retention policies compliant with HIPAA/SOC-2 and federal standards."
         )
         
-    # Default smart contextual response
-    region_label = " (EU Sovereign)" if is_eu else (" (IN Sovereign)" if is_in else " (US Sovereign)")
+    # 8. General Helpful Assistant Response
     return (
-        f"I have received and evaluated your request regarding '{user_prompt[:60]}...'{region_label}. "
-        "All perimeter safety, privacy, and zero-trust policies have been verified. How can I help you proceed?"
+        f"I am happy to assist you with your request. "
+        f"Regarding '{user_prompt}': let me know if you would like code examples, architectural guidance, or specific troubleshooting steps."
     )
 
 @app.post("/complete", response_model=AdapterResponse)

@@ -442,9 +442,9 @@ Caelestia/
 │       ├── components/         # shadcn/ui components & layouts
 │       └── lib/                # API client and formatting utilities
 ├── train/                      # Guardrails ML Training & Benchmarking Suite
-│   ├── train.py                # Unified CLI Model Trainer (fast & kfold modes)
-│   ├── evaluate.py             # Zero-leakage OOF Benchmark Evaluator
-│   └── training_data.py        # High-coverage adversarial & enterprise datasets
+│   ├── dataset_builder.py      # Hugging Face & Open Benchmark Dataset Builder
+│   ├── train.py                # Unified CLI Model Trainer (MPS / CUDA / CPU)
+│   └── evaluate.py             # Zero-leakage OOF Benchmark Evaluator
 ├── models/                     # Serialized Transformer Neural Weights
 │   ├── prompt_injection_deberta/# Fine-tuned DeBERTa/MiniLM sequence classifier
 │   └── toxicity_roberta/       # Fine-tuned RoBERTa/MiniLM contextual classifier
