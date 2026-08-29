@@ -1,5 +1,5 @@
 """
-ControlPlane.ai — High-Coverage Benchmark & Training Datasets
+ControlPlane.ai :: High-Coverage Benchmark & Training Datasets
 
 Contains extensive real-world curated samples for:
 1. Adversarial Prompt Injection & Jailbreak Detection (with hard benign enterprise negatives)

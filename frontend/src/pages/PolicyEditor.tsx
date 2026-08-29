@@ -16,11 +16,6 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { PolicyRule, ThresholdProposal } from '@/types';
 import { api } from '@/lib/api';
-import SpotlightCard from '@/components/reactbits/SpotlightCard';
-import BorderBeam from '@/components/reactbits/BorderBeam';
-import Magnet from '@/components/reactbits/Magnet';
-import DecryptedText from '@/components/reactbits/DecryptedText';
-import AnimatedList from '@/components/reactbits/AnimatedList';
 
 const AVAILABLE_CHECKS = [
   'toxicity',
@@ -667,9 +662,9 @@ export default function PolicyEditor() {
             const colorClass = accentColors[pIdx % accentColors.length];
 
             return (
-              <SpotlightCard 
+              <div 
                 key={preset.name}
-                className="p-3.5 rounded-xl border border-white/[0.06] bg-white/[0.015] hover:bg-white/[0.04] transition-all flex flex-col justify-between gap-3 cursor-pointer group shadow-sm"
+                className="p-3 rounded-lg border-t border-b border-white/[0.05] bg-white/[0.015] hover:bg-white/[0.04] transition-all flex flex-col justify-between gap-3 cursor-pointer group"
                 onClick={() => handleApplyPreset(preset)}
               >
                 <div className="space-y-1.5">
@@ -684,7 +679,7 @@ export default function PolicyEditor() {
                 <button type="button" className="faang-btn-ghost h-6.5 text-[11px] w-full font-bold text-zinc-300 group-hover:text-white rounded-full">
                   Apply Preset
                 </button>
-              </SpotlightCard>
+              </div>
             );
           })}
         </div>
