@@ -235,10 +235,14 @@ export default function Playground() {
       const resolvedWfId = data.workflow_id || selectedEndpoint;
       (syntheticEnvelope as any).workflow_name = resolvedWfName;
       (syntheticEnvelope as any).workflow_id = resolvedWfId;
-      (syntheticEnvelope as any).model_used = data.model_used || "gemini-3.5-flash-lite";
+      (syntheticEnvelope as any).model_used = data.model_used || "gemini-2.5-flash";
       (syntheticEnvelope as any).routing_trace = data.routing_trace || [];
 
       setLatestInteraction(syntheticEnvelope);
+
+      const currentWfName = data.workflow_name || data.workflow || resolvedWfName;
+      const currentWfId = data.workflow_id || resolvedWfId;
+      const currentModel = data.model_used || "gemini-2.5-flash";
 
       if (data.decision && data.decision.action === "block") {
         setMessages((prev) => [
@@ -248,6 +252,9 @@ export default function Playground() {
             content: (data.content ? `[Original Response]: ${data.content}\n\n` : "") + (data.decision?.reason || "Request blocked by enterprise security guardrails."),
             action: "block",
             interaction_id: data.interaction_id,
+            workflow_name: currentWfName,
+            workflow_id: currentWfId,
+            model_used: currentModel,
             reason: data.decision?.reason,
           },
         ]);
@@ -259,6 +266,9 @@ export default function Playground() {
             content: (data.content ? `[Original Response]: ${data.content}\n\n` : "") + "Your request flagged perimeter security policies and has been queued for Human Review. Waiting for reviewer verdict...",
             action: "escalate",
             interaction_id: data.interaction_id,
+            workflow_name: currentWfName,
+            workflow_id: currentWfId,
+            model_used: currentModel,
             reason: data.decision?.reason,
           },
         ]);
@@ -273,6 +283,9 @@ export default function Playground() {
             content: data.content,
             action: (data.decision?.action as any) || "allow",
             interaction_id: data.interaction_id,
+            workflow_name: currentWfName,
+            workflow_id: currentWfId,
+            model_used: currentModel,
             payload: { role: "assistant", content: data.content },
           },
         ]);
@@ -515,10 +528,21 @@ export default function Playground() {
                       isUser ? "items-end" : "items-start"
                     )}
                   >
-                    <div className="flex items-center gap-2 px-1">
+                    <div className="flex flex-wrap items-center gap-1.5 px-1">
                       <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400">
                         {isUser ? "Operator Input" : "Guardrail Engine"}
                       </span>
+                      {!isUser && (msg.workflow_name || (latestInteraction as any)?.workflow_name) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-white text-zinc-800 border border-black/10 shadow-xs">
+                          <Bot className="h-2.5 w-2.5 text-amber-500" />
+                          <span>{msg.workflow_name || (latestInteraction as any)?.workflow_name}</span>
+                        </span>
+                      )}
+                      {!isUser && (msg.model_used || (latestInteraction as any)?.model_used) && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-mono text-zinc-500 bg-black/5">
+                          {msg.model_used || (latestInteraction as any)?.model_used}
+                        </span>
+                      )}
                       {msg.action && (
                         <span className={cn(
                           "px-2 py-0.5 rounded-full text-[9px] font-black uppercase",
@@ -626,6 +650,56 @@ export default function Playground() {
           "w-full lg:w-[420px] flex flex-col gap-4 min-h-0 overflow-y-auto shrink-0",
           mobileTab === 'chat' ? "hidden lg:flex" : "flex"
         )}>
+          {/* Active Enterprise Workflow & Routing Card */}
+          <div className="bento-card p-5 sm:p-6 space-y-3.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] uppercase font-extrabold tracking-wider text-zinc-400">
+                  Active Workflow Route
+                </span>
+                <h4 className="text-base font-extrabold text-[#212328] mt-0.5 flex items-center gap-2">
+                  <Bot className="h-4 w-4 text-amber-500 shrink-0" />
+                  <span>{(latestInteraction as any)?.workflow_name || "Customer Support & Success"}</span>
+                </h4>
+              </div>
+              <span className="stat-pill bg-[#212328] text-white text-[9px]">ACTIVE</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-[11px] font-bold">
+              <div className="p-2.5 rounded-2xl bg-[#FAF8F5]">
+                <span className="text-[10px] text-zinc-400 block uppercase">Target Model</span>
+                <span className="text-[#212328] font-mono block truncate">{(latestInteraction as any)?.model_used || "gemini-2.5-flash"}</span>
+              </div>
+              <div className="p-2.5 rounded-2xl bg-[#FAF8F5]">
+                <span className="text-[10px] text-zinc-400 block uppercase">Vector Match Score</span>
+                <span className="text-emerald-700 font-mono block">
+                  {((latestInteraction as any)?.routing_trace?.[0]?.score ? `${(((latestInteraction as any).routing_trace[0].score) * 100).toFixed(1)}%` : "Direct Match")}
+                </span>
+              </div>
+            </div>
+
+            {/* Candidate Workflow Trace Matrix */}
+            {(latestInteraction as any)?.routing_trace && (latestInteraction as any).routing_trace.length > 0 && (
+              <div className="pt-2 border-t border-black/5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-zinc-400">Vector Routing Trace:</span>
+                  <span className="text-[9px] font-mono text-zinc-400">384-d Pinecone DB</span>
+                </div>
+                <div className="space-y-1">
+                  {(latestInteraction as any).routing_trace.slice(0, 3).map((route: any, rIdx: number) => (
+                    <div key={rIdx} className={cn(
+                      "p-2 rounded-xl text-[10px] flex items-center justify-between font-mono",
+                      rIdx === 0 ? "bg-emerald-50 text-emerald-950 border border-emerald-200 font-bold" : "bg-[#FAF8F5] text-zinc-600"
+                    )}>
+                      <span className="truncate max-w-[200px]">{route.name}</span>
+                      <span className="font-bold">{(route.score * 100).toFixed(1)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Decision & Risk Overview Card */}
           <div className="bento-card p-5 sm:p-6 space-y-4">
             <div className="flex items-center justify-between">

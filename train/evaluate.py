@@ -39,7 +39,7 @@ INJECTION_MODEL_DIR = MODELS_DIR / "prompt_injection_deberta"
 TOXICITY_MODEL_DIR = MODELS_DIR / "toxicity_roberta"
 
 
-def load_model(model_dir: Path, fallback_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
+def load_model(model_dir: Path, fallback_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"):
     device = torch.device("cpu")
     target = str(model_dir) if model_dir.exists() else fallback_name
     tokenizer = AutoTokenizer.from_pretrained(target)

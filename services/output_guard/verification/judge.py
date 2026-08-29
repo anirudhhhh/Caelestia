@@ -30,12 +30,12 @@ async def verify_hallucination(text: str, context: str = "") -> CheckResult:
     """
 
     # Primary: Direct Google Gemini API
-    if GEMINI_API_KEY:
         candidate_judge_models = [
-            "gemini-3.5-flash-lite",
-            "gemini-3.1-flash-lite",
-            "gemini-flash-lite-latest",
-            "gemini-3.6-flash"
+            JUDGE_MODEL,
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro"
         ]
         for judge_model in candidate_judge_models:
             try:

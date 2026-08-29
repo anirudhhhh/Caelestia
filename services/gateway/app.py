@@ -398,13 +398,27 @@ async def chat_completions(
             workflow_id = top_route.get("endpoint")
             workflow_name = top_route.get("name")
 
+        wf_id_resolved = workflow_id or _enum_val(req.use_case)
+        wf_name_resolved = workflow_name or _enum_val(req.use_case).replace("_", " ").title()
+        selected_workflow_dict = {
+            "id": wf_id_resolved,
+            "name": wf_name_resolved,
+            "model": output_envelope.model.routed_to or routed_model,
+            "use_case": _enum_val(req.use_case),
+            "geography": _enum_val(req.geography)
+        }
+
+        logger.info(f"[{interaction_id}] [STEP 6/6] Final Governance Response Packaged | decision={combined_action} workflow={wf_name_resolved} model={output_envelope.model.routed_to or routed_model} latency={latency:.1f}ms")
+
         response = ChatResponse(
             interaction_id=interaction_id,
             session_id=session_id,
             content=final_content,
             model_used=output_envelope.model.routed_to or routed_model,
-            workflow_id=workflow_id,
-            workflow_name=workflow_name,
+            workflow_id=wf_id_resolved,
+            workflow_name=wf_name_resolved,
+            selected_workflow=selected_workflow_dict,
+            workflow=wf_name_resolved,
             routing_trace=routing_trace,
             decision=combined_decision,
             checks_summary=combined_checks,

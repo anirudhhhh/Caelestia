@@ -2,6 +2,7 @@
 """
 ControlPlane.ai :: Production Transformer Guardrails Training Engine
 Cross-Platform (macOS MPS, Arch Linux / Linux CUDA, and CPU)
+Multilingual Architecture Support (English, German, French, Spanish, Hindi, Italian, etc.)
 
 Trains sequence classification models using large-scale Hugging Face datasets:
 - Prompt Injection & Jailbreak Classifier
@@ -236,7 +237,7 @@ def run_all_training(
     epochs: int = 5,
     batch_size: int = 16,
     lr: float = 3e-5,
-    model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+    model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     device_name: str = "auto"
 ) -> Dict[str, Any]:
     """Executes training for both guardrail models."""
@@ -274,14 +275,15 @@ def main():
     parser.add_argument("--epochs", type=int, default=5, help="Number of epochs")
     parser.add_argument("--batch-size", type=int, default=16, help="Batch size")
     parser.add_argument("--lr", type=float, default=3e-5, help="Learning rate")
-    parser.add_argument("--model", type=str, default="sentence-transformers/all-MiniLM-L6-v2", help="Transformer architecture")
+    parser.add_argument("--model", type=str, default="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2", help="Transformer architecture")
+    parser.add_argument("--multilingual", action="store_true", default=True, help="Enable multilingual transformer architecture")
     parser.add_argument("--device", type=str, default="auto", help="Hardware device (auto, cpu, mps, cuda)")
 
     args = parser.parse_args()
     device = get_device(args.device)
 
     print("=" * 80)
-    print("🎯 CONTROLPANE.AI :: PRODUCTION GUARDRAILS ML TRAINING PIPELINE")
+    print("🎯 CONTROLPANE.AI :: PRODUCTION GUARDRAILS ML TRAINING PIPELINE (MULTILINGUAL)")
     print(f"   Task: {args.task.upper()} | Base Architecture: {args.model} | Device: {str(device).upper()}")
     print("=" * 80)
 

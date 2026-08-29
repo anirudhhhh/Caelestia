@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-ControlPlane.ai :: Unified End-to-End ML Pipeline
+ControlPlane.ai :: Unified End-to-End ML Pipeline (Multilingual)
 Cross-Platform (macOS MPS, Arch Linux / Ubuntu Linux CUDA, CPU)
 
 Executes the complete machine learning lifecycle in 1 single command:
-1. Step 1: Download & Build Pure Hugging Face Datasets (Zero Hardcoded Arrays)
+1. Step 1: Download & Build Multilingual Hugging Face Datasets
 2. Step 2: Train Both Neural Classifiers (Prompt Injection & Contextual Toxicity)
 3. Step 3: Run Zero-Leakage Benchmark Evaluation & Output Calibration Metrics
 
@@ -34,7 +34,7 @@ def run_pipeline(
     epochs: int = 5,
     batch_size: int = 16,
     lr: float = 3e-5,
-    model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+    model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     device_name: str = "auto",
     skip_dataset_build: bool = False
 ):
@@ -42,7 +42,7 @@ def run_pipeline(
     device = get_device(device_name)
 
     print("=" * 80)
-    print("🚀 CONTROLPANE.AI — UNIFIED ML PIPELINE (BUILD + TRAIN + EVAL)")
+    print("🚀 CONTROLPANE.AI — UNIFIED MULTILINGUAL ML PIPELINE (BUILD + TRAIN + EVAL)")
     print(f"   Architecture: {model_name} | Device: {str(device).upper()} | Epochs: {epochs} | Batch: {batch_size}")
     print("=" * 80)
 
@@ -50,7 +50,7 @@ def run_pipeline(
     # STEP 1: DATASET BUILD & PREPARATION
     # ──────────────────────────────────────────────────────────────────────────
     if not skip_dataset_build:
-        print("\n[STEP 1/3] Downloading & Compiling Hugging Face Datasets...")
+        print("\n[STEP 1/3] Downloading & Compiling Multilingual Hugging Face Datasets...")
         build_prompt_injection_dataset()
         build_toxicity_dataset()
     else:
@@ -59,7 +59,7 @@ def run_pipeline(
     # ──────────────────────────────────────────────────────────────────────────
     # STEP 2: MODEL TRAINING & CHECKPOINT SERIALIZATION
     # ──────────────────────────────────────────────────────────────────────────
-    print("\n[STEP 2/3] Training Production Neural Classifiers...")
+    print("\n[STEP 2/3] Training Production Multilingual Neural Classifiers...")
     training_results = run_all_training(
         epochs=epochs,
         batch_size=batch_size,
@@ -76,7 +76,7 @@ def run_pipeline(
 
     total_elapsed = time.time() - total_start
     print("\n" + "=" * 80)
-    print(f"🎉 COMPLETE PIPELINE FINISHED IN {total_elapsed:.1f}s WITH ZERO ERRORS!")
+    print(f"🎉 COMPLETE MULTILINGUAL PIPELINE FINISHED IN {total_elapsed:.1f}s WITH ZERO ERRORS!")
     print("   Models serialized to: models/prompt_injection_deberta & models/toxicity_roberta")
     print("=" * 80)
 
@@ -86,7 +86,7 @@ def main():
     parser.add_argument("--epochs", type=int, default=5, help="Number of training epochs (default: 5)")
     parser.add_argument("--batch-size", type=int, default=16, help="Batch size (default: 16)")
     parser.add_argument("--lr", type=float, default=3e-5, help="Peak learning rate (default: 3e-5)")
-    parser.add_argument("--model", type=str, default="sentence-transformers/all-MiniLM-L6-v2", help="Base model architecture")
+    parser.add_argument("--model", type=str, default="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2", help="Base model architecture")
     parser.add_argument("--device", type=str, default="auto", help="Hardware device (auto, cpu, mps, cuda)")
     parser.add_argument("--skip-dataset-build", action="store_true", help="Skip dataset building if data/datasets/ is ready")
 

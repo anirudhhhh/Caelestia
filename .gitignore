@@ -1,5 +1,6 @@
 # ControlPlane.ai - Production .gitignore
 scripts/
+models/
 
 # ─── Environment & Secrets ──────────────────────────────────────────────────
 .env

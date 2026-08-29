@@ -1,3 +1,12 @@
+"""
+ControlPlane.ai — Production Model Adapter (§3.4 & §5.5)
+
+Proxies governed requests to upstream LLMs:
+1. Google Gemini Native API (gemini-2.5-flash, gemini-2.0-flash, gemini-1.5-flash, gemini-1.5-pro)
+2. External HTTP Agent Endpoints & Local Inference Services (e.g. Mocha QA Service, Ollama, vLLM)
+3. Zero hardcoded response templates or keyword lookup tables.
+"""
+
 import sys
 import time
 from pathlib import Path
@@ -66,165 +75,30 @@ class AdapterResponse(BaseModel):
 
 @app.get("/")
 async def root():
-    return {"status": "ok", "message": "Service is running"}
+    return {"status": "ok", "message": "Model Adapter Service is running"}
 
 @app.get("/healthz")
 async def healthz():
-    return {"status": "ok", "service": "adapter", "engine": "google_gemini_native"}
+    return {"status": "ok", "service": "adapter", "gemini_configured": bool(GEMINI_API_KEY)}
 
-def generate_contextual_fallback(messages: List[Dict[str, Any]], model: str) -> str:
-    """Intelligent dynamic response generator for offline or quota-limited scenarios."""
-    user_prompt = ""
-    sys_prompt = ""
-    for m in messages:
-        if m.get("role") == "system":
-            sys_prompt += " " + str(m.get("content", ""))
-    for m in reversed(messages):
-        if m.get("role") == "user":
-            user_prompt = m.get("content", "").strip()
-            break
-    
-    p_lower = user_prompt.lower()
-    sys_lower = sys_prompt.lower()
-    is_eu = "european union" in sys_lower or "gdpr" in sys_lower or "eu " in sys_lower
-    is_in = "india" in sys_lower or "dpdp" in sys_lower or " in " in sys_lower
-
-    # Casual Conversational / Greetings / Clarifications
-    if p_lower in ("huh?", "huh", "what?", "what", "hello", "hi", "hey", "test", "who are you?"):
-        if is_eu:
-            return "Hello! I am your EU-sovereign enterprise AI assistant (GDPR compliant). How can I assist you today?"
-        elif is_in:
-            return "Hello! I am your India-sovereign enterprise AI assistant (DPDP Act compliant). How can I assist you today?"
-        return "Hello! I am your enterprise AI assistant protected by ControlPlane.ai. How can I assist you with your workflows today?"
-        
-    # 1. Process Management, Linux, DevOps & SysAdmin
-    if any(k in p_lower for k in ["kill", "pid", "process", "worker", "sigkill", "sigterm", "killall", "pkill", "systemctl", "ps"]):
-        import re
-        pid_match = re.search(r"\b\d{2,6}\b", user_prompt)
-        target_pid = pid_match.group(0) if pid_match else "<PID>"
-        return (
-            f"To forcefully terminate the process with PID `{target_pid}` using `kill -9` (SIGKILL):\n\n"
-            f"```bash\nkill -9 {target_pid}\n```\n\n"
-            "### Execution & Safety Details:\n"
-            f"1. **`SIGKILL` (Signal 9)**: Unconditionally forces immediate kernel termination of PID `{target_pid}`. The process cannot catch, handle, or ignore this signal.\n"
-            f"2. **Graceful Termination Alternative**: If you prefer to give the process a chance to clean up resources or finish open I/O transactions, send `SIGTERM` first:\n"
-            f"   ```bash\n   kill -15 {target_pid}\n   ```\n"
-            f"3. **Verification**: Confirm the process has terminated:\n"
-            f"   ```bash\n   ps -p {target_pid} || echo 'Process terminated'\n   ```"
-        )
-
-    # 2. Database & SQL Operations
-    if any(k in p_lower for k in ["drop table", "table", "sql", "database", "postgres", "mysql", "sqlite", "query", "migration", "index"]):
-        return (
-            "Here is the standard, safe SQL syntax for managing your database objects:\n\n"
-            "```sql\n"
-            "-- Drop temporary table safely if it exists\n"
-            "DROP TABLE IF EXISTS customer_orders_temp;\n\n"
-            "-- Or terminate idle backend connections in PostgreSQL\n"
-            "SELECT pg_terminate_backend(pid)\n"
-            "FROM pg_stat_activity\n"
-            "WHERE state = 'idle'\n"
-            "  AND state_change < current_timestamp - INTERVAL '15 minutes';\n"
-            "```\n\n"
-            "### Best Practices:\n"
-            "- Always verify foreign key constraints before dropping dependent tables.\n"
-            "- Run DDL schema changes within transactions (`BEGIN; ... COMMIT;`) when supported to enable rollbacks."
-        )
-
-    # 3. Security Research & Prompt Injection Defense Concepts
-    if any(k in p_lower for k in ["prompt injection", "jailbreak", "security", "xss", "owasp", "firewall", "vulnerability"]):
-        return (
-            "Here is an overview of prompt injection vulnerabilities and enterprise defense mechanisms:\n\n"
-            "### 1. Attack Vectors\n"
-            "- **Direct Injections**: User instructions attempting to override system prompts (e.g. DAN modes, role hijacking).\n"
-            "- **Indirect Injections**: Untrusted third-party content (emails, web scrapes) containing embedded override payloads.\n\n"
-            "### 2. Multi-Layer Defense Architecture\n"
-            "1. **Layer 1 (Fast Lexicon & Heuristics)**: Microsecond regex and Aho-Corasick scanning for known attack tokens.\n"
-            "2. **Layer 2 (Neural Classifiers)**: Fine-tuned transformer models (DeBERTa / RoBERTa) to detect semantic intent overrides.\n"
-            "3. **Layer 3 (Vector Similarity)**: Real-time cosine similarity against known adversarial attack embeddings.\n"
-            "4. **Layer 4 (Output Guardrails)**: Token-level streaming scanners to prevent system prompt leakage and secret exfiltration."
-        )
-
-    # 4. Customer Support & Refunds
-    if any(k in p_lower for k in ["refund", "order", "shipping", "return", "ticket", "cancel", "customer", "track"]):
-        curr = "EUR (€)" if is_eu else ("INR (₹)" if is_in else "USD ($)")
-        law = "EU statutory consumer rights" if is_eu else ("Indian consumer protection guidelines" if is_in else "standard enterprise customer support guidelines")
-        return (
-            f"I'd be glad to assist with your order and refund inquiry. Under our {law}, "
-            f"refunds are settled in {curr} within 3-5 business days upon verification. Please provide your order ID or account reference number "
-            "so I can retrieve your status immediately."
-        )
-        
-    # 5. Software Engineering & Python/Asyncio
-    if any(k in p_lower for k in ["python", "code", "debug", "error", "asyncio", "leak", "memory", "function", "api", "bug", "docker", "fastapi"]):
-        return (
-            "Here is the recommended approach to diagnose and resolve this issue:\n\n"
-            "1. **Root Cause Analysis**: Inspect asynchronous task lifetimes and unclosed connection handles.\n"
-            "2. **Resource Management**: Wrap connection pools in context managers (`async with`) to ensure deterministic cleanup.\n"
-            "3. **Diagnostics**: Enable profiling using `tracemalloc` or memory leak analyzers to isolate object retention.\n\n"
-            "Feel free to paste your code snippet or stack trace if you'd like a specific refactor!"
-        )
-        
-    # 6. Billing & Financial Decision Support
-    if any(k in p_lower for k in ["bill", "billing", "invoice", "price", "pricing", "subscription", "cost", "receipt", "tier"]):
-        curr_desc = "EUR (€) compliant with EU VAT invoicing directives" if is_eu else ("INR (₹) with applicable GST invoices" if is_in else "USD ($) for US enterprise accounts")
-        return (
-            f"Enterprise billing and subscription tiers operate on a monthly or annual billing cycle, billed in {curr_desc}. "
-            "Invoices are itemized according to active seat licenses and compute volume. If you need an updated invoice copy or wish to adjust your tier, "
-            "our billing desk can generate the adjustment directly."
-        )
-        
-    # 7. Legal & Compliance
-    if any(k in p_lower for k in ["gdpr", "privacy", "compliance", "policy", "terms", "retention"]):
-        if is_eu:
-            return (
-                "Our European Sovereign framework enforces strict GDPR Article 28 & 32 data governance. "
-                "Cross-border transfers are safeguarded via Standard Contractual Clauses (SCCs), "
-                "with automated retention schedules and zero-knowledge encryption for all European personal identifying data."
-            )
-        elif is_in:
-            return (
-                "Our India Sovereign framework adheres strictly to the Digital Personal Data Protection (DPDP) Act 2023. "
-                "Personal data processing is bound to localized sovereign compute, with explicit purpose limitation and automated statutory compliance."
-            )
-        return (
-            "Our enterprise security and privacy framework enforces strict zero-trust data governance. "
-            "All personal identifying information (PII) is evaluated against workflow-specific whitelists, "
-            "with tokenized encryption and automated retention policies compliant with HIPAA/SOC-2 and federal standards."
-        )
-        
-    # 8. General Helpful Assistant Response
-    return (
-        f"I am happy to assist you with your request. "
-        f"Regarding '{user_prompt}': let me know if you would like code examples, architectural guidance, or specific troubleshooting steps."
-    )
 
 @app.post("/complete", response_model=AdapterResponse)
 async def complete(req: AdapterRequest):
-    logger.info(f"Completing request with model {req.model}")
+    logger.info(f"Processing completion request with target model: {req.model}")
     start_time = time.time()
     client = get_http_client()
     
-    bounded_max_tokens = min(req.max_tokens or 350, 350)
+    bounded_max_tokens = min(req.max_tokens or 1000, 2048)
     
-    # Normalize model ID for Google Gemini
-    raw_model = req.model
-    if raw_model.startswith("google/"):
-        raw_model = raw_model.replace("google/", "")
-    if raw_model in ("customer_support", "internal_copilot", "decision_support", "legal_compliance", "general", "gemini-2.5-flash"):
-        raw_model = "gemini-3.5-flash-lite"
-        
-    payload = {
-        "model": raw_model,
-        "messages": req.messages,
-        "max_tokens": bounded_max_tokens,
-    }
-    if req.temperature is not None:
-        payload["temperature"] = req.temperature
-        
-    # Case 1: External HTTP agent or microservice endpoint (e.g. Mocha QA Service)
+    # ── Case 1: Custom External HTTP / Local Endpoint (e.g. Mocha QA Service, Ollama, vLLM)
     if req.model.startswith(("http://", "https://")):
         try:
+            payload = {
+                "model": req.model,
+                "messages": req.messages,
+                "max_tokens": bounded_max_tokens,
+                "temperature": req.temperature or 0.7
+            }
             resp = await client.post(
                 req.model,
                 headers={"Content-Type": "application/json"},
@@ -249,25 +123,21 @@ async def complete(req: AdapterRequest):
                 finish_reason="stop",
                 usage=Usage(prompt_tokens=0, completion_tokens=0),
                 latency_ms=(time.time() - start_time) * 1000,
-                provider_request_id=None
+                provider_request_id=f"external-endpoint-{req.model}"
             )
-        except httpx.HTTPStatusError as e:
-            logger.error(f"External service HTTP error: {e.response.text}")
-            raise HTTPException(status_code=e.response.status_code, detail=f"External endpoint returned {e.response.status_code}: {e.response.text}")
         except Exception as e:
-            logger.error(f"External endpoint error: {e}")
+            logger.error(f"External endpoint error ({req.model}): {e}")
             raise HTTPException(status_code=502, detail=f"Failed to communicate with external endpoint: {str(e)}")
 
-    # Priority 1: Native Google Gemini API Execution
-    async def call_direct_gemini() -> Optional[AdapterResponse]:
-        if not GEMINI_API_KEY:
-            return None
-            
+    # ── Case 2: Google Gemini Native API
+    if GEMINI_API_KEY:
+        raw_model = req.model.replace("google/", "")
         candidate_models = [
             raw_model,
             "gemini-3.5-flash-lite",
             "gemini-3.1-flash-lite",
             "gemini-flash-lite-latest",
+            "gemini-3.5-flash",
             "gemini-3.6-flash",
             "gemini-3.7-flash"
         ]
@@ -316,7 +186,7 @@ async def complete(req: AdapterRequest):
         for gemini_model in candidate_models:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{gemini_model}:generateContent?key={GEMINI_API_KEY}"
-                resp = await client.post(url, json=gemini_body, timeout=5.0)
+                resp = await client.post(url, json=gemini_body, timeout=8.0)
                 if resp.status_code == 200:
                     data = resp.json()
                     candidates = data.get("candidates", [])
@@ -325,6 +195,7 @@ async def complete(req: AdapterRequest):
                         content = "".join(p.get("text", "") for p in parts)
                         if content.strip():
                             usage_meta = data.get("usageMetadata", {})
+                            logger.info(f"Successfully generated response from Google Gemini ({gemini_model})")
                             return AdapterResponse(
                                 content=content.strip(),
                                 finish_reason="stop",
@@ -335,22 +206,32 @@ async def complete(req: AdapterRequest):
                                 latency_ms=(time.time() - start_time) * 1000,
                                 provider_request_id=f"gemini-native-{gemini_model}"
                             )
+                else:
+                    logger.warning(f"Gemini API attempt for {gemini_model} returned HTTP {resp.status_code}: {resp.text[:150]}")
             except Exception as e:
                 logger.warning(f"Direct Gemini attempt for {gemini_model} failed: {e}")
                 continue
-                
-        return None
 
-    gemini_res = await call_direct_gemini()
-    if gemini_res:
-        return gemini_res
+    # ── Case 3: No Upstream API Key Configured
+    user_prompt = ""
+    for m in reversed(req.messages):
+        if m.get("role") == "user":
+            user_prompt = str(m.get("content", "")).strip()
+            break
 
-    # Priority 2: Intelligent Contextual Response Generator (Offline / Zero-Key Fallback)
-    contextual_content = generate_contextual_fallback(req.messages, req.model)
+    logger.info("No GEMINI_API_KEY configured. Returning standard unconfigured notification.")
+    message = (
+        f"[ControlPlane.ai Firewall: Allowed]\n\n"
+        f"Your request was inspected and successfully passed all perimeter security checks (Prompt Injection, Toxicity, PII, and Secrets).\n\n"
+        f"To enable live generative LLM completions for queries like \"{user_prompt}\", please add your `GEMINI_API_KEY` to the `.env` file:\n"
+        f"```bash\nGEMINI_API_KEY=your_google_gemini_api_key_here\n```\n"
+        f"Once configured, responses will be dynamically generated by Google Gemini in real time."
+    )
+
     return AdapterResponse(
-        content=contextual_content,
+        content=message,
         finish_reason="stop",
-        usage=Usage(prompt_tokens=len(str(req.messages)), completion_tokens=len(contextual_content.split())),
+        usage=Usage(prompt_tokens=len(user_prompt.split()), completion_tokens=len(message.split())),
         latency_ms=(time.time() - start_time) * 1000,
-        provider_request_id="controlplane-intelligent-engine"
+        provider_request_id="controlplane-gateway-pass"
     )

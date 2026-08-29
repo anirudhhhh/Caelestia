@@ -7,6 +7,9 @@ export interface PlaygroundMessage {
   action?: 'allow' | 'block' | 'flag' | 'escalate' | 'deny';
   reason?: string;
   interaction_id?: string;
+  workflow_name?: string;
+  workflow_id?: string;
+  model_used?: string;
   isGreeting?: boolean;
   payload?: any;
   direction?: string;

@@ -47,6 +47,15 @@ POP_CULTURE_SAFE_CONTEXTS = [
     r'\bmonty\s+python\b'
 ]
 
+# Polite multilingual expressions, greetings & loanwords (German, French, Spanish, Italian, Indic)
+MULTILINGUAL_SAFE_CONTEXTS = [
+    r'^\s*(?:gesundheit|danke(?:\s+schön)?|vielen\s+dank|bitte(?:\s+schön)?|guten\s+(?:morgen|tag|abend)|schönen\s+tag|alles\s+gute)\s*[.!?]*$',
+    r'^\s*(?:bonjour|merci(?:\s+beaucoup)?|de\s+rien|s\'il\s+vous\s+pla[iî]t|bonne\s+journée|salut|au\s+revoir)\s*[.!?]*$',
+    r'^\s*(?:hola|gracias|muchas\s+gracias|de\s+nada|por\s+favor|buenos\s+d[ií]as|buenas\s+tardes|hasta\s+luego)\s*[.!?]*$',
+    r'^\s*(?:ciao|grazie(?:\s+mille)?|prego|buon\s+giorno|buona\s+giornata|arrivederci)\s*[.!?]*$',
+    r'^\s*(?:namaste|namaskar|shukriya|dhanyavad|dhanyawad|alvida|kripya)\s*[.!?]*$'
+]
+
 # Reframed Hostility Patterns
 REFRAMED_HOSTILITY_PATTERNS = [
     (r'\bpeople\s+like\s+you\s+(?:shouldn\'t|should\s+not)\s+be\s+allowed\b', 0.85, "marginalization"),
@@ -61,7 +70,7 @@ PROMPT_INJECTION_NEURAL_PATTERNS = [
     (r'(?:ignore|disregard|forget)\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions|prompts|rules)', 0.95, "instruction_override"),
     (r'(?:act\s+as|pretend\s+to\s+be|roleplay\s+as)\s+(?:an?\s+unfiltered|DAN|STAN|EvilAI|jailbroken|unrestricted)', 0.95, "roleplay_jailbreak"),
     (r'\[\s*SYSTEM\s*PROMPT\s*\]|\<system_instruction\>|```system', 0.90, "delimiter_injection"),
-    (r'(?:print|output|repeat|show|reveal)\s+(?:everything\s+above|your\s+system\s+prompt|initial\s+instructions)', 0.88, "system_prompt_exfiltration"),
+    (r'(?:print|output|repeat|show|reveal|echo)\s+(?:everything\s+above|your\s+)?(?:entire\s+|whole\s+)?(?:initial\s+)?(?:system\s+prompt|developer\s+instructions|instructions)', 0.92, "system_prompt_exfiltration"),
     (r'(?:translate|encode|convert)\s+the\s+following\s+(?:harmful|blocked|illegal)\s+(?:prompt|text)', 0.85, "encoding_bypass"),
     (r'(?:hypothetically|for\s+educational\s+purposes\s+only|in\s+a\s+fictional\s+story)\s+how\s+(?:to|can\s+I)\s+(?:make|build|create)\s+(?:a\s+bomb|poison|virus|weapon)', 0.92, "fictional_framing_bypass")
 ]
@@ -125,7 +134,18 @@ class ContextualToxicityClassifier:
                     "latency_ms": (time.time() - start) * 1000
                 }
 
-        # 3. Neural Classifier Inference
+        # 3. Fast Path: Check Multilingual Polite Greetings & Loanwords
+        for pattern in MULTILINGUAL_SAFE_CONTEXTS:
+            if re.search(pattern, text_lower):
+                return {
+                    "score": 0.01,
+                    "verdict": "safe_multilingual_context",
+                    "reason": "Matched safe multilingual greeting or polite expression (e.g. gesundheit, danke, bonjour, gracias, namaste)",
+                    "engine": "contextual_neural_classifier",
+                    "latency_ms": (time.time() - start) * 1000
+                }
+
+        # 4. Neural Classifier Inference
         neural_score = 0.0
         if self.model and self.tokenizer:
             try:
@@ -219,7 +239,7 @@ class PromptInjectionClassifier:
             except Exception:
                 neural_score = 0.0
 
-        calibrated_neural = calibrate_probability(neural_score, noise_floor=0.82)
+        calibrated_neural = calibrate_probability(neural_score, noise_floor=0.985)
         
         # Short inputs (< 4 words) without explicit pattern match cannot constitute instruction injection
         words = text.strip().split()

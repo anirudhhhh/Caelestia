@@ -54,8 +54,8 @@ class ToxicityScanner(ScannerBase):
         except Exception:
             neural_score = 0.0
 
-        # Technical context whitelisting override
-        if ml_verdict in ("safe_technical_context", "safe_pop_culture_context"):
+        # Technical / Pop-Culture / Multilingual context whitelisting override
+        if ml_verdict in ("safe_technical_context", "safe_pop_culture_context", "safe_multilingual_context"):
             final_score = 0.05
         else:
             final_score = max(l1_score, neural_score)

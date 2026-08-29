@@ -255,6 +255,8 @@ class ChatResponse(BaseModel):
     model_used: Optional[str] = None
     workflow_id: Optional[str] = None
     workflow_name: Optional[str] = None
+    selected_workflow: Optional[dict[str, Any]] = None
+    workflow: Optional[str] = None
     routing_trace: list[dict[str, Any]] = Field(default_factory=list)
     decision: Decision
     checks_summary: list[dict[str, Any]] = Field(default_factory=list)

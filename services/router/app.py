@@ -44,21 +44,21 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
     "customer_support": WorkflowEndpoint(
         id="customer_support",
         name="Customer Support & Success",
-        instructions="Handles general customer inquiries, product questions, order status, returns, refunds, user onboarding, and satisfaction surveys.",
+        instructions="Handles general user inquiries, conversational questions, explanations, multilingual loanwords, greetings, product questions, order status, returns, refunds, user onboarding, and satisfaction surveys.",
         endpoint="gemini-3.5-flash-lite",
         target_model_or_url="gemini-3.5-flash-lite",
         use_case="customer_support",
-        keywords=["order", "refund", "customer", "return", "product", "account", "help", "support", "ticket", "status"],
+        keywords=["hello", "hi", "what", "explain", "how", "order", "refund", "customer", "return", "product", "account", "help", "support", "ticket", "status", "general", "gesundheit"],
         weight=1.0
     ),
     "internal_copilot": WorkflowEndpoint(
         id="internal_copilot",
         name="Engineering & Internal Copilot",
-        instructions="Specialized in software debugging, Python, API integrations, cloud architecture, stack traces, code generation, and developer diagnostics.",
+        instructions="Specialized in software debugging, algorithms, programming, Python, C++, API integrations, cloud architecture, stack traces, code generation, and developer diagnostics.",
         endpoint="gemini-3.5-flash-lite",
         target_model_or_url="gemini-3.5-flash-lite",
         use_case="internal_copilot",
-        keywords=["code", "debug", "python", "api", "function", "error", "script", "database", "sql", "bug", "aws", "docker"],
+        keywords=["code", "debug", "python", "cpp", "binary search", "algorithm", "api", "function", "error", "script", "database", "sql", "bug", "aws", "docker"],
         weight=1.0
     ),
     "decision_support": WorkflowEndpoint(
@@ -88,8 +88,8 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
         endpoint="http://localhost:8099/complete",
         target_model_or_url="http://localhost:8099/complete",
         use_case="customer_support",
-        keywords=["mocha", "mochaaa", "coffee", "test", "testing", "echo", "ping", "probe", "latency", "benchmark"],
-        weight=1.2
+        keywords=["mocha", "mochaaa", "mocha test", "ping probe", "loadbalancer test"],
+        weight=0.1
     ),
 }
 

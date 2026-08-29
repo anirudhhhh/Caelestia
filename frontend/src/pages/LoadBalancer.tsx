@@ -440,7 +440,7 @@ export default function LoadBalancer() {
               <Input
                 value={formEndpoint}
                 onChange={(e) => setFormEndpoint(e.target.value)}
-                placeholder="gemini-3.5-flash or https://api.openai.com/v1"
+                placeholder="gemini-2.5-flash or gemini-2.0-flash"
                 className="rounded-xl bg-[#FAF8F5]"
               />
             </div>
@@ -523,7 +523,7 @@ export default function LoadBalancer() {
               Direct Integration Code
             </DialogTitle>
             <DialogDescription className="text-xs text-zinc-500 font-semibold">
-              Dispatch directly to {selectedEndpointForCode?.name} via REST or OpenAI SDK
+              Dispatch directly to {selectedEndpointForCode?.name} via REST API Gateway
             </DialogDescription>
           </DialogHeader>
 
