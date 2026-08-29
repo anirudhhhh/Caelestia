@@ -3,12 +3,14 @@ import { cn } from '@/lib/utils';
 
 interface SegmentedProgressProps {
   current: number;
-  total: number;
+  total?: number;
   color?: 'coral' | 'amber' | 'emerald' | 'dark' | 'violet';
   className?: string;
   size?: 'sm' | 'md' | 'lg';
   showCount?: boolean;
+  showPercentage?: boolean;
   countLabel?: string;
+  exactValue?: number | string;
 }
 
 export default function SegmentedProgress({
@@ -17,17 +19,14 @@ export default function SegmentedProgress({
   color = 'coral',
   className,
   size = 'md',
-  showCount = false,
-  countLabel = 'Sessions completed'
+  showCount = true,
+  showPercentage = true,
+  countLabel,
+  exactValue,
 }: SegmentedProgressProps) {
   const safeTotal = Math.max(1, total);
   const safeCurrent = Math.min(safeTotal, Math.max(0, current));
-
-  const sizeClasses = {
-    sm: 'w-1 h-3.5 rounded-[2px] gap-1',
-    md: 'w-1.5 h-4.5 rounded-[2.5px] gap-1.5',
-    lg: 'w-2 h-6 rounded-[3px] gap-2',
-  };
+  const percentage = Math.round((safeCurrent / safeTotal) * 100);
 
   const tickColors = {
     coral: 'bg-[#FF6B5E] shadow-[0_0_8px_rgba(255,107,94,0.6)]',
@@ -38,12 +37,7 @@ export default function SegmentedProgress({
   };
 
   return (
-    <div className={cn('flex items-center gap-3', className)}>
-      {showCount && (
-        <span className="text-xs text-zinc-500 font-medium whitespace-nowrap">
-          {countLabel}: <strong className="text-zinc-800 font-bold">{safeCurrent}/{safeTotal}</strong>
-        </span>
-      )}
+    <div className={cn('flex items-center gap-2.5', className)}>
       <div className="flex items-center gap-1">
         {Array.from({ length: safeTotal }).map((_, idx) => {
           const isActive = idx < safeCurrent;
@@ -61,6 +55,19 @@ export default function SegmentedProgress({
           );
         })}
       </div>
+
+      {(showCount || showPercentage || exactValue !== undefined) && (
+        <span className="text-[11px] font-mono font-bold text-zinc-700 whitespace-nowrap">
+          {countLabel ? `${countLabel}: ` : ''}
+          {exactValue !== undefined ? (
+            <span>{typeof exactValue === 'number' ? (exactValue <= 1 ? (exactValue * 100).toFixed(0) + '%' : exactValue) : exactValue}</span>
+          ) : showPercentage ? (
+            <span>{percentage}%</span>
+          ) : (
+            <span>{safeCurrent}/{safeTotal}</span>
+          )}
+        </span>
+      )}
     </div>
   );
 }

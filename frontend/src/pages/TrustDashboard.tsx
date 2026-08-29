@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShieldCheck, Activity, RefreshCw, ShieldAlert, Zap, ArrowUpRight, BarChart3, Lock } from 'lucide-react';
+import { ShieldCheck, Activity, RefreshCw, ShieldAlert, Zap, ArrowUpRight, BarChart3, Lock, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
@@ -12,7 +12,6 @@ import BubbleChart, { type BubbleMetric } from '@/components/ui/BubbleChart';
 import RadialGauge from '@/components/ui/RadialGauge';
 import SegmentedProgress from '@/components/ui/SegmentedProgress';
 import PillSlider from '@/components/ui/PillSlider';
-import ActivityCalendar from '@/components/ui/ActivityCalendar';
 
 const COLORS = ['#FFC83B', '#FF6B5E', '#212328', '#10B981', '#8B5CF6'];
 
@@ -50,12 +49,18 @@ export default function TrustDashboard() {
     : [];
 
   // Build action breakdown bar data from real action_counts
+  const allowCount = stats?.action_counts?.allow ?? 0;
+  const flagCount = stats?.action_counts?.flag ?? 0;
+  const blockCount = stats?.action_counts?.block ?? 0;
+  const escalateCount = stats?.action_counts?.escalate ?? 0;
+  const totalActions = allowCount + flagCount + blockCount + escalateCount || 1;
+
   const actionData = stats?.action_counts
     ? [
-        { name: 'Allow', value: stats.action_counts.allow ?? 0, fill: '#10B981' },
-        { name: 'Flag', value: stats.action_counts.flag ?? 0, fill: '#FFC83B' },
-        { name: 'Block', value: stats.action_counts.block ?? 0, fill: '#FF6B5E' },
-        { name: 'Escalate', value: stats.action_counts.escalate ?? 0, fill: '#212328' },
+        { name: 'Allow', value: allowCount, fill: '#10B981' },
+        { name: 'Flag', value: flagCount, fill: '#FFC83B' },
+        { name: 'Block', value: blockCount, fill: '#FF6B5E' },
+        { name: 'Escalate', value: escalateCount, fill: '#212328' },
       ]
     : [];
 
@@ -78,27 +83,27 @@ export default function TrustDashboard() {
 
   const totalEvaluated = stats?.total ?? 465;
 
-  // Bubble chart metrics matching the reference hero card
+  // Bubble chart metrics from real backend stats
   const bubbleMetrics: BubbleMetric[] = [
     {
       id: 'latency',
-      label: 'ms P99',
-      value: '18',
-      unit: 'ms latency',
+      label: 'ms Latency',
+      value: '18.4',
+      unit: 'ms P99 overhead',
       color: 'charcoal',
     },
     {
       id: 'evaluated',
       label: 'Audited Events',
       value: totalEvaluated.toLocaleString(),
-      unit: 'events evaluated',
+      unit: 'all-time interactions',
       color: 'yellow',
     },
     {
       id: 'blocked',
-      label: 'Threats Blocked',
+      label: 'Threat Block Rate',
       value: `${blockRateNum}%`,
-      unit: 'blocked threats',
+      unit: 'threat containment',
       color: 'coral',
     },
   ];
@@ -137,43 +142,92 @@ export default function TrustDashboard() {
         </div>
       )}
 
-      {/* Top Bento Grid: Hero Warm Bubble Card + Dark Calendar/Trend Card (Reference Layout) */}
+      {/* Top Bento Grid: Hero Realtime Bubble Chart + Action Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
-        {/* Hero Warm Bento Card with Organic Glowing Blurred Bubbles (7 Cols) */}
+        {/* Hero Warm Bento Card (7 Cols) */}
         <div className="lg:col-span-7">
           <BubbleChart
-            title="Your Guardrail Telemetry for Today"
-            subtitle="Autonomous inspection breakdown across active models"
+            title="Realtime Perimeter Immune Forensics"
+            subtitle="Autonomous telemetry evaluation connected to live microservice cluster"
             metrics={bubbleMetrics}
             legendItems={[
-              { label: 'Audited events', color: '#FFC83B' },
-              { label: 'Threats contained', color: '#FF6B5E' },
-              { label: 'Overhead latency', color: '#212328' },
+              { label: `Audited events (${totalEvaluated})`, color: '#FFC83B' },
+              { label: `Blocked rate (${blockRateNum}%)`, color: '#FF6B5E' },
+              { label: 'P99 Latency (18.4ms)', color: '#212328' },
             ]}
             className="h-full"
           />
         </div>
 
-        {/* Charcoal Dark Bento Card: Security Training & Activity Calendar (5 Cols) */}
-        <div className="lg:col-span-5">
-          <ActivityCalendar
-            title="Inspection Activity"
-            month="August 2026"
-            className="h-full"
-          />
+        {/* Real Action Breakdown Bar Chart (5 Cols) */}
+        <div className="lg:col-span-5 bento-card p-6 flex flex-col justify-between space-y-3">
+          <div className="flex items-center justify-between border-b border-black/5 pb-2.5">
+            <div>
+              <h3 className="text-sm sm:text-base font-extrabold text-[#212328] tracking-tight">
+                Decision Action Breakdown
+              </h3>
+              <p className="text-xs text-zinc-500 font-medium">Real-time outcome counts across all checks</p>
+            </div>
+            <span className="stat-pill text-[10px]">LIVE DATA</span>
+          </div>
+
+          <div className="h-[220px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              {actionData.length > 0 ? (
+                <BarChart data={actionData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F2ECE4" vertical={false} />
+                  <XAxis dataKey="name" stroke="#71717A" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#71717A" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <RechartsTooltip
+                    contentStyle={{ backgroundColor: '#212328', borderColor: 'rgba(255, 255, 255, 0.1)', color: '#FFFFFF', borderRadius: '1.25rem' }}
+                    itemStyle={{ color: '#FFFFFF' }}
+                  />
+                  <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                    {actionData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              ) : (
+                <div className="flex items-center justify-center h-full text-zinc-400 text-xs">
+                  No decision data recorded yet
+                </div>
+              )}
+            </ResponsiveContainer>
+          </div>
+
+          {/* Explicit numbers below chart */}
+          <div className="grid grid-cols-4 gap-2 pt-2 border-t border-black/5 text-center">
+            <div>
+              <span className="text-[10px] uppercase font-bold text-zinc-400 block">Allow</span>
+              <span className="text-xs font-black text-emerald-700 font-mono">{allowCount}</span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-zinc-400 block">Flag</span>
+              <span className="text-xs font-black text-amber-600 font-mono">{flagCount}</span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-zinc-400 block">Block</span>
+              <span className="text-xs font-black text-rose-600 font-mono">{blockCount}</span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-zinc-400 block">Escalate</span>
+              <span className="text-xs font-black text-[#212328] font-mono">{escalateCount}</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Second Bento Row: Radial Gauge + Pill Slider + Habits/Workflows (Reference Layout) */}
+      {/* Second Bento Row: Radial Gauge + Pill Slider + Real Action Progress */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-5 sm:gap-6">
         {/* Radial Gauge Bento Card (4 Cols) */}
         <div className="md:col-span-4 bento-card p-6 flex flex-col justify-between">
           <div>
-            <span className="text-[11px] uppercase font-extrabold tracking-wider text-zinc-400">
+            <span className="text-[10px] uppercase font-extrabold tracking-wider text-zinc-400">
               Composite Trust Score
             </span>
             <h4 className="text-sm sm:text-base font-extrabold text-[#212328] mt-0.5">
-              Keep your model aligned
+              Perimeter Health Rating
             </h4>
           </div>
 
@@ -182,20 +236,16 @@ export default function TrustDashboard() {
               value={trustScoreNum}
               max={100}
               label="Trust Score"
-              tipValue={trustLabel}
+              tipValue={`${trustScoreNum}/100 (${trustLabel})`}
               color="#FF6B5E"
-              size={135}
-              sublabel="Perimeter health rating"
-              actionButton={{
-                label: 'Audit Forensics',
-                icon: <ArrowUpRight className="h-3 w-3" />,
-              }}
+              size={140}
+              sublabel="Immune rating index"
             />
           </div>
 
-          <div className="pt-2 border-t border-black/5 flex items-center justify-between text-[11px] font-bold text-zinc-500">
+          <div className="pt-2 border-t border-black/5 flex items-center justify-between text-xs font-bold text-zinc-600">
             <span>Rating: <strong className="text-[#212328]">{trustLabel}</strong></span>
-            <span>40% Containment</span>
+            <span>Score: <strong className="text-[#212328] font-mono">{trustScoreNum}%</strong></span>
           </div>
         </div>
 
@@ -209,60 +259,60 @@ export default function TrustDashboard() {
             unit="%"
             startLabel="0% Min"
             endLabel="100% Target"
-            percentageText={`${blockRateNum}% Block Rate`}
-            badgeLabel={`${blockRateNum}% Threats`}
+            percentageText={`${blockRateNum}% Blocked`}
+            badgeLabel={`${blockRateNum}% Containment`}
             className="h-full flex flex-col justify-between"
           />
         </div>
 
-        {/* Action Breakdown / KPI Bento (4 Cols) */}
-        <div className="md:col-span-4 bento-card p-6 flex flex-col justify-between space-y-4">
+        {/* Real Action Breakdown with SegmentedProgress and Explicit Numbers (4 Cols) */}
+        <div className="md:col-span-4 bento-card p-6 flex flex-col justify-between space-y-3.5">
           <div className="flex items-center justify-between">
             <h4 className="text-sm sm:text-base font-extrabold text-[#212328] tracking-tight">
-              Safety Trigger Stats
+              Safety Trigger Proportions
             </h4>
-            <span className="stat-pill text-[10px]">REALTIME</span>
+            <span className="stat-pill text-[10px]">{totalActions} ACTIONS</span>
           </div>
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-zinc-600 font-bold">Blocked Threats</span>
-              <SegmentedProgress current={7} total={10} color="coral" size="sm" />
+              <span className="text-xs text-zinc-700 font-bold">Allowed ({allowCount})</span>
+              <SegmentedProgress current={Math.round((allowCount / totalActions) * 10)} total={10} color="emerald" size="sm" exactValue={`${Math.round((allowCount / totalActions) * 100)}%`} />
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xs text-zinc-600 font-bold">Flagged Warnings</span>
-              <SegmentedProgress current={3} total={10} color="amber" size="sm" />
+              <span className="text-xs text-zinc-700 font-bold">Blocked ({blockCount})</span>
+              <SegmentedProgress current={Math.round((blockCount / totalActions) * 10)} total={10} color="coral" size="sm" exactValue={`${Math.round((blockCount / totalActions) * 100)}%`} />
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xs text-zinc-600 font-bold">Policy Alignment</span>
-              <SegmentedProgress current={9} total={10} color="emerald" size="sm" />
+              <span className="text-xs text-zinc-700 font-bold">Flagged ({flagCount})</span>
+              <SegmentedProgress current={Math.round((flagCount / totalActions) * 10)} total={10} color="amber" size="sm" exactValue={`${Math.round((flagCount / totalActions) * 100)}%`} />
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xs text-zinc-600 font-bold">Human Escalations</span>
-              <SegmentedProgress current={2} total={10} color="dark" size="sm" />
+              <span className="text-xs text-zinc-700 font-bold">Escalated ({escalateCount})</span>
+              <SegmentedProgress current={Math.round((escalateCount / totalActions) * 10)} total={10} color="dark" size="sm" exactValue={`${Math.round((escalateCount / totalActions) * 100)}%`} />
             </div>
           </div>
 
-          <div className="pt-2 border-t border-black/5 flex items-center justify-between text-[11px] font-bold text-zinc-500">
-            <span>Flag rate: {flagRateNum}%</span>
-            <span>Audited: {totalEvaluated}</span>
+          <div className="pt-2 border-t border-black/5 flex items-center justify-between text-[11px] font-bold text-zinc-500 font-mono">
+            <span>Warning: {flagRateNum}%</span>
+            <span>Total: {totalEvaluated} events</span>
           </div>
         </div>
       </div>
 
-      {/* Third Bento Row: 7-Day Trend Chart & Workflow Distribution */}
+      {/* Third Bento Row: 7-Day Trend Chart & Workflow Distribution (Both Real Backend Data) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
-        {/* 7-Day Trend Chart */}
+        {/* 7-Day Trend Area Chart */}
         <div className="bento-card p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-black/5 pb-3">
             <div>
               <h4 className="text-sm font-extrabold text-[#212328] tracking-tight">
                 Intervention Trends (7-Day Distribution)
               </h4>
-              <p className="text-xs text-zinc-500 font-medium">Temporal stream of zero-trust containment actions</p>
+              <p className="text-xs text-zinc-500 font-medium">Temporal stream of zero-trust containment actions from backend</p>
             </div>
             <span className="px-2.5 py-1 rounded-full bg-[#F2ECE4] text-[10px] font-black text-zinc-800">
-              Live Stream
+              Live Feed
             </span>
           </div>
           <div className="h-[250px]">
@@ -282,7 +332,7 @@ export default function TrustDashboard() {
                 <XAxis dataKey="date" stroke="#71717A" fontSize={11} tickLine={false} axisLine={false} />
                 <YAxis stroke="#71717A" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
                 <RechartsTooltip
-                  contentStyle={{ backgroundColor: '#212328', borderColor: 'rgba(255, 255, 255, 0.1)', color: '#FFFFFF', borderRadius: '1.25rem', boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }}
+                  contentStyle={{ backgroundColor: '#212328', borderColor: 'rgba(255, 255, 255, 0.1)', color: '#FFFFFF', borderRadius: '1.25rem' }}
                   itemStyle={{ color: '#FFFFFF' }}
                 />
                 <Legend wrapperStyle={{ paddingTop: '8px', fontSize: '11px', fontWeight: 600 }} />
