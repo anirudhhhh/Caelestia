@@ -99,6 +99,10 @@ def _row_to_item(row: dict) -> EscalationItem:
         edited_content=row["edited_content"]
     )
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "message": "Service is running"}
+
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok"}

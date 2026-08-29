@@ -176,6 +176,10 @@ async def extract_structured_policy_rule(req: PolicyExtractRequest):
         "status": "draft"
     }
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "message": "Service is running"}
+
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok", "service": "policy_engine", "version": evaluator.version}

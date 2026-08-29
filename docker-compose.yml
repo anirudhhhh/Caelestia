@@ -1,5 +1,20 @@
 version: '3.8'
 
+x-env-defaults: &env-defaults
+  GATEWAY_URL: http://gateway:8000
+  INPUT_GUARD_URL: http://input_guard:8001
+  OUTPUT_GUARD_URL: http://output_guard:8002
+  PII_SERVICE_URL: http://pii_service:8003
+  POLICY_ENGINE_URL: http://policy_engine:8004
+  ROUTER_URL: http://router:8005
+  ADAPTER_URL: http://adapter:8006
+  AUDIT_STORE_URL: http://audit_store:8007
+  REVIEW_CONSOLE_URL: http://review_console:8008
+  IMMUNE_SYSTEM_URL: http://immune_system:8009
+  ACTION_GUARD_URL: http://action_guard:8010
+  GUARDRAILS_ML_URL: http://guardrails_ml:8011
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+
 x-service-defaults: &service-defaults
   build:
     context: .
@@ -11,20 +26,10 @@ x-service-defaults: &service-defaults
     - ./data:/app/data
     - ./models:/app/models
     - ./policies:/app/policies
+  env_file:
+    - .env
   environment:
-    - GATEWAY_URL=http://gateway:8000
-    - INPUT_GUARD_URL=http://input_guard:8001
-    - OUTPUT_GUARD_URL=http://output_guard:8002
-    - PII_SERVICE_URL=http://pii_service:8003
-    - POLICY_ENGINE_URL=http://policy_engine:8004
-    - ROUTER_URL=http://router:8005
-    - ADAPTER_URL=http://adapter:8006
-    - AUDIT_STORE_URL=http://audit_store:8007
-    - REVIEW_CONSOLE_URL=http://review_console:8008
-    - IMMUNE_SYSTEM_URL=http://immune_system:8009
-    - ACTION_GUARD_URL=http://action_guard:8010
-    - GUARDRAILS_ML_URL=http://guardrails_ml:8011
-    - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    <<: *env-defaults
 
 services:
   # ─── 1. Storage & Foundation Services ───────────────────────────────────────
@@ -32,9 +37,9 @@ services:
     <<: *service-defaults
     container_name: cp-audit-store
     environment:
-      <<: *service-defaults
-      - SERVICE_MODULE=audit_store
-      - PORT=8007
+      <<: *env-defaults
+      SERVICE_MODULE: audit_store
+      PORT: 8007
     ports:
       - "8007:8007"
 
@@ -42,9 +47,9 @@ services:
     <<: *service-defaults
     container_name: cp-pii-service
     environment:
-      <<: *service-defaults
-      - SERVICE_MODULE=pii_service
-      - PORT=8003
+      <<: *env-defaults
+      SERVICE_MODULE: pii_service
+      PORT: 8003
     ports:
       - "8003:8003"
 
@@ -52,9 +57,9 @@ services:
     <<: *service-defaults
     container_name: cp-policy-engine
     environment:
-      <<: *service-defaults
-      - SERVICE_MODULE=policy_engine
-      - PORT=8004
+      <<: *env-defaults
+      SERVICE_MODULE: policy_engine
+      PORT: 8004
     ports:
       - "8004:8004"
 
@@ -62,9 +67,9 @@ services:
     <<: *service-defaults
     container_name: cp-guardrails-ml
     environment:
-      <<: *service-defaults
-      - SERVICE_MODULE=guardrails_ml
-      - PORT=8011
+      <<: *env-defaults
+      SERVICE_MODULE: guardrails_ml
+      PORT: 8011
     ports:
       - "8011:8011"
 
@@ -73,9 +78,9 @@ services:
     <<: *service-defaults
     container_name: cp-input-guard
     environment:
-      <<: *service-defaults
-      - SERVICE_MODULE=input_guard
-      - PORT=8001
+      <<: *env-defaults
+      SERVICE_MODULE: input_guard
+      PORT: 8001
     ports:
       - "8001:8001"
     depends_on:
@@ -87,9 +92,9 @@ services:
     <<: *service-defaults
     container_name: cp-output-guard
     environment:
-      <<: *service-defaults
-      - SERVICE_MODULE=output_guard
-      - PORT=8002
+      <<: *env-defaults
+      SERVICE_MODULE: output_guard
+      PORT: 8002
     ports:
       - "8002:8002"
     depends_on:
@@ -101,9 +106,9 @@ services:
     <<: *service-defaults
     container_name: cp-action-guard
     environment:
-      <<: *service-defaults
-      - SERVICE_MODULE=action_guard
-      - PORT=8010
+      <<: *env-defaults
+      SERVICE_MODULE: action_guard
+      PORT: 8010
     ports:
       - "8010:8010"
 
@@ -112,9 +117,9 @@ services:
     <<: *service-defaults
     container_name: cp-router
     environment:
-      <<: *service-defaults
-      - SERVICE_MODULE=router
-      - PORT=8005
+      <<: *env-defaults
+      SERVICE_MODULE: router
+      PORT: 8005
     ports:
       - "8005:8005"
     depends_on:
@@ -124,9 +129,9 @@ services:
     <<: *service-defaults
     container_name: cp-adapter
     environment:
-      <<: *service-defaults
-      - SERVICE_MODULE=adapter
-      - PORT=8006
+      <<: *env-defaults
+      SERVICE_MODULE: adapter
+      PORT: 8006
     ports:
       - "8006:8006"
 
@@ -135,9 +140,9 @@ services:
     <<: *service-defaults
     container_name: cp-review-console
     environment:
-      <<: *service-defaults
-      - SERVICE_MODULE=review_console
-      - PORT=8008
+      <<: *env-defaults
+      SERVICE_MODULE: review_console
+      PORT: 8008
     ports:
       - "8008:8008"
     depends_on:
@@ -147,9 +152,9 @@ services:
     <<: *service-defaults
     container_name: cp-immune-system
     environment:
-      <<: *service-defaults
-      - SERVICE_MODULE=immune_system
-      - PORT=8009
+      <<: *env-defaults
+      SERVICE_MODULE: immune_system
+      PORT: 8009
     ports:
       - "8009:8009"
     depends_on:
@@ -161,9 +166,9 @@ services:
     <<: *service-defaults
     container_name: cp-gateway
     environment:
-      <<: *service-defaults
-      - SERVICE_MODULE=gateway
-      - PORT=8000
+      <<: *env-defaults
+      SERVICE_MODULE: gateway
+      PORT: 8000
     ports:
       - "8000:8000"
     depends_on:
@@ -192,3 +197,4 @@ services:
 networks:
   controlplane-net:
     driver: bridge
+

@@ -45,6 +45,10 @@ class CorpusAddRequest(BaseModel):
     pattern_type: Optional[str] = "confirmed_review"
     source: Optional[str] = "human_review"
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "guardrails_ml"}
+
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok", "service": "guardrails_ml"}

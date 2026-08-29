@@ -364,6 +364,10 @@ async def scan_input(envelope: InteractionEnvelope):
 
     return envelope
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "input_guard"}
+
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok", "service": "input_guard"}

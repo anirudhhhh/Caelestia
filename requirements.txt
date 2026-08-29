@@ -16,6 +16,3 @@ sentence-transformers>=3.0.0
 scikit-learn>=1.5.0
 numpy>=1.26.0
 pyyaml>=6.0
-locust>=2.31.0
-pytest>=8.0.0
-pytest-asyncio>=0.24.0

@@ -110,6 +110,10 @@ async def scan_pii(text: str, pii_permissions: dict = None) -> CheckResult:
         logger.error(f"PII service call failed: {e}")
         return CheckResult(check_name="pii", engine="pii_service", score=0.0, verdict=CheckVerdict.SKIPPED)
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "message": "Service is running"}
+
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok"}

@@ -12,7 +12,7 @@ WORKDIR /app
 
 # Install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Download Spacy English model for Presidio PII detection
 RUN python -m spacy download en_core_web_sm
@@ -24,9 +24,7 @@ RUN python -c "from transformers import AutoTokenizer, AutoModel; AutoTokenizer.
 COPY shared/ /app/shared/
 COPY policies/ /app/policies/
 COPY services/ /app/services/
-COPY train/ /app/train/
 COPY models/ /app/models/
-COPY test_firewall.py /app/test_firewall.py
 
 # Create data directory
 RUN mkdir -p /app/data

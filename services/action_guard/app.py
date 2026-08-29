@@ -71,6 +71,10 @@ class GuardResponse(BaseModel):
     tool_calls: List[ToolCall]
     cumulative_session_risk: float = 0.0
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "message": "Service is running"}
+
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok"}

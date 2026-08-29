@@ -328,6 +328,10 @@ async def shutdown_event():
     if HTTP_CLIENT and not HTTP_CLIENT.is_closed:
         await HTTP_CLIENT.aclose()
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "immune_system"}
+
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok", "service": "immune_system"}

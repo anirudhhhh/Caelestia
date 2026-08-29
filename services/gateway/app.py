@@ -69,6 +69,10 @@ async def optional_auth(authorization: Optional[str] = Header(None)):
 
 # ─── Health ───────────────────────────────────────────────────────────────────
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "gateway"}
+
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok", "service": "gateway"}

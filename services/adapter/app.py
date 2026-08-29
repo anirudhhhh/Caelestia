@@ -64,6 +64,10 @@ class AdapterResponse(BaseModel):
     latency_ms: float
     provider_request_id: Optional[str] = None
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "message": "Service is running"}
+
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok", "service": "adapter", "engine": "google_gemini_native"}

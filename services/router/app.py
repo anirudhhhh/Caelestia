@@ -133,6 +133,10 @@ _init_vector_index()
 
 SESSION_ROUTES: Dict[str, str] = {}
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "message": "Service is running"}
+
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok", "service": "router", "indexed_endpoints": len(vector_db_router.vector_index)}

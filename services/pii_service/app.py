@@ -197,6 +197,10 @@ async def anonymize_pii(request: PIIAnonymizeRequest):
     )
 
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "message": "Service is running"}
+
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok", "service": "pii_service", "presidio_active": analyzer is not None}

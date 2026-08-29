@@ -1,8 +1,0 @@
-{
-  "task": "Prompt Injection Classifier",
-  "base_model": "sentence-transformers/all-MiniLM-L6-v2",
-  "best_val_f1": 1.0,
-  "epochs": 6,
-  "trained_at": 1787871291.6288462,
-  "device": "cpu"
-}

@@ -313,6 +313,10 @@ async def get_outcomes_stats():
             "false_negative_rate": fn_rate,
         }
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "audit_store"}
+
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok", "service": "audit_store"}

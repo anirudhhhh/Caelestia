@@ -1,8 +1,0 @@
-{
-  "task": "Contextual Toxicity Classifier",
-  "base_model": "sentence-transformers/all-MiniLM-L6-v2",
-  "best_val_f1": 1.0,
-  "epochs": 6,
-  "trained_at": 1787871324.0570612,
-  "device": "cpu"
-}
