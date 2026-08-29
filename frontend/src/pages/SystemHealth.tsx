@@ -1,16 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Activity, Server, Database, Shield, Zap, AlertTriangle, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { AnomalyAlert } from '@/types';
 import { api } from '@/lib/api';
 import { format } from 'date-fns';
-import SpotlightCard from '@/components/reactbits/SpotlightCard';
-import DecryptedText from '@/components/reactbits/DecryptedText';
+import { cn } from '@/lib/utils';
+import RadialGauge from '@/components/ui/RadialGauge';
+import SegmentedProgress from '@/components/ui/SegmentedProgress';
 
-// Map the gateway's keyed health object { input_guard: {status, latency_ms}, ... }
-// into the array shape the component renders
 function normalizeHealth(raw: any): Array<{ name: string; status: string; latency: number; last_check: string }> {
   if (Array.isArray(raw)) return raw;
   const NAME_MAP: Record<string, string> = {
@@ -65,18 +62,6 @@ export default function SystemHealth() {
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    if (status === 'healthy') return <CheckCircle className="h-5 w-5 text-emerald-500" />;
-    if (status === 'unhealthy') return <XCircle className="h-5 w-5 text-rose-500" />;
-    return <AlertTriangle className="h-5 w-5 text-amber-500" />;
-  };
-
-  const getStatusColor = (status: string) => {
-    if (status === 'healthy') return 'border-emerald-500/50 bg-emerald-500/5';
-    if (status === 'unhealthy') return 'border-rose-500/50 bg-rose-500/5';
-    return 'border-amber-500/50 bg-amber-500/5';
-  };
-
   const getComponentIcon = (name: string) => {
     if (name.includes('Guard') || name.includes('PII')) return <Shield className="h-4 w-4" />;
     if (name.includes('Store') || name.includes('Database')) return <Database className="h-4 w-4" />;
@@ -87,117 +72,164 @@ export default function SystemHealth() {
 
   const unhealthyCount = components.filter(c => c.status !== 'healthy').length;
   const overallStatus = unhealthyCount === 0 ? 'operational' : unhealthyCount <= 2 ? 'degraded' : 'critical';
+  const healthyCount = components.length - unhealthyCount;
+  const healthPercentage = components.length > 0 ? Math.round((healthyCount / components.length) * 100) : 100;
 
   return (
-    <div className="h-full w-full overflow-y-auto space-y-6 pr-2 pb-12 font-sans">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="h-full w-full overflow-y-auto space-y-5 sm:space-y-6 pr-1 pb-12 font-sans">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-[28px] border border-black/5 shadow-sm">
         <div>
-          <h2 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400">
-              <Activity className="h-4.5 w-4.5 text-amber-400" />
-            </div>
-            Microservice Cluster & Mesh Health
+          <h2 className="text-lg sm:text-xl font-black tracking-tight text-[#212328] flex items-center gap-2">
+            <Activity className="h-5 w-5 text-amber-500" />
+            Cluster & Mesh Health Telemetry
           </h2>
-          <p className="text-xs text-zinc-400 mt-1 font-medium">
-            Last refreshed {format(lastRefresh, 'HH:mm:ss')} · Realtime 30s heartbeat probe
+          <p className="text-xs text-zinc-500 font-semibold mt-0.5">
+            Realtime 30s heartbeat probe · Refreshed {format(lastRefresh, 'HH:mm:ss')}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <span
-            className={`faang-chip text-xs font-bold ${
-              overallStatus === 'operational' ? 'chip-emerald shadow-[0_0_15px_rgba(16,185,129,0.2)]' :
-              overallStatus === 'degraded' ? 'chip-amber' :
-              'chip-crimson'
-            }`}
+            className={cn(
+              "px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-wide",
+              overallStatus === 'operational' ? "bg-emerald-100 text-emerald-800" :
+              overallStatus === 'degraded' ? "bg-amber-100 text-amber-800" : "bg-rose-100 text-rose-800"
+            )}
           >
-            {overallStatus === 'degraded' && <AlertTriangle className="mr-1 h-3.5 w-3.5" />}
-            {overallStatus === 'critical' && <XCircle className="mr-1 h-3.5 w-3.5" />}
-            MESH {overallStatus.toUpperCase()} ({components.length}/{components.length})
+            MESH {overallStatus.toUpperCase()} ({healthyCount}/{components.length || 12})
           </span>
-          <Button variant="ghost" size="sm" onClick={loadData} disabled={isLoading} className="faang-btn-ghost h-9 px-3 gap-2 text-xs text-zinc-300 hover:text-white">
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={loadData} 
+            disabled={isLoading} 
+            className="bento-btn-secondary h-9 px-3.5 text-xs"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
       </div>
 
-      {/* Active Alerts (Borderless, Integrated) */}
-      {alerts.length > 0 && (
-        <div className="unboxed-section space-y-3 pb-3 mb-3">
-          <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            <span>Active Perimeter Anomalies ({alerts.length})</span>
+      {/* Top Bento Row: Radial Uptime Gauge + Anomaly Alerts */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 sm:gap-6">
+        {/* Radial Gauge (4 Cols) */}
+        <div className="md:col-span-4 bento-card p-6 flex flex-col justify-between">
+          <div>
+            <span className="text-[10px] uppercase font-extrabold tracking-wider text-zinc-400">
+              Mesh Uptime
+            </span>
+            <h4 className="text-base font-extrabold text-[#212328] mt-0.5">
+              Service Health Index
+            </h4>
           </div>
-          <div className="space-y-1.5">
-            {alerts.map(alert => (
-              <div key={alert.id} className="flex items-center justify-between bg-white/[0.015] p-2.5 rounded-lg border-t border-b border-amber-500/20">
-                <div className="flex items-center gap-2.5">
-                  <span className={`faang-chip text-[9px] font-bold uppercase ${
-                    alert.severity === 'high' ? 'chip-crimson' :
-                    alert.severity === 'medium' ? 'chip-amber' :
-                    'chip-emerald'
-                  }`}>
-                    {alert.severity}
-                  </span>
-                  <span className="font-bold text-xs text-white">{alert.metric}</span>
-                </div>
-                <div className="flex items-center gap-3 text-xs">
-                  <div className="text-zinc-400 font-medium text-[11px]">
-                    <span className="line-through mr-2 text-zinc-500">{alert.baseline_value}</span>
-                    <span className="text-amber-400 font-extrabold">{alert.current_value}</span>
-                  </div>
-                  {alert.timestamp && (
-                    <span className="text-[10px] text-zinc-500 font-medium font-mono">
-                      {format(new Date(alert.timestamp), 'HH:mm')}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
+
+          <div className="my-3 flex justify-center">
+            <RadialGauge
+              value={healthPercentage}
+              max={100}
+              label="Cluster Health"
+              tipValue={`${healthyCount}/${components.length || 12} NODES`}
+              color="#10B981"
+              size={135}
+              sublabel="Active microservice consensus"
+            />
+          </div>
+
+          <div className="pt-2 border-t border-black/5 flex items-center justify-between text-[11px] font-bold text-zinc-500">
+            <span>Status: <strong className="text-[#212328]">{overallStatus.toUpperCase()}</strong></span>
+            <span>100% Target SLA</span>
           </div>
         </div>
-      )}
 
-      {/* Component Grid (Borderless, Integrated) */}
-      {isLoading && components.length === 0 ? (
-        <div className="text-center py-16 text-zinc-400 text-xs font-medium">Checking service mesh health...</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+        {/* Anomaly Alerts & Active Node Summary (8 Cols) */}
+        <div className="md:col-span-8 bento-card p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-black/5 pb-3">
+            <div>
+              <h3 className="text-base font-extrabold text-[#212328] tracking-tight flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                Active Perimeter Anomalies ({alerts.length})
+              </h3>
+              <p className="text-xs text-zinc-500 font-medium">Real-time baseline deviations detected across guardrail services</p>
+            </div>
+            <span className="stat-pill text-[10px]">REALTIME</span>
+          </div>
+
+          {alerts.length > 0 ? (
+            <div className="space-y-2.5">
+              {alerts.map(alert => (
+                <div key={alert.id} className="flex items-center justify-between bg-[#FAF8F5] p-3 rounded-2xl border border-black/5">
+                  <div className="flex items-center gap-2.5">
+                    <span className={cn(
+                      "px-2 py-0.5 rounded-full text-[9px] font-black uppercase",
+                      alert.severity === 'high' ? "bg-rose-100 text-rose-800" :
+                      alert.severity === 'medium' ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"
+                    )}>
+                      {alert.severity}
+                    </span>
+                    <span className="font-bold text-xs text-[#212328]">{alert.metric}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs font-mono">
+                    <span className="text-zinc-400 line-through">{alert.baseline_value}</span>
+                    <span className="text-amber-600 font-black">{alert.current_value}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-8 rounded-2xl bg-[#FAF8F5] text-center text-xs text-zinc-500 font-medium">
+              Zero perimeter anomalies detected. All 12 services operating within nominal bounds.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 12 Microservices Bento Grid */}
+      <div className="bento-card p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-black/5 pb-3">
+          <div>
+            <h3 className="text-base font-extrabold text-[#212328] tracking-tight">
+              Microservice Mesh Topology ({components.length} Nodes)
+            </h3>
+            <p className="text-xs text-zinc-500 font-medium">Individual heartbeat, latency metrics, and probe status</p>
+          </div>
+          <span className="stat-pill text-[10px]">MESH GRID</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {components.map((comp, idx) => {
             const isHealthy = comp.status === 'healthy';
+
             return (
-              <SpotlightCard 
-                key={idx} 
-                className="p-3.5 rounded-xl border border-white/[0.06] bg-white/[0.015] flex flex-col justify-between space-y-2.5 hover:border-amber-500/25 transition-all shadow-sm"
+              <div
+                key={idx}
+                className="p-4 rounded-2xl bg-[#FAF8F5] hover:bg-[#F2ECE4] border border-black/5 transition-all flex flex-col justify-between space-y-3"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="h-7 w-7 bg-white/[0.03] rounded-md border border-white/[0.05] flex items-center justify-center text-amber-400">
+                    <div className="w-8 h-8 rounded-xl bg-[#212328] text-[#FFC83B] flex items-center justify-center shadow-xs">
                       {getComponentIcon(comp.name)}
                     </div>
                     <div>
-                      <h4 className="font-bold text-xs text-white">{comp.name}</h4>
-                      <div className="mt-0.5">
-                        <span className={`faang-chip text-[8px] font-bold uppercase ${isHealthy ? 'chip-emerald' : 'chip-crimson'}`}>
-                          {comp.status}
-                        </span>
-                      </div>
+                      <h4 className="text-xs font-black text-[#212328]">{comp.name}</h4>
+                      <span className={cn(
+                        "px-2 py-0.5 rounded-full text-[8px] font-black uppercase mt-0.5 inline-block",
+                        isHealthy ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+                      )}>
+                        {comp.status}
+                      </span>
                     </div>
                   </div>
                 </div>
-                <div className="pt-2 border-t border-white/[0.04] flex items-center justify-between text-[10px]">
-                  <span className="text-zinc-400 font-medium">
-                    Latency: <strong className={`font-bold font-mono ${comp.latency > 500 ? 'text-amber-400' : 'text-zinc-200'}`}>
-                      {comp.latency}ms
-                    </strong>
-                  </span>
-                  <span className="text-zinc-500 font-mono font-medium">{format(new Date(comp.last_check), 'HH:mm:ss')}</span>
+
+                <div className="pt-2 border-t border-black/5 flex items-center justify-between text-[11px] font-bold text-zinc-500">
+                  <span>Latency: <strong className="text-[#212328] font-mono">{comp.latency}ms</strong></span>
+                  <SegmentedProgress current={isHealthy ? 10 : 2} total={10} color={isHealthy ? 'emerald' : 'coral'} size="sm" />
                 </div>
-              </SpotlightCard>
+              </div>
             );
           })}
         </div>
-      )}
+      </div>
     </div>
   );
 }

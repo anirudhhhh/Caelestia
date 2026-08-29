@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, ArrowRight, Activity, ShieldAlert, ShieldCheck, ArrowDownLeft, ArrowUpRight, CheckCircle2, AlertTriangle, XCircle, Copy, Check, RefreshCw } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { 
+  Search, Filter, ArrowRight, Activity, ShieldAlert, ShieldCheck, 
+  ArrowDownLeft, ArrowUpRight, CheckCircle2, AlertTriangle, XCircle, 
+  Copy, Check, RefreshCw, FileText, Download, Terminal
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Progress } from '@/components/ui/progress';
 import type { AuditEvent } from '@/types';
 import { api } from '@/lib/api';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+import SegmentedProgress from '@/components/ui/SegmentedProgress';
 
 export default function AuditTrail() {
   const [events, setEvents] = useState<AuditEvent[]>([]);
@@ -19,6 +21,7 @@ export default function AuditTrail() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedJson, setCopiedJson] = useState(false);
   
   const [useCaseFilter, setUseCaseFilter] = useState<string>('all');
   const [actionFilter, setActionFilter] = useState<string>('all');
@@ -57,18 +60,24 @@ export default function AuditTrail() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const handleCopyJson = (data: any) => {
+    navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+    setCopiedJson(true);
+    setTimeout(() => setCopiedJson(false), 2000);
+  };
+
   const getActionBadge = (action: string) => {
     switch (action?.toLowerCase()) {
       case 'allow':
-        return <span className="faang-chip chip-emerald">ALLOW</span>;
+        return <span className="stat-pill bg-emerald-600">ALLOW</span>;
       case 'block':
-        return <span className="faang-chip chip-crimson">BLOCK</span>;
+        return <span className="stat-pill bg-[#FF6B5E]">BLOCK</span>;
       case 'flag':
-        return <span className="faang-chip chip-amber">FLAG</span>;
+        return <span className="stat-pill bg-[#FFC83B] text-[#212328]">FLAG</span>;
       case 'escalate':
-        return <span className="faang-chip chip-violet">ESCALATE</span>;
+        return <span className="stat-pill bg-[#212328]">ESCALATE</span>;
       default:
-        return <span className="faang-chip chip-neutral">{action?.toUpperCase() || 'UNKNOWN'}</span>;
+        return <span className="stat-pill bg-zinc-500">{action?.toUpperCase() || 'UNKNOWN'}</span>;
     }
   };
 
@@ -84,282 +93,234 @@ export default function AuditTrail() {
   });
 
   return (
-    <div className="h-full w-full flex flex-col gap-4 sm:gap-5 min-h-0 overflow-hidden font-sans">
-      {/* Top Metric Ribbon (Integrated, Unboxed) */}
-      <div className="metric-ribbon grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-white/[0.07] shrink-0 overflow-hidden">
-        <div className="metric-item">
-          <div className="flex items-center justify-between pb-1">
+    <div className="h-full w-full flex flex-col gap-4 sm:gap-5 min-h-0 overflow-y-auto pb-12 font-sans pr-1">
+      {/* Top Header Card */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-[28px] border border-black/5 shadow-sm shrink-0">
+        <div>
+          <h2 className="text-lg sm:text-xl font-black tracking-tight text-[#212328] flex items-center gap-2">
+            <FileText className="h-5 w-5 text-amber-500" />
+            Cryptographic Audit Trail
+          </h2>
+          <p className="text-xs text-zinc-500 font-semibold mt-0.5">
+            Immutable SHA-256 verified ledger of all ingress and egress interactions
+          </p>
+        </div>
+        <div className="flex items-center gap-2.5">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={loadData} 
+            disabled={isLoading} 
+            className="bento-btn-secondary h-9 px-3.5 text-xs"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>Sync Ledger</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Bento Metric Ribbon (Reference Style) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
+        <div className="bento-card p-5 space-y-1">
+          <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Total Audited Events</span>
-            <Activity className="h-3.5 w-3.5 text-amber-400" />
+            <Activity className="h-3.5 w-3.5 text-amber-500" />
           </div>
-          <div className="text-2xl font-extrabold tracking-tight text-white">
+          <div className="text-2xl sm:text-3xl font-black tracking-tight text-[#212328]">
             {stats?.total?.toLocaleString() || '0'}
           </div>
-          <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-medium">Ingress & Egress telemetry</p>
+          <p className="text-[11px] text-zinc-500 font-medium truncate">Live evaluated stream</p>
         </div>
 
-        <div className="metric-item">
-          <div className="flex items-center justify-between pb-1">
+        <div className="bento-card p-5 space-y-1">
+          <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Perimeter Block Rate</span>
-            <ShieldAlert className="h-3.5 w-3.5 text-rose-400" />
+            <ShieldAlert className="h-3.5 w-3.5 text-rose-500" />
           </div>
-          <div className="text-2xl font-extrabold tracking-tight text-rose-400">
+          <div className="text-2xl sm:text-3xl font-black tracking-tight text-[#FF6B5E]">
             {stats?.block_rate != null ? `${stats.block_rate}%` : '0%'}
           </div>
-          <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-medium">Violations stopped at ingress</p>
+          <p className="text-[11px] text-zinc-500 font-medium truncate">Zero-trust safety blocks</p>
         </div>
 
-        <div className="metric-item">
-          <div className="flex items-center justify-between pb-1">
+        <div className="bento-card p-5 space-y-1">
+          <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Warning Flag Rate</span>
-            <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
           </div>
-          <div className="text-2xl font-extrabold tracking-tight text-amber-400">
+          <div className="text-2xl sm:text-3xl font-black tracking-tight text-amber-600">
             {stats?.flag_rate != null ? `${stats.flag_rate}%` : '0%'}
           </div>
-          <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-medium">Low-confidence flags</p>
+          <p className="text-[11px] text-zinc-500 font-medium truncate">Policy warning events</p>
         </div>
 
-        <div className="metric-item">
-          <div className="flex items-center justify-between pb-1">
+        <div className="bento-card p-5 space-y-1">
+          <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Human Escalations</span>
-            <ShieldCheck className="h-3.5 w-3.5 text-violet-400" />
+            <ShieldCheck className="h-3.5 w-3.5 text-zinc-700" />
           </div>
-          <div className="text-2xl font-extrabold tracking-tight text-violet-400">
+          <div className="text-2xl sm:text-3xl font-black tracking-tight text-[#212328]">
             {stats?.escalate_count != null ? stats.escalate_count : (stats?.escalation_count ?? 0)}
-            <span className="text-xs font-semibold text-zinc-400 ml-1.5">
-              ({stats?.escalate_rate != null ? `${stats.escalate_rate}%` : '0%'})
-            </span>
           </div>
-          <p className="text-[11px] text-zinc-400 mt-0.5 truncate font-medium">Appeals routed to human queue</p>
+          <p className="text-[11px] text-zinc-500 font-medium truncate">Appealed to triage queue</p>
         </div>
       </div>
 
-      {/* Unboxed Filter Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 shrink-0 py-0.5">
-        <div className="relative flex-1 min-w-[180px] max-w-sm">
-          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-zinc-400" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search interaction ID, payload, or check..."
-            aria-label="Search audit events"
-            className="pl-9 h-8.5 text-xs bg-white/[0.04] border-white/[0.08] rounded-full text-white placeholder:text-zinc-500 focus-visible:ring-1 focus-visible:ring-white/30"
-          />
+      {/* Filter Toolbar Bento */}
+      <div className="bento-card p-4 flex flex-wrap items-center gap-3 justify-between shrink-0">
+        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search interaction ID, payload content..."
+              className="bento-search w-full"
+            />
+          </div>
+
+          <Select value={actionFilter} onValueChange={setActionFilter}>
+            <SelectTrigger className="w-[125px] h-9 text-xs font-bold bg-[#FAF8F5] border-black/5 rounded-full">
+              <SelectValue placeholder="Action" />
+            </SelectTrigger>
+            <SelectContent className="bg-white border-black/10 rounded-2xl">
+              <SelectItem value="all">All Actions</SelectItem>
+              <SelectItem value="allow">Allow</SelectItem>
+              <SelectItem value="block">Block</SelectItem>
+              <SelectItem value="flag">Flag</SelectItem>
+              <SelectItem value="escalate">Escalate</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={directionFilter} onValueChange={setDirectionFilter}>
+            <SelectTrigger className="w-[125px] h-9 text-xs font-bold bg-[#FAF8F5] border-black/5 rounded-full">
+              <SelectValue placeholder="Direction" />
+            </SelectTrigger>
+            <SelectContent className="bg-white border-black/10 rounded-2xl">
+              <SelectItem value="all">All Directions</SelectItem>
+              <SelectItem value="input">Input (Ingress)</SelectItem>
+              <SelectItem value="output">Output (Egress)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        
-        <Select value={directionFilter} onValueChange={setDirectionFilter}>
-          <SelectTrigger className="w-[150px] h-8.5 text-xs font-bold bg-white/[0.04] border-white/[0.08] rounded-full text-white" aria-label="Filter by stream direction">
-            <div className="flex items-center gap-1.5 truncate">
-              <span className="text-zinc-400 text-xs">Stream:</span>
-              <span className="text-white font-bold truncate">
-                {directionFilter === 'all' ? 'All' : directionFilter === 'input' ? 'Ingress' : 'Egress'}
-              </span>
-            </div>
-          </SelectTrigger>
-          <SelectContent className="bg-[#15161B] border-white/[0.1] rounded-xl">
-            <SelectItem value="all">All Streams</SelectItem>
-            <SelectItem value="input">Input (Ingress)</SelectItem>
-            <SelectItem value="output">Output (Egress)</SelectItem>
-          </SelectContent>
-        </Select>
 
-        <Select value={useCaseFilter} onValueChange={setUseCaseFilter}>
-          <SelectTrigger className="w-[180px] h-8.5 text-xs font-bold bg-white/[0.04] border-white/[0.08] rounded-full text-white" aria-label="Filter by workflow">
-            <div className="flex items-center gap-1.5 truncate">
-              <span className="text-zinc-400 text-xs">Workflow:</span>
-              <span className="text-white font-bold truncate">
-                {useCaseFilter === 'all' ? 'All Workflows' : 
-                 useCaseFilter === 'customer_support' ? 'Customer Support' :
-                 useCaseFilter === 'internal_copilot' ? 'Internal Copilot' :
-                 useCaseFilter === 'decision_support' ? 'Decision Support' : 'Security & Legal'}
-              </span>
-            </div>
-          </SelectTrigger>
-          <SelectContent className="bg-[#15161B] border-white/[0.1] rounded-xl">
-            <SelectItem value="all">All Workflows</SelectItem>
-            <SelectItem value="customer_support">Customer Support</SelectItem>
-            <SelectItem value="internal_copilot">Internal Copilot</SelectItem>
-            <SelectItem value="decision_support">Decision Support</SelectItem>
-            <SelectItem value="legal_compliance">Security & Legal</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={actionFilter} onValueChange={setActionFilter}>
-          <SelectTrigger className="w-[140px] h-8.5 text-xs font-bold bg-white/[0.04] border-white/[0.08] rounded-full text-white" aria-label="Filter by decision action">
-            <div className="flex items-center gap-1.5 truncate">
-              <span className="text-zinc-400 text-xs">Action:</span>
-              <span className="text-white font-bold capitalize truncate">
-                {actionFilter === 'all' ? 'All' : actionFilter}
-              </span>
-            </div>
-          </SelectTrigger>
-          <SelectContent className="bg-[#15161B] border-white/[0.1] rounded-xl">
-            <SelectItem value="all">All Actions</SelectItem>
-            <SelectItem value="allow">Allow</SelectItem>
-            <SelectItem value="block">Block</SelectItem>
-            <SelectItem value="flag">Flag</SelectItem>
-            <SelectItem value="escalate">Escalate</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Button variant="ghost" size="sm" onClick={loadData} aria-label="Refresh audit trail" className="ml-auto text-xs h-8.5 px-3 gap-1.5 text-zinc-400 hover:text-white rounded-full hover:bg-white/[0.06]">
-          <RefreshCw className="h-3.5 w-3.5" />
-          Refresh
-        </Button>
+        <span className="text-xs font-bold text-zinc-500">
+          Showing {filteredEvents.length} audited events
+        </span>
       </div>
 
-      {/* Main Integrated Audit Table (Borderless) */}
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-b border-white/[0.06] bg-transparent">
-        <div className="overflow-auto flex-1 w-full">
-          <Table>
-            <TableHeader className="sticky top-0 bg-[#0E0F12]/90 backdrop-blur-md z-10 border-b border-white/[0.06]">
-              <TableRow className="border-white/[0.06] hover:bg-transparent">
-                <TableHead className="text-xs w-[130px] font-bold text-zinc-400">Timestamp</TableHead>
-                <TableHead className="text-xs w-[100px] font-bold text-zinc-400">Direction</TableHead>
-                <TableHead className="text-xs w-[110px] font-bold text-zinc-400">Incident ID</TableHead>
-                <TableHead className="text-xs w-[140px] font-bold text-zinc-400">Workflow / Geo</TableHead>
-                <TableHead className="text-xs min-w-[200px] font-bold text-zinc-400">Guardrail Findings</TableHead>
-                <TableHead className="text-xs w-[90px] font-bold text-zinc-400">Risk</TableHead>
-                <TableHead className="text-xs w-[95px] font-bold text-zinc-400">Decision</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-zinc-400 text-xs font-medium">
-                    Loading ledger stream...
-                  </TableCell>
-                </TableRow>
-              ) : filteredEvents.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-zinc-400 text-xs font-medium">
-                    No audit records matching current query.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredEvents.map((event, idx) => {
-                  const checks = event.interaction?.checks || [];
-                  const issues = checks.filter((c) => (c.score > 0 || c.verdict !== 'pass'));
-                  const isInput = event.direction === 'input';
+      {/* Events List Bento */}
+      <div className="bento-card p-6 space-y-3 flex-1">
+        {filteredEvents.length > 0 ? (
+          filteredEvents.map((evt) => {
+            const isBlock = evt.decision_action === 'block';
+            const content = evt.interaction?.payload?.content || '';
 
-                  return (
-                    <TableRow 
-                      key={event.interaction_id ? `${event.interaction_id}-${event.direction}-${idx}` : idx} 
-                      onClick={() => setSelectedEvent(event)}
-                      className="hover:bg-white/[0.04] active:bg-white/[0.06] transition-colors border-white/[0.04] cursor-pointer group"
-                    >
-                      <TableCell className="text-xs font-mono text-zinc-400 whitespace-nowrap">
-                        {event.timestamp ? format(new Date(event.timestamp), 'MMM d, HH:mm:ss') : 'Just now'}
-                      </TableCell>
-                      
-                      <TableCell>
-                        {isInput ? (
-                          <span className="faang-chip chip-azure text-[10px] gap-1 w-fit">
-                            <ArrowDownLeft className="h-3 w-3 shrink-0" /> INPUT
-                          </span>
-                        ) : (
-                          <span className="faang-chip chip-violet text-[10px] gap-1 w-fit">
-                            <ArrowUpRight className="h-3 w-3 shrink-0" /> OUTPUT
-                          </span>
-                        )}
-                      </TableCell>
-
-                      <TableCell className="font-mono text-xs text-zinc-400">
-                        {event.interaction_id?.substring(0, 8)}...
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="flex flex-col leading-tight">
-                          <span className="text-xs font-bold text-zinc-200">{event.use_case}</span>
-                          <span className="text-[10px] text-zinc-400 font-mono">{event.geography}</span>
-                        </div>
-                      </TableCell>
-
-                      <TableCell>
-                        {issues.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {issues.map((iss, i) => (
-                              <span
-                                key={i}
-                                className={`faang-chip text-[10px] shrink-0 ${
-                                  iss.verdict === 'fail'
-                                    ? 'chip-crimson'
-                                    : 'chip-amber'
-                                }`}
-                              >
-                                {iss.check_name}: {iss.score.toFixed(2)}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
-                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Clean (0.00)
-                          </span>
-                        )}
-                      </TableCell>
-
-                      <TableCell>
-                        <span className={`faang-chip uppercase text-[10px] font-bold ${
-                          event.risk_tier === 'high' ? 'chip-crimson' :
-                          event.risk_tier === 'medium' ? 'chip-amber' :
-                          'chip-emerald'
-                        }`}>
-                          {event.risk_tier || 'LOW'}
-                        </span>
-                      </TableCell>
-
-                      <TableCell>
-                        {getActionBadge((event as any).action || event.interaction?.decision?.action || 'allow')}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
-
-      {/* Audit Event Detail Dialog */}
-      <Dialog open={!!selectedEvent} onOpenChange={(open) => !open && setSelectedEvent(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col bg-[#15161B] border-white/[0.1] text-white">
-          {selectedEvent && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="text-sm font-bold text-white flex items-center gap-2">
-                  <span>Audit Event Detail</span>
-                  <span className="faang-chip chip-neutral font-mono text-[10px]">{selectedEvent.interaction_id}</span>
-                </DialogTitle>
-              </DialogHeader>
-              <ScrollArea className="flex-1 pr-3">
-                <div className="space-y-3.5 text-xs">
-                  <div>
-                    <span className="font-bold text-zinc-400">Payload Content:</span>
-                    <div className="mt-1 p-3 bg-black/50 rounded-xl font-mono text-[11px] whitespace-pre-wrap break-all border border-white/[0.08] text-zinc-200">
-                      {selectedEvent.interaction?.payload?.content || 'No content'}
-                    </div>
+            return (
+              <div
+                key={evt.interaction_id}
+                className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-[#FAF8F5] hover:bg-[#F2ECE4] border border-black/5 transition-all gap-3"
+              >
+                <div className="flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-2xl bg-[#212328] text-[#FFC83B] flex items-center justify-center shadow-xs shrink-0 mt-0.5">
+                    <FileText className="h-5 w-5" />
                   </div>
-
                   <div>
-                    <span className="font-bold text-zinc-400">Guardrail Checks:</span>
-                    <div className="mt-1 space-y-1.5">
-                      {(selectedEvent.interaction?.checks || []).map((c, i) => (
-                        <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-black/40 border border-white/[0.06]">
-                          <span className="font-bold text-zinc-200">{c.check_name}</span>
-                          <div className="flex items-center gap-2 font-mono">
-                            <span className="text-zinc-300">Score: {c.score.toFixed(2)}</span>
-                            <span className={`faang-chip text-[9px] ${c.verdict === 'fail' ? 'chip-crimson' : c.verdict === 'warn' ? 'chip-amber' : 'chip-emerald'}`}>
-                              {c.verdict.toUpperCase()}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-mono font-black text-[#212328]">
+                        {evt.interaction_id.substring(0, 12)}...
+                      </span>
+                      {getActionBadge(evt.decision_action)}
+                      <span className="px-2 py-0.5 rounded-full bg-white text-[9px] font-bold text-zinc-600 border border-black/5 uppercase">
+                        {evt.direction}
+                      </span>
+                      <span className="text-[10px] text-zinc-400 font-bold">
+                        {format(new Date(evt.timestamp || Date.now()), 'MMM d, HH:mm:ss')}
+                      </span>
                     </div>
+                    <p className="text-xs text-zinc-700 font-medium mt-1 line-clamp-1">
+                      {content || evt.interaction?.decision?.reason || "Audited interaction payload"}
+                    </p>
                   </div>
                 </div>
-              </ScrollArea>
-            </>
+
+                <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                  <button
+                    onClick={() => handleCopy(evt.interaction_id)}
+                    className="bento-btn-secondary h-8 px-3 text-xs"
+                  >
+                    {copiedId === evt.interaction_id ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                    <span>{copiedId === evt.interaction_id ? "Copied" : "Copy ID"}</span>
+                  </button>
+                  <button
+                    onClick={() => setSelectedEvent(evt)}
+                    className="bento-btn-primary h-8 px-4 text-xs"
+                  >
+                    Inspect
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="p-10 text-center text-xs text-zinc-500 font-medium">
+            No audit records match the selected filters
+          </div>
+        )}
+      </div>
+
+      {/* Inspect Event Dialog */}
+      <Dialog open={!!selectedEvent} onOpenChange={() => setSelectedEvent(null)}>
+        <DialogContent className="bg-white border-black/10 rounded-[32px] max-w-2xl p-6 sm:p-7 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-black text-[#212328] flex items-center justify-between">
+              <span>Cryptographic Audit Inspection</span>
+              {selectedEvent && getActionBadge(selectedEvent.decision_action)}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-zinc-500 font-medium">
+              Interaction ID: {selectedEvent?.interaction_id}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedEvent && (
+            <div className="space-y-4 py-2">
+              {/* Payload Preview */}
+              <div className="p-4 rounded-2xl bg-[#FAF8F5] border border-black/5 space-y-1">
+                <span className="text-xs font-bold text-zinc-700 block">Payload Content</span>
+                <div className="text-xs font-mono bg-white p-3 rounded-xl border border-black/5 max-h-36 overflow-y-auto whitespace-pre-wrap">
+                  {selectedEvent.interaction?.payload?.content || selectedEvent.interaction?.decision?.reason || "No content payload"}
+                </div>
+              </div>
+
+              {/* Checks Breakdown */}
+              {selectedEvent.interaction?.checks && selectedEvent.interaction.checks.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-xs font-bold text-zinc-700 block">Security Check Results</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {selectedEvent.interaction.checks.map((chk, i) => (
+                      <div key={i} className="p-2.5 rounded-xl bg-[#FAF8F5] flex items-center justify-between text-xs">
+                        <span className="font-bold text-zinc-800">{chk.check_name}</span>
+                        <span className="font-mono font-bold text-zinc-600">{(chk.score * 100).toFixed(0)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="pt-3 border-t border-black/5 flex items-center justify-between">
+                <Button variant="ghost" onClick={() => setSelectedEvent(null)} className="rounded-full text-xs">
+                  Close
+                </Button>
+                <Button
+                  onClick={() => handleCopyJson(selectedEvent)}
+                  className="bento-btn-primary text-xs"
+                >
+                  {copiedJson ? <Check className="h-3.5 w-3.5 mr-1 text-[#FFC83B]" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+                  {copiedJson ? "Copied Envelope" : "Copy Raw JSON"}
+                </Button>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>
