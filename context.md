@@ -165,10 +165,11 @@ python3 test_firewall.py  # Runs 10 core verification scenarios (100% pass)
 
 ### 3. Run ML Training & Benchmarks
 ```bash
-python3 train/train_full_kfold.py        # 5-Fold Stratified Cross Validation
-python3 train/train_prompt_injection.py  # Prompt Injection training only
-python3 train/train_toxicity.py          # Toxicity training only
-python3 train/evaluate_guardrails.py     # Evaluation Benchmark
+python3 train/train.py                        # Fast train all models (default)
+python3 train/train.py --mode kfold           # 5-Fold Stratified Cross Validation
+python3 train/train.py --task prompt_injection # Prompt Injection training only
+python3 train/train.py --task toxicity         # Toxicity training only
+python3 train/evaluate.py                     # Evaluation & Latency Benchmark
 ```
 
 ### 4. Docker Deployment

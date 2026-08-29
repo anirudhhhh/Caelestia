@@ -1,8 +1,14 @@
 {
-  "task": "Prompt Injection Classifier",
+  "task_name": "Prompt Injection Classifier",
+  "mode": "fast",
   "base_model": "sentence-transformers/all-MiniLM-L6-v2",
-  "best_val_f1": 1.0,
   "epochs": 6,
-  "trained_at": 1787871291.6288462,
-  "device": "cpu"
+  "best_val_f1": 1.0,
+  "accuracy": 1.0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1": 1.0,
+  "auc": 1.0,
+  "elapsed_seconds": 23.359097003936768,
+  "saved_path": "/Users/anirudh/Desktop/Caelestia/models/prompt_injection_deberta"
 }

@@ -122,12 +122,12 @@ Every AI interaction passes through ControlPlane at the **perimeter boundary** (
 * Controls autonomous agent tool execution via blast radius tiers: `READ_ONLY` (`+0.05`), `REVERSIBLE_WRITE` (`+0.25`), and `IRREVERSIBLE_ACTION` (`+0.50`).
 * Tracks compounding risk across the conversation lifecycle (`0.0`–`1.0`), blocking high-blast actions when cumulative session risk exceeds safety thresholds ($> 0.70$).
 
-### 10. Neural Transformer Guardrail Models & 5-Fold CV Training Suite
-* **Fine-Tuned Encoder Classifiers:** Replaced placeholder determiners with custom fine-tuned transformer sequence classification models serialized under `models/prompt_injection_deberta` and `models/toxicity_roberta`.
-* **5-Fold Stratified Cross-Validation (`train/train_full_kfold.py`):** Trains with stratified splits and measures Out-of-Fold (OOF) generalization metrics across real-world adversarial attacks.
+### 10. Neural Transformer Guardrail Models & Training Suite
+* **Fine-Tuned Encoder Classifiers:** Custom fine-tuned transformer sequence classification models serialized under `models/prompt_injection_deberta` and `models/toxicity_roberta`.
+* **Unified Training Pipeline (`train/train.py`):** CLI trainer supporting fast single-split training (`--mode fast`) and 5-Fold Stratified Cross-Validation (`--mode kfold`) across real-world adversarial attacks.
 * **Sub-15ms Ingress SLA:** Uses bidirectional encoder attention in a single forward pass with Apple Silicon / CPU acceleration, achieving $<15\text{ms}$ P50 inference latency.
 * **Contextual Technical Disambiguation:** 0% False Positive Rate on legitimate dev/ops commands (`kill -9 PID`, `drop table`, `terminate worker`, `destroy cluster`).
-* **Evaluation Benchmark Suite:** Dedicated evaluation suite (`train/evaluate_guardrails.py`) measuring Accuracy, Precision, Recall, and F1.
+* **Evaluation Benchmark Suite (`train/evaluate.py`):** Dedicated evaluation suite measuring Accuracy, Precision, Recall, F1, and Latency SLAs.
 
 ---
 
@@ -442,10 +442,8 @@ Caelestia/
 │       ├── components/         # shadcn/ui components & layouts
 │       └── lib/                # API client and formatting utilities
 ├── train/                      # Guardrails ML Training & Benchmarking Suite
-│   ├── train_full_kfold.py     # 5-Fold Stratified Cross-Validation Engine
-│   ├── train_prompt_injection.py# Prompt Injection Neural Classifier Trainer
-│   ├── train_toxicity.py       # Contextual Toxicity Classifier Trainer
-│   ├── evaluate_guardrails.py  # Zero-leakage OOF Benchmark Evaluator
+│   ├── train.py                # Unified CLI Model Trainer (fast & kfold modes)
+│   ├── evaluate.py             # Zero-leakage OOF Benchmark Evaluator
 │   └── training_data.py        # High-coverage adversarial & enterprise datasets
 ├── models/                     # Serialized Transformer Neural Weights
 │   ├── prompt_injection_deberta/# Fine-tuned DeBERTa/MiniLM sequence classifier
