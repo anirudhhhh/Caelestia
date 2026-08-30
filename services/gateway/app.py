@@ -284,10 +284,17 @@ async def chat_completions(
 
         effective_sys_prompt = f"{CONTROLPLANE_SYSTEM_PROMPT}\n{geo_prompt}"
         max_tokens = req.max_tokens or get_default_max_tokens(req.use_case)
+        
+        # Strictly pass ONLY the current message (no prior conversation history) to prevent context pollution/leakage
+        current_role = _enum_val(last_message.role) if hasattr(last_message, "role") else "user"
+        current_content = envelope.payload.content if (envelope and envelope.payload) else last_message.content
+
         adapter_req = {
             "model": routed_model,
-            "messages": [{"role": "system", "content": effective_sys_prompt}]
-                        + [m.model_dump() for m in req.messages],
+            "messages": [
+                {"role": "system", "content": effective_sys_prompt},
+                {"role": current_role, "content": current_content}
+            ],
             "max_tokens": max_tokens,
         }
         

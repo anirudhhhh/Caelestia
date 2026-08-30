@@ -165,19 +165,9 @@ export default function Playground() {
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
-    setError(null);
-
     try {
-      const requestMessages = messages
-        .filter((m) => !m.isGreeting && m.action !== "block" && !m.content.startsWith("Failed ") && !m.content.includes("ready to assist you"))
-        .concat(userMessage)
-        .map((m) => ({
-          role: m.role,
-          content: m.content,
-        }));
-
       const data = await api.sendChat({
-        messages: requestMessages,
+        messages: [{ role: "user", content: userMessage.content }],
         use_case: useCase,
         geography: geography,
         session_id: sessionId || undefined,

@@ -4,6 +4,46 @@ defaults:
   flag_threshold: 0.4
   on_timeout: block
 pii_permissions:
+  email_service:
+    AADHAAR: block
+    ADDRESS: allow
+    BANK_ACCOUNT: block
+    CREDIT_CARD: block
+    EMAIL: allow
+    GOVERNMENT_ID: block
+    PAN: block
+    PHONE: allow
+    SSN: block
+  general_query:
+    AADHAAR: block
+    ADDRESS: allow
+    BANK_ACCOUNT: block
+    CREDIT_CARD: block
+    EMAIL: allow
+    GOVERNMENT_ID: block
+    PAN: block
+    PHONE: allow
+    SSN: block
+  leave_approval:
+    AADHAAR: block
+    ADDRESS: allow
+    BANK_ACCOUNT: block
+    CREDIT_CARD: block
+    EMAIL: allow
+    GOVERNMENT_ID: block
+    PAN: block
+    PHONE: allow
+    SSN: block
+  weather_service:
+    AADHAAR: block
+    ADDRESS: allow
+    BANK_ACCOUNT: block
+    CREDIT_CARD: block
+    EMAIL: allow
+    GOVERNMENT_ID: block
+    PAN: block
+    PHONE: allow
+    SSN: block
   customer_support:
     AADHAAR: block
     ADDRESS: allow

@@ -46,6 +46,10 @@ REVIEW_CONSOLE_URL = get_env("REVIEW_CONSOLE_URL", "http://localhost:8008")
 IMMUNE_SYSTEM_URL = get_env("IMMUNE_SYSTEM_URL", "http://localhost:8009")
 ACTION_GUARD_URL = get_env("ACTION_GUARD_URL", "http://localhost:8010")
 GUARDRAILS_ML_URL = get_env("GUARDRAILS_ML_URL", "http://localhost:8011")
+GENERAL_QUERY_URL = get_env("GENERAL_QUERY_URL", "http://localhost:8021")
+EMAIL_SERVICE_URL = get_env("EMAIL_SERVICE_URL", "http://localhost:8022")
+LEAVE_APPROVAL_URL = get_env("LEAVE_APPROVAL_URL", "http://localhost:8023")
+WEATHER_SERVICE_URL = get_env("WEATHER_SERVICE_URL", "http://localhost:8024")
 
 # ─── LLM Configuration (Google Gemini Native) ─────────────────────────────────
 

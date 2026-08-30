@@ -112,6 +112,7 @@ async def complete(req: AdapterRequest):
                     (data.get("choices") or [{}])[0].get("message", {}).get("content")
                     or data.get("content")
                     or data.get("response")
+                    or (f"[{data.get('service', 'Service')} Error] {data.get('error')}" if data.get("error") else None)
                     or data.get("message")
                     or str(data)
                 )

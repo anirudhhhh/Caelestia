@@ -23,6 +23,11 @@ class UseCase(str, Enum):
     INTERNAL_COPILOT = "internal_copilot"
     DECISION_SUPPORT = "decision_support"
     LEGAL_COMPLIANCE = "legal_compliance"
+    GENERAL_QUERY = "general_query"
+    EMAIL_SERVICE = "email_service"
+    LEAVE_APPROVAL = "leave_approval"
+    WEATHER_SERVICE = "weather_service"
+    GENERAL = "general"
 
 
 class Geography(str, Enum):

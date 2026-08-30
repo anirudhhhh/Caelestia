@@ -1,8 +1,13 @@
 export type UseCase =
+  | "general_query"
+  | "email_service"
+  | "leave_approval"
+  | "weather_service"
   | "customer_support"
   | "internal_copilot"
   | "decision_support"
-  | "legal_compliance";
+  | "legal_compliance"
+  | "general";
 export type Geography = "US" | "EU" | "IN";
 export type Direction = "input" | "output";
 export type RiskTier = "low" | "medium" | "high";
