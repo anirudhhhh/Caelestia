@@ -156,7 +156,7 @@ async def scan_output(envelope: InteractionEnvelope):
             pass
 
         final_toxicity_score = max(l1_res["score"], ml_toxicity_score)
-        if ml_verdict in ("safe_technical_context", "safe_pop_culture_context"):
+        if ml_verdict in ("safe_technical_context", "safe_pop_culture_context", "safe_multilingual_context", "safe_positive_emphasis"):
             final_toxicity_score = 0.05
 
         toxicity_layer = "L2_contextual_ml" if ml_toxicity_score > l1_res["score"] else "L1_lexicon"

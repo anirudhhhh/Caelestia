@@ -56,10 +56,19 @@ MULTILINGUAL_SAFE_CONTEXTS = [
     r'^\s*(?:namaste|namaskar|shukriya|dhanyavad|dhanyawad|alvida|kripya)\s*[.!?]*$'
 ]
 
+# Casual emphasis, praise, and positive colloquial intensifiers (non-hostile)
+EMPHATIC_POSITIVE_OR_CASUAL_CONTEXTS = [
+    r'\b(?:fucking|fuckin|freaking|fricking|damn|damned|hell)\s+(?:love|loving|loved|loves|awesome|amazing|great|good|delicious|best|fire|cool|happy|excited|fascinating|fantastic|brilliant|nice|sweet|tasty|hungry|craving|huge|fast|quick|easy)\b',
+    r'\b(?:love|loving|enjoy|enjoying|crave|craving)\s+(?:the|this|that|these|those|my|a|an)?\s*[\w\s]{0,30}?\s*(?:so\s+)?(?:fucking|fuckin|freaking|damn)\s+(?:much|well)\b',
+    r'\b(?:this|that|it|food|burger|pizza|meal|game|code|app)\s+is\s+(?:so\s+|really\s+|pretty\s+)?(?:fucking|fuckin|damn)\s+(?:good|cool|great|awesome|fire|delicious|impressive|fun|nice)\b',
+    r'\bhell\s+(?:yeah|yes)\b',
+    r'\b(?:badass|holy\s+shit\s+that\s+is\s+(?:cool|awesome|great|impressive))\b'
+]
+
 # Reframed Hostility Patterns
 REFRAMED_HOSTILITY_PATTERNS = [
     (r'\bpeople\s+like\s+you\s+(?:shouldn\'t|should\s+not)\s+be\s+allowed\b', 0.85, "marginalization"),
-    (r'\byou\s+(?:are\s+a|are)\s+(?:parasite|cancer|disease|waste\s+of\s+oxygen)\b', 0.90, "dehumanization"),
+    (r'\byou\s+(?:are\s+a\s+)?(?:completely\s+)?(?:useless\s+)?(?:piece\s+of\s+)?(?:trash|garbage|shit|scum|parasite|cancer|disease|waste\s+of\s+oxygen)\b', 0.92, "dehumanization"),
     (r'\bno\s+one\s+would\s+miss\s+you\s+if\s+you\b', 0.88, "self_harm_encouragement"),
     (r'\bgo\s+end\s+it\s+all\b', 0.92, "self_harm_encouragement"),
     (r'\byour\s+kind\s+(?:does\s+not|doesn\'t)\s+belong\b', 0.85, "group_hate")
@@ -145,7 +154,18 @@ class ContextualToxicityClassifier:
                     "latency_ms": (time.time() - start) * 1000
                 }
 
-        # 4. Neural Classifier Inference
+        # 4. Fast Path: Check Emphatic Positive / Casual Praise & Intensifiers
+        for pattern in EMPHATIC_POSITIVE_OR_CASUAL_CONTEXTS:
+            if re.search(pattern, text_lower) or re.search(pattern, norm.canonical):
+                return {
+                    "score": 0.01,
+                    "verdict": "safe_positive_emphasis",
+                    "reason": "Matched safe emphatic praise / positive colloquial intensifier (non-toxic)",
+                    "engine": "contextual_neural_classifier",
+                    "latency_ms": (time.time() - start) * 1000
+                }
+
+        # 5. Neural Classifier Inference
         neural_score = 0.0
         if self.model and self.tokenizer:
             try:

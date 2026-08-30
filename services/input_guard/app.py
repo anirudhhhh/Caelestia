@@ -211,13 +211,12 @@ async def scan_input(envelope: InteractionEnvelope):
     ml_tox_score = ml_res.get("toxicity_score", 0.0)
     l1_tox_score = l1_res["score"]
     
-    if ml_res.get("verdict") in ("safe_technical_context", "safe_pop_culture_context"):
-        final_toxicity_score = 0.01
+    if ml_res.get("verdict") in ("safe_technical_context", "safe_pop_culture_context", "safe_multilingual_context", "safe_positive_emphasis"):
+        final_toxicity_score = ml_tox_score if ml_tox_score > 0 else 0.01
+        toxicity_layer = "L2_contextual_ml"
     else:
         final_toxicity_score = max(l1_tox_score, ml_tox_score, vec_tox_contrib)
-
-    # Determine controlling layer for toxicity
-    toxicity_layer = "L3_vector_store" if vec_tox_contrib > max(l1_tox_score, ml_tox_score) else ("L2_contextual_ml" if ml_tox_score > l1_tox_score else "L1_lexicon")
+        toxicity_layer = "L3_vector_store" if vec_tox_contrib > max(l1_tox_score, ml_tox_score) else ("L2_contextual_ml" if ml_tox_score > l1_tox_score else "L1_lexicon")
 
     toxicity_check = CheckResult(
         check_name="toxicity",
