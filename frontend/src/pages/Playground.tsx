@@ -235,11 +235,16 @@ export default function Playground() {
       const currentModel = data.model_used || "gemini-2.5-flash";
 
       if (data.decision && data.decision.action === "block") {
+        const reasonText = data.decision?.reason || "Request blocked by enterprise security guardrails.";
+        const displayContent = (data.content && data.content !== reasonText) 
+          ? `[Blocked Output]: ${data.content}\n\n${reasonText}` 
+          : reasonText;
+
         setMessages((prev) => [
           ...prev,
           {
             role: "assistant",
-            content: (data.content ? `[Original Response]: ${data.content}\n\n` : "") + (data.decision?.reason || "Request blocked by enterprise security guardrails."),
+            content: displayContent,
             action: "block",
             interaction_id: data.interaction_id,
             workflow_name: currentWfName,
@@ -249,11 +254,16 @@ export default function Playground() {
           },
         ]);
       } else if (data.decision && data.decision.action === "escalate") {
+        const reasonText = data.decision?.reason || "Your request flagged perimeter security policies and has been queued for Human Review.";
+        const displayContent = (data.content && data.content !== reasonText)
+          ? `[Flagged Output]: ${data.content}\n\n${reasonText}`
+          : reasonText;
+
         setMessages((prev) => [
           ...prev,
           {
             role: "assistant",
-            content: (data.content ? `[Original Response]: ${data.content}\n\n` : "") + "Your request flagged perimeter security policies and has been queued for Human Review. Waiting for reviewer verdict...",
+            content: displayContent,
             action: "escalate",
             interaction_id: data.interaction_id,
             workflow_name: currentWfName,
@@ -831,31 +841,46 @@ export default function Playground() {
             <div className="space-y-2.5">
               {activeChecks.length > 0 ? activeChecks.map((chk, i) => {
                 const scoreNum = typeof chk.score === 'number' ? chk.score : parseFloat(chk.score) || 0;
-                const scorePct = (scoreNum * 100).toFixed(0);
-                const isFail = chk.verdict === 'fail' || scoreNum > 0.6;
-                const isWarn = chk.verdict === 'warn' || (scoreNum > 0.3 && scoreNum <= 0.6);
+                const scorePct = (scoreNum * 100).toFixed(scoreNum > 0 && scoreNum < 0.1 ? 1 : 0);
+                const isFail = chk.verdict === 'fail' || scoreNum >= 0.70;
+                const isWarn = chk.verdict === 'warn' || (scoreNum >= 0.30 && scoreNum < 0.70);
+
+                const latencyNum = typeof chk.latency_ms === 'number' ? chk.latency_ms : parseFloat(chk.latency_ms) || 8.0;
+                const latencyDisplay = `${latencyNum.toFixed(1)}ms`;
 
                 return (
-                  <div key={i} className="p-2.5 rounded-2xl bg-[#FAF8F5] hover:bg-[#F2ECE4] transition-colors space-y-1">
+                  <div key={i} className="p-2.5 rounded-2xl bg-[#FAF8F5] hover:bg-[#F2ECE4] transition-colors space-y-1.5 border border-black/5">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-zinc-800 capitalize">
                         {chk.check_name.replace(/_/g, ' ')}
                       </span>
                       <div className="flex items-center gap-1.5">
                         <span className={cn(
-                          "px-1.5 py-0.2 rounded-full text-[9px] font-black uppercase",
-                          isFail ? "bg-rose-100 text-rose-800" : isWarn ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"
+                          "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider",
+                          isFail ? "bg-rose-100 text-rose-800 border border-rose-200" : isWarn ? "bg-amber-100 text-amber-800 border border-amber-200" : "bg-emerald-100 text-emerald-800 border border-emerald-200"
                         )}>
                           {chk.verdict || (isFail ? 'FAIL' : 'PASS')}
                         </span>
-                        <span className="text-xs font-mono font-black text-[#212328]">
+                        <span className={cn(
+                          "text-xs font-mono font-black px-1.5 py-0.5 rounded-md",
+                          isFail ? "bg-rose-50 text-rose-700" : isWarn ? "bg-amber-50 text-amber-700" : "bg-black/5 text-[#212328]"
+                        )}>
                           {scorePct}%
                         </span>
                       </div>
                     </div>
                     <div className="flex items-center justify-between text-[10px] text-zinc-500">
-                      <span className="font-mono">{chk.engine || "ml_engine"} · {chk.latency_ms || 10}ms</span>
-                      <SegmentedProgress current={Math.round(scoreNum * 10)} total={10} color={isFail ? 'coral' : isWarn ? 'amber' : 'emerald'} size="sm" showCount={false} showPercentage={false} />
+                      <span className="font-mono text-zinc-500 truncate max-w-[170px]" title={chk.engine}>
+                        {chk.engine || "ml_engine"} · {latencyDisplay}
+                      </span>
+                      <SegmentedProgress 
+                        current={scoreNum >= 0.05 ? Math.max(1, Math.round(scoreNum * 10)) : (scoreNum > 0 ? 1 : 0)} 
+                        total={10} 
+                        color={isFail ? 'coral' : isWarn ? 'amber' : 'emerald'} 
+                        size="sm" 
+                        showCount={false} 
+                        showPercentage={false} 
+                      />
                     </div>
                   </div>
                 );

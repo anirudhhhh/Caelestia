@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Network, Plus, Trash2, CheckCircle2, 
+import {
+  Network, Plus, Trash2, CheckCircle2,
   Sparkles, ArrowRight, Server, Globe,
   RefreshCw, Code2, Copy, Check, Send, Shield, Settings2,
   Pencil, Sliders, Bot, Terminal, SlidersHorizontal, Lock
@@ -19,10 +19,10 @@ import PillSlider from '@/components/ui/PillSlider';
 import RadialGauge from '@/components/ui/RadialGauge';
 
 const SAMPLE_PROMPTS = [
-  "Can you help me check the status of my order and request a refund?",
-  "Can you debug this Python asyncio memory leak with the database connection pool?",
-  "What is our enterprise invoice billing cycle and payment terms for annual renewals?",
-  "What are our GDPR data retention and user privacy compliance guidelines?",
+  "tell me about the number of people working in accenture?",
+  "Send an email to rahul@company.com that the project deadline has been extended",
+  "Can I take 4 days off next week for personal work?",
+  "What is the current weather and temperature in Boston right now?",
 ];
 
 export default function LoadBalancer() {
@@ -201,17 +201,17 @@ export default function LoadBalancer() {
           </p>
         </div>
         <div className="flex items-center gap-2.5">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={loadEndpoints} 
-            disabled={isLoading} 
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadEndpoints}
+            disabled={isLoading}
             className="bento-btn-secondary h-9 px-3.5 text-xs"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
             <span>Sync</span>
           </Button>
-          <Button 
+          <Button
             onClick={() => setIsRegisterOpen(true)}
             className="bento-btn-primary h-9 px-4 text-xs"
           >
@@ -268,7 +268,8 @@ export default function LoadBalancer() {
             {matchResults.length > 0 ? (
               <div className="space-y-2">
                 {matchResults.slice(0, 3).map((res: any, idx: number) => {
-                  const score = Math.round((res.similarity_score || res.score || 0.85) * 10);
+                  const rawVal = Number(res.similarity_score ?? res.score ?? 0.85);
+                  const scoreOutOf10 = Math.min(10, Math.max(1, Math.round(rawVal * 10)));
                   return (
                     <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-[#FAF8F5] border border-black/5">
                       <div className="flex items-center gap-2.5">
@@ -282,7 +283,7 @@ export default function LoadBalancer() {
                           </div>
                         </div>
                       </div>
-                      <SegmentedProgress current={score} total={10} color={idx === 0 ? 'emerald' : 'amber'} size="sm" showCount countLabel="Match" />
+                      <SegmentedProgress current={scoreOutOf10} total={10} color={idx === 0 ? 'emerald' : 'amber'} size="sm" showCount countLabel="Match" />
                     </div>
                   );
                 })}
@@ -310,7 +311,7 @@ export default function LoadBalancer() {
 
             <div className="py-6 flex flex-col items-center justify-center">
               <RadialGauge
-                value={matchResults[0] ? Math.round((matchResults[0].similarity_score || matchResults[0].score || 0.85) * 100) : 94}
+                value={matchResults[0] ? Math.round((matchResults[0].similarity_score || matchResults[0].score || 0.92) * 100) : 92}
                 size={140}
                 strokeWidth={14}
                 color="emerald"
@@ -539,11 +540,11 @@ export default function LoadBalancer() {
           <div className="p-4 rounded-2xl bg-[#212328] text-white font-mono text-xs overflow-x-auto">
             <div className="text-zinc-400"># Direct cURL Request</div>
             <div className="text-amber-300 mt-1">
-              curl -X POST http://localhost:8000/v1/chat/completions \<br/>
-              &nbsp;&nbsp;-H "Content-Type: application/json" \<br/>
-              &nbsp;&nbsp;-d '&#123;<br/>
-              &nbsp;&nbsp;&nbsp;&nbsp;"endpoint_id": "{selectedEndpointForCode?.id}",<br/>
-              &nbsp;&nbsp;&nbsp;&nbsp;"messages": [&#123;"role": "user", "content": "Your query here"&#125;]<br/>
+              curl -X POST http://localhost:8000/v1/chat/completions \<br />
+              &nbsp;&nbsp;-H "Content-Type: application/json" \<br />
+              &nbsp;&nbsp;-d '&#123;<br />
+              &nbsp;&nbsp;&nbsp;&nbsp;"endpoint_id": "{selectedEndpointForCode?.id}",<br />
+              &nbsp;&nbsp;&nbsp;&nbsp;"messages": [&#123;"role": "user", "content": "Your query here"&#125;]<br />
               &nbsp;&nbsp;&#125;'
             </div>
           </div>
