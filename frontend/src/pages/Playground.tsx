@@ -841,7 +841,7 @@ export default function Playground() {
             <div className="space-y-2.5">
               {activeChecks.length > 0 ? activeChecks.map((chk, i) => {
                 const scoreNum = typeof chk.score === 'number' ? chk.score : parseFloat(chk.score) || 0;
-                const scorePct = (scoreNum * 100).toFixed(scoreNum > 0 && scoreNum < 0.1 ? 1 : 0);
+                const scorePct = (scoreNum * 100).toFixed(1);
                 const isFail = chk.verdict === 'fail' || scoreNum >= 0.70;
                 const isWarn = chk.verdict === 'warn' || (scoreNum >= 0.30 && scoreNum < 0.70);
 

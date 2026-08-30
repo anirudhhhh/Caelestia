@@ -24,7 +24,7 @@ PROMPT_INJECTION_FAST_PATTERNS = [
     (r'(?:ignore|disregard|forget)\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions|prompts|rules)', 0.95, "override_instructions"),
     (r'(?:you\s+are\s+now|act\s+as|roleplay\s+as)\s+(?:DAN|jailbreak|unfiltered|an\s+AI\s+without\s+rules)', 0.95, "dan_jailbreak"),
     (r'\[SYSTEM\s*PROMPT\]|\<system\>|\[INST\]|```system', 0.90, "system_tag_injection"),
-    (r'(?:reveal|show|print|display|output)\s+(?:your\s+)?(?:system\s+prompt|instructions|initial\s+prompt)', 0.85, "prompt_exfiltration"),
+    (r'(?:reveal|show|print|display|output|echo|repeat)\s+[\w\s]{0,40}?(?:system\s+prompt|system\s+instructions|developer\s+instructions|instructions|initial\s+prompt)', 0.92, "prompt_exfiltration"),
     (r'(?:override\s+mode|developer\s+mode|god\s+mode|sudo\s+mode)\s+(?:enabled|activated|on)', 0.90, "mode_override"),
 ]
 

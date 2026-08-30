@@ -66,6 +66,10 @@ def scan_sensitive_data(
                 if "json_web_token" not in found_types:
                     found_types.append("json_web_token")
 
+    if max_score == 0.0 and tokens:
+        max_ent = max((calculate_shannon_entropy(t) for t in tokens if len(t) > 3), default=0.0)
+        max_score = round(min((max_ent / 5.5) * 0.08, 0.08), 4)
+
     latency_ms = (time.time() - start) * 1000
     verdict = CheckVerdict.FAIL if max_score >= 0.50 else CheckVerdict.PASS
 

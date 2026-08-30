@@ -178,9 +178,8 @@ class SystemPromptLeakageScanner:
                                 max_semantic_sim = cos_sim
                                 semantic_matched_rule = sys_sentences[s_idx][:60]
 
-        # Compute combined weighted score
-        semantic_score = max_semantic_sim if max_semantic_sim >= 0.80 else 0.0
-        final_score = max(meta_score, max_lcs_score, semantic_score)
+        # Compute combined weighted score (Raw continuous scores)
+        final_score = max(meta_score, max_lcs_score, max_semantic_sim)
 
         latency_ms = (time.time() - start) * 1000
         verdict = CheckVerdict.FAIL if final_score >= 0.80 else (CheckVerdict.WARN if final_score >= 0.65 else CheckVerdict.PASS)
