@@ -300,15 +300,17 @@ export default function HumanReview() {
 
         <div className="space-y-3">
           {filteredItems.length > 0 ? (
-            filteredItems.map((item) => {
+            filteredItems.map((item, idx) => {
               const isPending = item.status === 'pending';
               const content = item.payload?.content || item.interaction?.payload?.content || '';
+              const uniqueKey = `${item.interaction_id}-${item.id || ''}-${item.created_at || idx}-${idx}`;
 
               return (
                 <div
-                  key={item.interaction_id}
+                  key={uniqueKey}
                   className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-[#FAF8F5] hover:bg-[#F2ECE4] border border-black/5 transition-all gap-3"
                 >
+
                   <div className="flex items-start gap-3.5">
                     <div className={cn(
                       "w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm shrink-0 mt-0.5",

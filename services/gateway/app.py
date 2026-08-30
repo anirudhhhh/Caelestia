@@ -496,14 +496,14 @@ async def get_audit_events(
     action: Optional[str] = None,
     direction: Optional[str] = None,
     since: Optional[str] = None,
-    limit: int = 50,
+    limit: int = 200,
 ):
     params: dict = {"limit": limit}
-    if use_case:
+    if use_case and use_case.lower() != 'all':
         params["use_case"] = use_case
-    if action:
+    if action and action.lower() != 'all':
         params["action"] = action
-    if direction:
+    if direction and direction.lower() != 'all':
         params["direction"] = direction
     if since:
         params["since"] = since
@@ -512,6 +512,7 @@ async def get_audit_events(
     if resp.status_code != 200:
         return []
     return [_to_frontend_audit_event(e) for e in resp.json().get("events", [])]
+
 
 def _to_frontend_audit_event(e: dict) -> dict:
     envelope = e.get("envelope") or {}

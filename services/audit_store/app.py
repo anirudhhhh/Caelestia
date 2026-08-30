@@ -218,19 +218,19 @@ async def query_events(
     action: Optional[str] = None,
     direction: Optional[str] = None,
     since: Optional[str] = None,
-    limit: int = Query(50, le=1000)
+    limit: int = Query(200, le=1000)
 ):
     query = "SELECT * FROM interaction_events"
     conditions = []
     params = []
-    if use_case:
-        conditions.append("use_case = ?")
+    if use_case and use_case.lower() != 'all':
+        conditions.append("LOWER(use_case) = LOWER(?)")
         params.append(use_case)
-    if action:
-        conditions.append("decision_action = ?")
+    if action and action.lower() != 'all':
+        conditions.append("LOWER(decision_action) = LOWER(?)")
         params.append(action)
-    if direction:
-        conditions.append("direction = ?")
+    if direction and direction.lower() != 'all':
+        conditions.append("LOWER(direction) = LOWER(?)")
         params.append(direction)
     if since:
         conditions.append("created_at >= ?")
@@ -249,8 +249,12 @@ async def query_events(
         events = [dict(row) for row in rows]
         for e in events:
             if "envelope" in e and isinstance(e["envelope"], str):
-                e["envelope"] = json.loads(e["envelope"])
+                try:
+                    e["envelope"] = json.loads(e["envelope"])
+                except Exception:
+                    pass
         return {"events": events}
+
 
 @app.get("/stats")
 async def get_stats():
