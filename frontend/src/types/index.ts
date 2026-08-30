@@ -97,6 +97,7 @@ export interface ChatResponse {
 }
 
 export interface EscalationItem {
+  id?: string;
   interaction_id: string;
   session_id?: string;
   direction?: Direction | string;
