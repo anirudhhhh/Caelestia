@@ -111,7 +111,7 @@ export default function SecretRegistration() {
       </div>
 
       {/* Hero Bento Alert Banner (Warm Bento Style) */}
-      <div className="bento-card-warm p-6 space-y-3">
+      <div id="secrets-register" className="bento-card-warm p-6 space-y-3">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-[#212328] text-[#FFC83B] flex items-center justify-center shadow-xs">
             <Lock className="h-4.5 w-4.5" />
@@ -131,7 +131,7 @@ export default function SecretRegistration() {
       </div>
 
       {/* Active Fingerprints Bento Card (Reference Habit List Style) */}
-      <div className="bento-card p-6 space-y-4">
+      <div id="secrets-active-list" className="bento-card p-6 space-y-4">
         <div className="flex items-center justify-between border-b border-black/5 pb-3">
           <div>
             <h3 className="text-base font-extrabold text-[#212328] tracking-tight">

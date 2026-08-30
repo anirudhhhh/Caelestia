@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   UserCheck, Clock, CheckCircle2, XCircle, Edit, AlertTriangle, 
   Search, Filter, ShieldAlert, Sparkles, Check, ArrowRight, 
   ArrowDownLeft, ArrowUpRight, Copy, History, ShieldCheck, RefreshCw,
-  FileText, CheckCircle
+  FileText, CheckCircle, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -17,8 +17,10 @@ import type { EscalationItem, ReviewAction } from '@/types';
 import { api } from '@/lib/api';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { searchCollection, getHighlightSegments } from '@/lib/fuzzy';
 import RadialGauge from '@/components/ui/RadialGauge';
 import SegmentedProgress from '@/components/ui/SegmentedProgress';
+
 
 export default function HumanReview() {
   const [escalations, setEscalations] = useState<EscalationItem[]>([]);
@@ -109,19 +111,29 @@ export default function HumanReview() {
     }
   };
 
-  const filteredItems = escalations.filter(item => {
-    if (statusFilter !== 'all' && item.status !== statusFilter) return false;
-    if (riskFilter !== 'all' && item.risk_tier !== riskFilter) return false;
-    if (directionFilter !== 'all' && item.direction !== directionFilter) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchId = item.interaction_id.toLowerCase().includes(q);
-      const matchReason = (item.escalation_reason || '').toLowerCase().includes(q);
-      const matchContent = (item.payload?.content || '').toLowerCase().includes(q);
-      if (!matchId && !matchReason && !matchContent) return false;
+  // Multi-field fuzzy search over escalation queue
+  const filteredItems = useMemo(() => {
+    let baseItems = escalations;
+    if (statusFilter !== 'all') baseItems = baseItems.filter(item => item.status === statusFilter);
+    if (riskFilter !== 'all') baseItems = baseItems.filter(item => item.risk_tier === riskFilter);
+    if (directionFilter !== 'all') baseItems = baseItems.filter(item => item.direction === directionFilter);
+
+    if (!searchQuery.trim()) {
+      return baseItems;
     }
-    return true;
-  });
+
+    const searchRes = searchCollection(baseItems, searchQuery, [
+      { key: 'interaction_id', weight: 2.5 },
+      { getter: (item) => item.payload?.content || item.interaction?.payload?.content, weight: 2.2 },
+      { key: 'escalation_reason', weight: 1.8 },
+      { key: 'use_case', weight: 1.5 },
+      { key: 'status', weight: 1.3 },
+      { key: 'resolution', weight: 1.4 },
+      { getter: (item) => item.resolution_reason, weight: 1.4 }
+    ]);
+
+    return searchRes.map(res => res.item);
+  }, [escalations, statusFilter, riskFilter, directionFilter, searchQuery]);
 
   const pendingCount = escalations.filter(e => e.status === 'pending').length;
   const resolvedCount = escalations.filter(e => e.status === 'resolved').length;
@@ -163,7 +175,7 @@ export default function HumanReview() {
       )}
 
       {/* Top Bento Metrics: Resolution Radial Gauge + Queue Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 sm:gap-6">
+      <div id="review-metrics" className="grid grid-cols-1 md:grid-cols-12 gap-5 sm:gap-6">
         {/* Radial Resolution Gauge (4 Cols) */}
         <div className="md:col-span-4 bento-card p-6 flex flex-col justify-between">
           <div>
@@ -240,17 +252,25 @@ export default function HumanReview() {
       </div>
 
       {/* Filter & Search Bar */}
-      <div className="bento-card p-4 flex flex-wrap gap-3 items-center justify-between">
+      <div id="review-search" className="bento-card p-4 flex flex-wrap gap-3 items-center justify-between">
         <div className="flex flex-wrap gap-2.5 items-center flex-1 min-w-[280px]">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400" />
             <input
               type="text"
-              placeholder="Filter escalations by ID or payload..."
+              placeholder="Fuzzy search ID, reason, or content..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bento-search w-full"
+              className="bento-search w-full pr-8"
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 p-0.5"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
 
           {/* Status Filter */}
@@ -276,7 +296,8 @@ export default function HumanReview() {
       </div>
 
       {/* Escalation Queue Table / Card List */}
-      <div className="bento-card p-6 space-y-4">
+      <div id="review-queue" className="bento-card p-6 space-y-4">
+
         <div className="space-y-3">
           {filteredItems.length > 0 ? (
             filteredItems.map((item) => {

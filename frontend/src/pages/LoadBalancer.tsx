@@ -224,7 +224,7 @@ export default function LoadBalancer() {
       {/* Top Bento Row: Live Dispatch Simulator + Matching Gauge */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
         {/* Semantic Simulator Bento (8 Cols) */}
-        <div className="lg:col-span-8 bento-card p-6 space-y-4">
+        <div id="lb-tester" className="lg:col-span-8 bento-card p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-black/5 pb-3">
             <div>
               <h3 className="text-base font-extrabold text-[#212328] tracking-tight flex items-center gap-2">
@@ -298,35 +298,43 @@ export default function LoadBalancer() {
         {/* Router Telemetry Radial Gauge (4 Cols) */}
         <div className="lg:col-span-4 bento-card p-6 flex flex-col justify-between">
           <div>
-            <span className="text-[10px] uppercase font-extrabold tracking-wider text-zinc-400">
-              Dispatch Accuracy
-            </span>
-            <h4 className="text-base font-extrabold text-[#212328] mt-0.5">
-              Vector Precision
-            </h4>
+            <div className="flex items-center justify-between border-b border-black/5 pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-[#212328] tracking-tight">
+                  Router Affinity
+                </h3>
+                <p className="text-xs text-zinc-500 font-medium">Cosine confidence</p>
+              </div>
+              <Globe className="h-4 w-4 text-emerald-600" />
+            </div>
+
+            <div className="py-6 flex flex-col items-center justify-center">
+              <RadialGauge
+                value={matchResults[0] ? Math.round((matchResults[0].similarity_score || matchResults[0].score || 0.85) * 100) : 94}
+                size={140}
+                strokeWidth={14}
+                color="emerald"
+                label="Confidence"
+                sublabel="Top Match"
+              />
+            </div>
           </div>
 
-          <div className="my-4 flex justify-center">
-            <RadialGauge
-              value={96}
-              max={100}
-              label="Vector Match"
-              tipValue="384-D EMBEDDINGS"
-              color="#10B981"
-              size={135}
-              sublabel="Semantic confidence score"
-            />
-          </div>
-
-          <div className="pt-2 border-t border-black/5 flex items-center justify-between text-[11px] font-bold text-zinc-500">
-            <span>Routing latency: <strong className="text-[#212328]">4.1ms</strong></span>
-            <span>Cosine similarity</span>
+          <div className="p-3.5 rounded-2xl bg-[#FAF8F5] border border-black/5 text-xs text-zinc-600 font-semibold space-y-1">
+            <div className="flex items-center justify-between">
+              <span>Top Selected Route:</span>
+              <strong className="text-[#212328] font-black">{matchResults[0]?.name || matchResults[0]?.endpoint_name || "Customer Support"}</strong>
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-zinc-500">
+              <span>Dynamic Routing Latency:</span>
+              <span className="font-mono font-bold text-emerald-700">~3.2ms</span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Registered Workflows Section (Reference Habit List Style) */}
-      <div className="bento-card p-6 space-y-4">
+      {/* Bottom Bento: Endpoint Registry */}
+      <div id="lb-endpoints" className="bento-card p-6 space-y-4">
         <div className="flex items-center justify-between border-b border-black/5 pb-3">
           <div>
             <h3 className="text-base font-extrabold text-[#212328] tracking-tight">
@@ -351,6 +359,7 @@ export default function LoadBalancer() {
             return (
               <div
                 key={ep.id}
+                id={`endpoint-${ep.id}`}
                 className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-[#FAF8F5] hover:bg-[#F2ECE4] border border-black/5 transition-all gap-3"
               >
                 <div className="flex items-center gap-3.5">

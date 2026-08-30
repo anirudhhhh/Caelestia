@@ -106,16 +106,33 @@ const PII_ENTITIES = [
 export default function PolicyEditor() {
   const [searchParams] = useSearchParams();
   const activeTabFromUrl = searchParams.get('tab');
+  const sectionFromUrl = searchParams.get('section');
 
-  const [activeTab, setActiveTab] = useState<'rules' | 'yaml' | 'pii'>(
-    (activeTabFromUrl as any) || 'rules'
-  );
+  const getInitialTab = (): 'rules' | 'yaml' | 'pii' => {
+    if (activeTabFromUrl === 'pii' || sectionFromUrl === 'policy-pii-matrix') return 'pii';
+    if (activeTabFromUrl === 'yaml' || sectionFromUrl === 'policy-yaml-editor') return 'yaml';
+    return 'rules';
+  };
+
+  const [activeTab, setActiveTab] = useState<'rules' | 'yaml' | 'pii'>(getInitialTab());
   const [rules, setRules] = useState<PolicyRule[]>(PRESETS[0].rules);
   const [yamlContent, setYamlContent] = useState('');
   const [yamlError, setYamlError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string>('General Starter Baseline');
+
+  // Switch tab if section in URL changes
+  useEffect(() => {
+    const section = searchParams.get('section');
+    if (section === 'policy-pii-matrix') {
+      setActiveTab('pii');
+    } else if (section === 'policy-yaml-editor') {
+      setActiveTab('yaml');
+    } else if (section === 'policy-threshold-sliders' || section === 'policy-nl-extractor') {
+      setActiveTab('rules');
+    }
+  }, [searchParams]);
 
   // PII Permissions state: { EMAIL: 'block', PHONE: 'allow', ... }
   const [piiPermissions, setPiiPermissions] = useState<Record<string, 'allow' | 'block'>>({
@@ -301,7 +318,7 @@ export default function PolicyEditor() {
 
       {/* Tab 1: Visual Rule Builder with Custom Sliders (Reference Style) */}
       {activeTab === 'rules' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+        <div id="policy-threshold-sliders" className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
           {rules.map((rule, idx) => {
             const blockPct = Math.round(rule.block_threshold * 100);
             const flagPct = Math.round(rule.flag_threshold * 100);
@@ -376,7 +393,7 @@ export default function PolicyEditor() {
 
       {/* Tab 2: PII Profile Matrix */}
       {activeTab === 'pii' && (
-        <div className="bento-card p-6 space-y-4">
+        <div id="policy-pii-matrix" className="bento-card p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-black/5 pb-3">
             <div>
               <h3 className="text-base font-extrabold text-[#212328] tracking-tight">
@@ -427,12 +444,13 @@ export default function PolicyEditor() {
 
       {/* Tab 3: YAML Raw Editor */}
       {activeTab === 'yaml' && (
-        <div className="bento-card p-6 space-y-4">
+        <div id="policy-yaml-editor" className="bento-card p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-black/5 pb-3">
             <div>
               <h3 className="text-base font-extrabold text-[#212328] tracking-tight">
                 YAML Policy Definition
               </h3>
+
               <p className="text-xs text-zinc-500 font-medium">Direct declarative configuration synchronized with backend engine</p>
             </div>
             <span className="stat-pill text-[10px]">YAML v1</span>

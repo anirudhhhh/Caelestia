@@ -442,12 +442,15 @@ export default function Playground() {
 
       <div className="flex flex-col lg:flex-row flex-1 h-full w-full gap-5 min-h-0 overflow-hidden">
         {/* Left Bento Panel: Interactive Chat Bench */}
-        <div className={cn(
-          "flex-1 flex flex-col min-w-0 h-full bento-card overflow-hidden",
-          mobileTab === 'inspector' ? "hidden lg:flex" : "flex"
-        )}>
+        <div 
+          id="playground-chat"
+          className={cn(
+            "flex-1 flex flex-col min-w-0 h-full bento-card overflow-hidden",
+            mobileTab === 'inspector' ? "hidden lg:flex" : "flex"
+          )}
+        >
           {/* Top Filter & Routing Bar */}
-          <div className="p-4 border-b border-black/5 bg-[#FAF8F5] flex flex-wrap gap-3 items-center justify-between shrink-0">
+          <div id="playground-usecase" className="p-4 border-b border-black/5 bg-[#FAF8F5] flex flex-wrap gap-3 items-center justify-between shrink-0">
             <div className="flex flex-wrap gap-2.5 items-center">
               {/* Endpoint Selector with Custom UI */}
               <Select 
@@ -481,22 +484,24 @@ export default function Playground() {
               </Select>
 
               {/* Geography Selector */}
-              <Select value={geography} onValueChange={(v) => {
-                setGeography(v as Geography);
-                clearSession();
-              }}>
-                <SelectTrigger className="w-[125px]">
-                  <div className="flex items-center gap-1.5">
-                    <Globe className="h-3.5 w-3.5 text-zinc-500" />
-                    <span>{geography} Zone</span>
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="US">US Zone</SelectItem>
-                  <SelectItem value="EU">EU GDPR</SelectItem>
-                  <SelectItem value="IN">India Zone</SelectItem>
-                </SelectContent>
-              </Select>
+              <div id="playground-geography">
+                <Select value={geography} onValueChange={(v) => {
+                  setGeography(v as Geography);
+                  clearSession();
+                }}>
+                  <SelectTrigger className="w-[125px]">
+                    <div className="flex items-center gap-1.5">
+                      <Globe className="h-3.5 w-3.5 text-zinc-500" />
+                      <span>{geography} Zone</span>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="US">US Zone</SelectItem>
+                    <SelectItem value="EU">EU GDPR</SelectItem>
+                    <SelectItem value="IN">India Zone</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Quick Actions */}
@@ -658,7 +663,7 @@ export default function Playground() {
           </ScrollArea>
 
           {/* Bottom Chat Input Bar */}
-          <div className="p-3.5 sm:p-4 border-t border-black/5 bg-[#FAF8F5] shrink-0">
+          <div id="playground-input" className="p-3.5 sm:p-4 border-t border-black/5 bg-[#FAF8F5] shrink-0">
             <div className="relative flex items-center bg-white rounded-full border border-black/10 shadow-sm focus-within:border-black/25 transition-all p-1.5">
               <Textarea
                 value={input}
@@ -680,10 +685,14 @@ export default function Playground() {
         </div>
 
         {/* Right Bento Panel: Security Telemetry & Inspection (Numbers & Percentages Explicit) */}
-        <div className={cn(
-          "w-full lg:w-[420px] flex flex-col gap-4 min-h-0 overflow-y-auto shrink-0",
-          mobileTab === 'chat' ? "hidden lg:flex" : "flex"
-        )}>
+        <div 
+          id="playground-inspector"
+          className={cn(
+            "w-full lg:w-[420px] flex flex-col gap-4 min-h-0 overflow-y-auto shrink-0",
+            mobileTab === 'chat' ? "hidden lg:flex" : "flex"
+          )}
+        >
+
           {/* Active Enterprise Workflow & Routing Card */}
           <div className="bento-card p-5 sm:p-6 space-y-3.5">
             <div className="flex items-center justify-between">

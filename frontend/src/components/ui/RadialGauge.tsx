@@ -10,6 +10,7 @@ interface RadialGaugeProps {
   tipValue?: string | number;
   color?: string;
   size?: number;
+  strokeWidth?: number;
   className?: string;
   actionButton?: {
     label: string;
@@ -17,6 +18,15 @@ interface RadialGaugeProps {
     icon?: React.ReactNode;
   };
 }
+
+const COLOR_MAP: Record<string, string> = {
+  emerald: '#10B981',
+  amber: '#FFC83B',
+  coral: '#FF6B5E',
+  charcoal: '#212328',
+  blue: '#3B82F6',
+  violet: '#8B5CF6',
+};
 
 export default function RadialGauge({
   value,
@@ -26,14 +36,16 @@ export default function RadialGauge({
   tipValue,
   color = '#FF6B5E',
   size = 140,
+  strokeWidth = 10,
   className,
   actionButton,
 }: RadialGaugeProps) {
   const percentage = Math.min(100, Math.max(0, (value / max) * 100));
+  const resolvedColor = COLOR_MAP[color.toLowerCase()] || color;
   
   // Calculate SVG arc parameters (semi-circle / 240 degree gauge)
-  const strokeWidth = 10;
-  const radius = (size - strokeWidth * 2) / 2;
+  const effectiveStrokeWidth = strokeWidth;
+  const radius = (size - effectiveStrokeWidth * 2) / 2;
   const circumference = Math.PI * radius * 1.5; // ~270 degree arc
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
@@ -49,19 +61,24 @@ export default function RadialGauge({
 
   return (
     <div className={cn('flex items-center justify-between gap-4', className)}>
-      <div className="space-y-3">
-        {sublabel && <p className="text-xs text-zinc-500 font-medium">{sublabel}</p>}
-        {actionButton && (
+      {sublabel && !actionButton && (
+        <div className="space-y-1">
+          <p className="text-xs text-zinc-500 font-medium">{sublabel}</p>
+        </div>
+      )}
+      {actionButton && (
+        <div className="space-y-3">
+          {sublabel && <p className="text-xs text-zinc-500 font-medium">{sublabel}</p>}
           <button
             onClick={actionButton.onClick}
             type="button"
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#212328] text-white text-xs font-bold shadow-md hover:bg-black transition-all active:scale-95"
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#212328] text-white text-xs font-bold shadow-md hover:bg-black transition-all active:scale-95 cursor-pointer"
           >
             <span>{actionButton.label}</span>
             {actionButton.icon && <span className="text-amber-400">{actionButton.icon}</span>}
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="relative shrink-0" style={{ width: size, height: size }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="rotate-90 transform">
@@ -72,7 +89,7 @@ export default function RadialGauge({
             r={radius}
             fill="transparent"
             stroke="#EFE8DE"
-            strokeWidth={strokeWidth}
+            strokeWidth={effectiveStrokeWidth}
             strokeDasharray={circumference}
             strokeDashoffset={circumference * 0.25}
             strokeLinecap="round"
@@ -83,8 +100,8 @@ export default function RadialGauge({
             cy={cy}
             r={radius}
             fill="transparent"
-            stroke={color}
-            strokeWidth={strokeWidth}
+            stroke={resolvedColor}
+            strokeWidth={effectiveStrokeWidth}
             strokeDasharray={circumference}
             initial={{ strokeDashoffset: circumference }}
             animate={{ strokeDashoffset }}

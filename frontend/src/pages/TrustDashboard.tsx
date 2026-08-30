@@ -143,7 +143,7 @@ export default function TrustDashboard() {
       )}
 
       {/* Top Bento Grid: Hero Realtime Bubble Chart + Action Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
+      <div id="trust-metrics" className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
         {/* Hero Warm Bento Card (7 Cols) */}
         <div className="lg:col-span-7">
           <BubbleChart
@@ -221,7 +221,7 @@ export default function TrustDashboard() {
       {/* Second Bento Row: Radial Gauge + Pill Slider + Real Action Progress */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-5 sm:gap-6">
         {/* Radial Gauge Bento Card (4 Cols) */}
-        <div className="md:col-span-4 bento-card p-6 flex flex-col justify-between">
+        <div id="trust-gauge" className="md:col-span-4 bento-card p-6 flex flex-col justify-between">
           <div>
             <span className="text-[10px] uppercase font-extrabold tracking-wider text-zinc-400">
               Composite Trust Score
@@ -230,6 +230,7 @@ export default function TrustDashboard() {
               Perimeter Health Rating
             </h4>
           </div>
+
 
           <div className="my-3 flex justify-center">
             <RadialGauge
@@ -390,7 +391,7 @@ export default function TrustDashboard() {
       </div>
 
       {/* Zero-Trust Architecture Bento Section */}
-      <div className="bento-card p-6 space-y-4">
+      <div id="trust-compliance" className="bento-card p-6 space-y-4">
         <div className="flex items-center justify-between border-b border-black/5 pb-3">
           <div>
             <h4 className="text-sm font-extrabold text-[#212328] tracking-tight">

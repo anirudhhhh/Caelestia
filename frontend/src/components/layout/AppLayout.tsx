@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { 
-  MessageSquare, FileText, UserCheck, BarChart3, Settings, Activity, 
+import {
+  MessageSquare, FileText, UserCheck, BarChart3, Settings, Activity,
   ShieldCheck, Network, KeyRound, Menu, X, ChevronRight,
-  Search, PanelLeftClose, PanelLeft, ArrowUpRight
+  Search, PanelLeftClose, PanelLeft, ArrowUpRight, Command
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import GlobalSearchModal from '@/components/search/GlobalSearchModal';
+import { useSectionHighlight } from '@/lib/useSectionHighlight';
 
 interface NavItem {
   name: string;
@@ -24,67 +26,83 @@ export default function AppLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Enable automatic section scrolling and highlighting across routes
+  useSectionHighlight();
+
+  // Listen for global Cmd+K or Ctrl+K keyboard shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsSearchOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const primaryNavItems: NavItem[] = [
-    { 
-      name: 'Playground', 
-      path: '/', 
-      icon: MessageSquare, 
+    {
+      name: 'Playground',
+      path: '/',
+      icon: MessageSquare,
       category: 'TEST & INSPECT',
-      description: 'Live firewall test bench & stream inspector', 
-      badge: 'Live' 
+      description: 'Live firewall test bench & stream inspector',
+      badge: 'Live'
     },
-    { 
-      name: 'Semantic Router', 
-      path: '/load-balancer', 
-      icon: Network, 
+    {
+      name: 'Semantic Router',
+      path: '/load-balancer',
+      icon: Network,
       category: 'TEST & INSPECT',
-      description: 'Dynamic vector routing & PII enforcement' 
+      description: 'Dynamic vector routing & PII enforcement'
     },
-    { 
-      name: 'Human Review', 
-      path: '/review', 
-      icon: UserCheck, 
+    {
+      name: 'Human Review',
+      path: '/review',
+      icon: UserCheck,
       category: 'GOVERNANCE & TRIAGE',
       description: 'High-risk escalation triage & resolution',
       badge: 'Queue'
     },
-    { 
-      name: 'Trust Dashboard', 
-      path: '/trust', 
-      icon: BarChart3, 
+    {
+      name: 'Trust Dashboard',
+      path: '/trust',
+      icon: BarChart3,
       category: 'GOVERNANCE & TRIAGE',
-      description: 'Immune health scores & runtime forensics' 
+      description: 'Immune health scores & runtime forensics'
     },
-    { 
-      name: 'Audit Trail', 
-      path: '/audit', 
-      icon: FileText, 
+    {
+      name: 'Audit Trail',
+      path: '/audit',
+      icon: FileText,
       category: 'GOVERNANCE & TRIAGE',
-      description: 'Immutable cryptographic security ledger' 
+      description: 'Immutable cryptographic security ledger'
     },
   ];
 
   const secondaryNavItems: NavItem[] = [
-    { 
-      name: 'Policy Studio', 
-      path: '/policies', 
-      icon: Settings, 
+    {
+      name: 'Policy Studio',
+      path: '/policies',
+      icon: Settings,
       category: 'PERIMETER CONFIG',
-      description: 'Zero-trust YAML rules & PII profiles' 
+      description: 'Zero-trust YAML rules & PII profiles'
     },
-    { 
-      name: 'Secret Vault', 
-      path: '/secrets', 
-      icon: KeyRound, 
+    {
+      name: 'Secret Vault',
+      path: '/secrets',
+      icon: KeyRound,
       category: 'PERIMETER CONFIG',
-      description: 'Zero-knowledge credential fingerprinting' 
+      description: 'Zero-knowledge credential fingerprinting'
     },
   ];
 
   const allNavItems: NavItem[] = [
-    ...primaryNavItems, 
-    ...secondaryNavItems, 
+    ...primaryNavItems,
+    ...secondaryNavItems,
     {
       name: 'System Health',
       path: '/health',
@@ -100,7 +118,7 @@ export default function AppLayout() {
   return (
     <div className="flex h-screen w-screen bg-[#F2ECE4] text-[#1E2024] overflow-hidden font-sans select-none antialiased p-3 sm:p-4 lg:p-5 gap-4">
       {/* Floating Segmented Pill Sidebar (Desktop) */}
-      <aside 
+      <aside
         className={cn(
           "hidden md:flex flex-col justify-between shrink-0 z-30 transition-all duration-300 ease-out",
           isExpanded ? "w-64" : "w-16"
@@ -123,10 +141,10 @@ export default function AppLayout() {
                     <div className="text-[10px] text-zinc-500 font-bold">AI Guardrail Engine</div>
                   </div>
                 </Link>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={() => setIsExpanded(false)} 
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsExpanded(false)}
                   className="h-8 w-8 rounded-full text-zinc-500 hover:text-black hover:bg-[#F2ECE4]"
                 >
                   <PanelLeftClose className="h-4 w-4" />
@@ -166,8 +184,8 @@ export default function AppLayout() {
 
             {/* Bottom Status Card */}
             <div className="pt-3 border-t border-black/5 space-y-2">
-              <Link 
-                to="/health" 
+              <Link
+                to="/health"
                 className="flex items-center justify-between p-2.5 rounded-2xl bg-[#F7F4EE] hover:bg-[#EFE8DE] transition-colors border border-black/5"
               >
                 <div className="flex items-center gap-2">
@@ -281,17 +299,28 @@ export default function AppLayout() {
 
           {/* Right Search Input & Pill Actions */}
           <div className="flex items-center gap-2.5 sm:gap-3.5">
-            {/* Search Pill Input */}
-            <div className="relative hidden md:block">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
-              <input
-                type="text"
-                placeholder="Search security telemetry..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="bento-search w-52 lg:w-64"
-              />
-            </div>
+            {/* System-Wide Fuzzy Search Trigger Pill */}
+            <button
+              onClick={() => setIsSearchOpen(true)}
+              className="relative hidden sm:flex items-center gap-2.5 pl-3.5 pr-2.5 py-2 rounded-full bg-white border border-black/5 hover:border-[#FFC83B]/80 hover:shadow-md transition-all text-xs font-semibold text-zinc-500 w-48 md:w-60 lg:w-72 text-left cursor-pointer group"
+            >
+              <Search className="h-4 w-4 text-zinc-400 group-hover:text-[#212328] transition-colors shrink-0" />
+              <span className="truncate flex-1">Fuzzy search telemetry...</span>
+              <kbd className="hidden lg:inline-flex items-center gap-0.5 px-2 py-0.5 rounded-lg bg-[#FAF8F5] border border-black/10 font-mono text-[10px] font-black text-[#212328]">
+                Ctrl+K
+              </kbd>
+            </button>
+
+            {/* Mobile Search Icon Button */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setIsSearchOpen(true)}
+              className="h-10 w-10 sm:hidden bg-white border-black/5 rounded-full shadow-sm text-zinc-700 hover:bg-zinc-100"
+              aria-label="Open search"
+            >
+              <Search className="h-4.5 w-4.5" />
+            </Button>
 
             {/* P99 Latency Pill */}
             <div className="hidden lg:flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white border border-black/5 shadow-sm text-xs font-bold text-zinc-700">
@@ -317,7 +346,7 @@ export default function AppLayout() {
         </header>
 
         {/* Page Content Container */}
-        <motion.div 
+        <motion.div
           key={location.pathname}
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
@@ -328,17 +357,25 @@ export default function AppLayout() {
         </motion.div>
       </main>
 
+      {/* Global System-Wide Search Command Palette */}
+      <GlobalSearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        initialQuery={searchQuery}
+      />
+
+
       {/* Mobile Drawer */}
       <AnimatePresence>
         {mobileMenuOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm md:hidden flex flex-col"
             onClick={() => setMobileMenuOpen(false)}
           >
-            <motion.div 
+            <motion.div
               initial={{ x: -300 }}
               animate={{ x: 0 }}
               exit={{ x: -300 }}
@@ -356,9 +393,9 @@ export default function AppLayout() {
                     <div className="text-[10px] text-zinc-500 font-bold">Zero-Trust Guardrail</div>
                   </div>
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="h-8 w-8 text-zinc-500 hover:text-black rounded-full hover:bg-black/5"
                   onClick={() => setMobileMenuOpen(false)}
                   aria-label="Close navigation menu"
@@ -378,8 +415,8 @@ export default function AppLayout() {
                       onClick={() => setMobileMenuOpen(false)}
                       className={cn(
                         "flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition-all",
-                        isActive 
-                          ? "bg-[#212328] text-white shadow-md" 
+                        isActive
+                          ? "bg-[#212328] text-white shadow-md"
                           : "text-zinc-700 hover:bg-white bg-white/50"
                       )}
                     >

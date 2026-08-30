@@ -113,7 +113,7 @@ export default function SystemHealth() {
       {/* Top Bento Row: Radial Uptime Gauge + Anomaly Alerts */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-5 sm:gap-6">
         {/* Radial Gauge (4 Cols) */}
-        <div className="md:col-span-4 bento-card p-6 flex flex-col justify-between">
+        <div id="health-mesh-gauge" className="md:col-span-4 bento-card p-6 flex flex-col justify-between">
           <div>
             <span className="text-[10px] uppercase font-extrabold tracking-wider text-zinc-400">
               Mesh Uptime
@@ -142,7 +142,7 @@ export default function SystemHealth() {
         </div>
 
         {/* Anomaly Alerts & Active Node Summary (8 Cols) */}
-        <div className="md:col-span-8 bento-card p-6 space-y-4">
+        <div id="health-anomalies" className="md:col-span-8 bento-card p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-black/5 pb-3">
             <div>
               <h3 className="text-base font-extrabold text-[#212328] tracking-tight flex items-center gap-2">
@@ -184,7 +184,7 @@ export default function SystemHealth() {
       </div>
 
       {/* 12 Microservices Bento Grid */}
-      <div className="bento-card p-6 space-y-4">
+      <div id="health-mesh-grid" className="bento-card p-6 space-y-4">
         <div className="flex items-center justify-between border-b border-black/5 pb-3">
           <div>
             <h3 className="text-base font-extrabold text-[#212328] tracking-tight">
