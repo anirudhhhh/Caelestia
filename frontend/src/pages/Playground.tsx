@@ -366,24 +366,13 @@ export default function Playground() {
   ];
 
   // Derive all active checks with real numerical scores from latestInteraction
-  const defaultCheckList = [
-    { check_name: "toxicity", score: 0.08, verdict: "pass", latency_ms: 12.1, engine: "lmsys/toxic-bert" },
-    { check_name: "prompt_injection", score: 0.05, verdict: "pass", latency_ms: 14.3, engine: "deberta-v3-injection" },
-    { check_name: "secrets", score: 0.00, verdict: "pass", latency_ms: 3.2, engine: "regex_hmac_matcher" },
-    { check_name: "pii", score: 0.12, verdict: "pass", latency_ms: 8.5, engine: "presidio_ner" },
-    { check_name: "sensitive_data", score: 0.04, verdict: "pass", latency_ms: 6.1, engine: "policy_guard" },
-    { check_name: "system_prompt_leakage", score: 0.02, verdict: "pass", latency_ms: 9.4, engine: "cosine_leak_detector" },
-    { check_name: "brand_safety", score: 0.03, verdict: "pass", latency_ms: 7.2, engine: "brand_rules" },
-    { check_name: "hallucination_risk", score: 0.09, verdict: "pass", latency_ms: 15.0, engine: "vector_factuality" },
-  ];
-
   const activeChecks = latestInteraction?.checks?.length 
     ? latestInteraction.checks 
-    : defaultCheckList;
+    : [];
 
   const totalOverheadMs = latestInteraction?.latency_breakdown
-    ? Object.values(latestInteraction.latency_breakdown).reduce((a, b) => a + b, 0).toFixed(1)
-    : "18.4";
+    ? Object.values(latestInteraction.latency_breakdown).reduce((a, b) => (a as number) + (b as number), 0).toFixed(1)
+    : "0.0";
 
   return (
     <div className="flex flex-col h-full w-full gap-4 min-h-0 overflow-hidden font-sans">
@@ -721,10 +710,10 @@ export default function Playground() {
             {/* Radial Risk Confidence Gauge with Explicit Numbers */}
             <div className="py-2 flex justify-center">
               <RadialGauge
-                value={latestInteraction?.decision?.confidence ? Math.round(latestInteraction.decision.confidence * 100) : 98}
+                value={latestInteraction?.decision?.confidence ? Math.round(latestInteraction.decision.confidence * 100) : 0}
                 max={100}
                 label="Confidence"
-                tipValue={`${(latestInteraction?.decision?.confidence ? latestInteraction.decision.confidence * 100 : 98).toFixed(0)}% · ${latestInteraction?.risk_assessment?.tier?.toUpperCase() || 'LOW'} RISK`}
+                tipValue={latestInteraction ? `${(latestInteraction.decision?.confidence ? latestInteraction.decision.confidence * 100 : 100).toFixed(0)}% · ${latestInteraction.risk_assessment?.tier?.toUpperCase() || 'LOW'} RISK` : '0% · N/A'}
                 color={latestInteraction?.decision?.action === 'block' ? '#FF6B5E' : '#10B981'}
                 size={135}
               />
@@ -743,27 +732,32 @@ export default function Playground() {
             </div>
 
             {/* Latency Breakdown with Exact Numbers */}
-            {latestInteraction?.latency_breakdown && (
+            {latestInteraction?.latency_breakdown ? (
               <div className="pt-2 border-t border-black/5 space-y-1.5">
                 <span className="text-[10px] uppercase font-extrabold tracking-wider text-zinc-400 block">Latency Breakdown:</span>
                 <div className="grid grid-cols-2 gap-1.5 text-[11px] font-mono">
                   <div className="p-2 rounded-xl bg-[#FAF8F5] flex justify-between">
                     <span className="text-zinc-500">Input Guard:</span>
-                    <strong className="text-[#212328]">{latestInteraction.latency_breakdown.input_guard || 12.4}ms</strong>
+                    <strong className="text-[#212328]">{latestInteraction.latency_breakdown.input_guard || 0}ms</strong>
                   </div>
                   <div className="p-2 rounded-xl bg-[#FAF8F5] flex justify-between">
                     <span className="text-zinc-500">Router:</span>
-                    <strong className="text-[#212328]">{latestInteraction.latency_breakdown.router || 4.1}ms</strong>
+                    <strong className="text-[#212328]">{latestInteraction.latency_breakdown.router || 0}ms</strong>
                   </div>
                   <div className="p-2 rounded-xl bg-[#FAF8F5] flex justify-between">
                     <span className="text-zinc-500">Adapter:</span>
-                    <strong className="text-[#212328]">{latestInteraction.latency_breakdown.adapter || 30.0}ms</strong>
+                    <strong className="text-[#212328]">{latestInteraction.latency_breakdown.adapter || 0}ms</strong>
                   </div>
                   <div className="p-2 rounded-xl bg-[#FAF8F5] flex justify-between">
                     <span className="text-zinc-500">Output Guard:</span>
-                    <strong className="text-[#212328]">{latestInteraction.latency_breakdown.output_guard || 8.2}ms</strong>
+                    <strong className="text-[#212328]">{latestInteraction.latency_breakdown.output_guard || 0}ms</strong>
                   </div>
                 </div>
+              </div>
+            ) : (
+              <div className="pt-2 border-t border-black/5 space-y-1.5">
+                <span className="text-[10px] uppercase font-extrabold tracking-wider text-zinc-400 block">Latency Breakdown:</span>
+                <div className="text-xs text-zinc-400 font-medium">Waiting for interaction...</div>
               </div>
             )}
           </div>
@@ -781,7 +775,7 @@ export default function Playground() {
             </div>
 
             <div className="space-y-2.5">
-              {activeChecks.map((chk, i) => {
+              {activeChecks.length > 0 ? activeChecks.map((chk, i) => {
                 const scoreNum = typeof chk.score === 'number' ? chk.score : parseFloat(chk.score) || 0;
                 const scorePct = (scoreNum * 100).toFixed(0);
                 const isFail = chk.verdict === 'fail' || scoreNum > 0.6;
@@ -811,7 +805,7 @@ export default function Playground() {
                     </div>
                   </div>
                 );
-              })}
+              }) : <div className="text-xs text-zinc-400 font-medium">No checks executed yet</div>}
             </div>
 
             {/* JSON Export Actions */}
