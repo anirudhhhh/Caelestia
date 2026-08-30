@@ -44,23 +44,23 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
     "general_query": WorkflowEndpoint(
         id="general_query",
         name="General Query Service",
-        instructions="Handles general-purpose questions, standard AI explanations, concept definitions, programming algorithms, code reversing, technology comparisons, math, science, and reasoning that do not require external actions, emails, leave requests, or weather lookups. Examples include explaining how neural networks learn, what quantum computing is, differences between REST and GraphQL, recursion with examples, and writing Python functions.",
+        instructions="Handles general-purpose questions, informational queries, company facts, employee counts, technology comparisons, math, science, programming, algorithms, and educational explanations.",
         endpoint="http://localhost:8021/complete",
         target_model_or_url="http://localhost:8021/complete",
         use_case="general_query",
         keywords=[
             "explain", "what is", "how does", "why", "tell me about", "difference between",
-            "neural network", "quantum computing", "recursion", "rest", "graphql", "algorithm",
-            "python", "code", "reverse string", "function", "concept", "define", "history",
-            "summarize", "describe", "meaning", "learn", "machine learning", "programming",
-            "software", "overview", "hello", "hi", "general"
+            "number of people", "working in", "employees", "accenture", "google", "microsoft",
+            "quantum computing", "recursion", "rest", "graphql", "algorithm", "python", "code",
+            "concept", "define", "history", "summarize", "describe", "meaning", "learn", "programming",
+            "who is", "who was", "when did", "how many", "general knowledge"
         ],
         weight=1.0
     ),
     "email_service": WorkflowEndpoint(
         id="email_service",
         name="Email Service",
-        instructions="Handles natural-language requests to send, compose, and dispatch electronic mail messages via SMTP using a fixed sender address. Extracts recipient email address, subject line, and message body. Examples include sending meeting updates, deadline extension notices, thank-you emails, approval notices, alerts, and notifications to email recipients like john@example.com, rahul, team@example.com, and alice@example.com.",
+        instructions="Handles natural-language requests to send, compose, draft, and dispatch electronic mail messages via SMTP.",
         endpoint="http://localhost:8022/complete",
         target_model_or_url="http://localhost:8022/complete",
         use_case="email_service",
@@ -68,14 +68,14 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
             "email", "mail", "send email", "send an email", "send a mail", "email to", "mail to",
             "recipient", "inbox", "dispatch email", "smtp", "compose email", "tell by email",
             "notify via email", "forward email", "meeting is at", "deadline has been extended",
-            "thank-you email", "request approved email", "message to", "alert by mail", "send note to"
+            "thank-you email", "request approved email", "message to", "alert by mail"
         ],
-        weight=1.2
+        weight=1.0
     ),
     "leave_approval": WorkflowEndpoint(
         id="leave_approval",
         name="Leave Approval Service",
-        instructions="Processes employee time-off and leave requests using deterministic business logic combined with LLM duration extraction. Extracts requested leave days from dates or counts. Rules: 1 to 2 days are AUTO_APPROVED, 3 to 5 days require MANAGER_APPROVAL_REQUIRED, and more than 5 days are REJECTED. Examples include requesting 2 days leave, asking for 4 days off, leave from September 2 to September 5, a week off next month, and leave for tomorrow and the day after.",
+        instructions="Processes employee time-off, leave requests, vacation applications, and sick days using deterministic business logic.",
         endpoint="http://localhost:8023/complete",
         target_model_or_url="http://localhost:8023/complete",
         use_case="leave_approval",
@@ -83,24 +83,23 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
             "leave", "take leave", "request leave", "days off", "day off", "time off", "vacation",
             "sick leave", "paid time off", "pto", "holiday", "absence", "i need leave", "want leave",
             "take days off", "week off", "month off", "tomorrow off", "leave from", "leave for",
-            "casual leave", "annual leave", "maternity leave", "paternity leave", "leave application", "approval"
+            "casual leave", "annual leave", "maternity leave", "paternity leave", "leave application"
         ],
-        weight=1.2
+        weight=1.0
     ),
     "weather_service": WorkflowEndpoint(
         id="weather_service",
         name="Weather Service",
-        instructions="Retrieves live meteorological information, temperature, weather conditions, rain forecast, humidity, and wind speed for global cities and locations. Performs LLM parameter extraction, geocoding to geographic coordinates, and calls external Open-Meteo Weather API. Examples include checking weather in Boston right now, how hot it is in Delhi, weather in London, will it rain in Mumbai tomorrow, and current temperature in New York.",
+        instructions="Retrieves live meteorological information, temperature, weather conditions, rain forecast, humidity, and wind speed for global cities.",
         endpoint="http://localhost:8024/complete",
         target_model_or_url="http://localhost:8024/complete",
         use_case="weather_service",
         keywords=[
             "weather", "temperature", "forecast", "climate", "rain", "will it rain", "raining",
             "how hot", "how cold", "humidity", "wind speed", "celsius", "fahrenheit", "degrees",
-            "sunny", "cloudy", "storm", "snow", "meteorology", "precipitation", "in boston",
-            "in delhi", "in london", "in mumbai", "in new york", "weather today", "weather tomorrow", "current weather"
+            "sunny", "cloudy", "storm", "snow", "meteorology", "precipitation", "weather today", "weather tomorrow"
         ],
-        weight=1.2
+        weight=1.0
     ),
 }
 
@@ -244,12 +243,11 @@ async def list_models():
 async def route(envelope: InteractionEnvelope):
     logger.info(f"[{envelope.interaction_id}] Vector-routing request via 384-d Pinecone-style DB")
     
-    session_id = envelope.session_id
-    text = envelope.payload.content
+    text = envelope.payload.content if envelope.payload else ""
     requested = envelope.model.requested
 
-    # 1. If explicit endpoint ID was requested by client, honor it directly
-    if requested and requested in DEFAULT_ENDPOINTS:
+    # 1. If explicit endpoint ID was requested by client (and not "auto"), honor it directly
+    if requested and requested != "auto" and requested in DEFAULT_ENDPOINTS:
         target_ep = DEFAULT_ENDPOINTS[requested]
         envelope.model.routed_to = target_ep.push_target
         envelope.model.routing_trace = [{
@@ -260,7 +258,7 @@ async def route(envelope: InteractionEnvelope):
             "reason": "explicit_selection"
         }]
         return envelope
-    elif requested and (requested in AVAILABLE_MODELS or requested.startswith(("http://", "https://"))):
+    elif requested and requested != "auto" and (requested in AVAILABLE_MODELS or requested.startswith(("http://", "https://"))):
         envelope.model.routed_to = requested
         envelope.model.routing_trace = [{
             "endpoint": "custom",
@@ -271,36 +269,19 @@ async def route(envelope: InteractionEnvelope):
         }]
         return envelope
 
-    # 2. Check for session continuity
-    if session_id in SESSION_ROUTES and SESSION_ROUTES[session_id] in DEFAULT_ENDPOINTS:
-        cached_ep = DEFAULT_ENDPOINTS[SESSION_ROUTES[session_id]]
-        if cached_ep.active:
-            envelope.model.routed_to = cached_ep.push_target
-            envelope.model.routing_trace = [{
-                "endpoint": cached_ep.id,
-                "name": cached_ep.name,
-                "model": cached_ep.push_target,
-                "score": 1.0,
-                "reason": "session_continuity"
-            }]
-            return envelope
-
-    # 3. Pinecone-style Vector DB Hybrid Search over active endpoints
-    vector_matches = vector_db_router.search_similar_endpoints(text, top_k=5)
+    # 2. Dynamic Vector DB Hybrid Search over active endpoints on EVERY request (no sticky session pollution)
+    vector_matches = vector_db_router.search_similar_endpoints(text, top_k=len(DEFAULT_ENDPOINTS))
     candidate_scores = []
-    req_use_case = envelope.use_case.value if hasattr(envelope.use_case, 'value') else str(envelope.use_case)
+    
     for m in vector_matches:
         ep_id = m["endpoint"]
         if ep_id in DEFAULT_ENDPOINTS and DEFAULT_ENDPOINTS[ep_id].active:
             ep = DEFAULT_ENDPOINTS[ep_id]
-            score = m["score"]
-            if req_use_case and req_use_case not in ("general", "internal") and ep.use_case == req_use_case:
-                score += 0.35
             candidate_scores.append({
                 "endpoint": ep.id,
                 "name": ep.name,
                 "model": ep.push_target,
-                "score": round(score, 4),
+                "score": m["score"],
                 "use_case": ep.use_case,
                 "vector_metrics": m["vector_metrics"]
             })
@@ -311,10 +292,9 @@ async def route(envelope: InteractionEnvelope):
         best = candidate_scores[0]
         envelope.model.routed_to = best["model"]
         envelope.model.routing_trace = candidate_scores
-        SESSION_ROUTES[session_id] = best["endpoint"]
-        logger.info(f"[{envelope.interaction_id}] Vector-routed to {best['name']} (score: {best['score']}, cos_sim: {best['vector_metrics']['cosine_similarity']}) -> {best['model']}")
+        logger.info(f"[{envelope.interaction_id}] Dynamically vector-routed to {best['name']} (score: {best['score']}) -> {best['model']}")
     else:
-        fallback_model = DEFAULT_MODEL or (AVAILABLE_MODELS[0] if AVAILABLE_MODELS else "google/gemini-2.5-flash")
+        fallback_model = DEFAULT_MODEL or (AVAILABLE_MODELS[0] if AVAILABLE_MODELS else "gemini-3.5-flash-lite")
         envelope.model.routed_to = fallback_model
         envelope.model.routing_trace = [{"model": fallback_model, "score": 1.0, "reason": "default_fallback"}]
 
