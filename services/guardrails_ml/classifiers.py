@@ -79,7 +79,7 @@ PROMPT_INJECTION_NEURAL_PATTERNS = [
     (r'(?:ignore|disregard|forget)\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions|prompts|rules)', 0.95, "instruction_override"),
     (r'(?:act\s+as|pretend\s+to\s+be|roleplay\s+as)\s+(?:an?\s+unfiltered|DAN|STAN|EvilAI|jailbroken|unrestricted)', 0.95, "roleplay_jailbreak"),
     (r'\[\s*SYSTEM\s*PROMPT\s*\]|\<system_instruction\>|```system', 0.90, "delimiter_injection"),
-    (r'(?:print|output|repeat|show|reveal|echo)\s+(?:everything\s+above|your\s+)?(?:entire\s+|whole\s+)?(?:initial\s+)?(?:system\s+prompt|developer\s+instructions|instructions)', 0.92, "system_prompt_exfiltration"),
+    (r'(?:print|output|repeat|show|reveal|echo)\s+[\w\s]{0,40}?(?:system\s+prompt|system\s+instructions|developer\s+instructions|instructions|initial\s+prompt)', 0.92, "system_prompt_exfiltration"),
     (r'(?:translate|encode|convert)\s+the\s+following\s+(?:harmful|blocked|illegal)\s+(?:prompt|text)', 0.85, "encoding_bypass"),
     (r'(?:hypothetically|for\s+educational\s+purposes\s+only|in\s+a\s+fictional\s+story)\s+how\s+(?:to|can\s+I)\s+(?:make|build|create)\s+(?:a\s+bomb|poison|virus|weapon)', 0.92, "fictional_framing_bypass")
 ]
@@ -196,14 +196,12 @@ class ContextualToxicityClassifier:
             if m:
                 hits.update(m)
 
-        calibrated_neural = calibrate_probability(neural_score, noise_floor=0.70)
-        final_score = max(calibrated_neural, reframed_score)
+        final_score = max(neural_score, reframed_score)
 
         return {
             "score": round(final_score, 4),
             "verdict": "toxic" if final_score >= 0.75 else ("warn" if final_score >= 0.40 else "safe"),
             "neural_score": round(neural_score, 4),
-            "calibrated_score": round(calibrated_neural, 4),
             "reframed_score": round(reframed_score, 4),
             "hits": list(hits) if hits else [],
             "reframed_reason": reframed_reason,
@@ -259,20 +257,12 @@ class PromptInjectionClassifier:
             except Exception:
                 neural_score = 0.0
 
-        calibrated_neural = calibrate_probability(neural_score, noise_floor=0.985)
-        
-        # Short inputs (< 4 words) without explicit pattern match cannot constitute instruction injection
-        words = text.strip().split()
-        if len(words) < 4 and pattern_score == 0.0:
-            calibrated_neural = min(calibrated_neural, 0.01)
-
-        final_score = max(calibrated_neural, pattern_score)
+        final_score = max(neural_score, pattern_score)
 
         return {
             "score": round(final_score, 4),
             "verdict": "injection_detected" if final_score >= 0.70 else ("warn" if final_score >= 0.40 else "safe"),
             "neural_score": round(neural_score, 4),
-            "calibrated_score": round(calibrated_neural, 4),
             "pattern_score": round(pattern_score, 4),
             "categories": matched_categories,
             "engine": "deberta_neural_classifier",
