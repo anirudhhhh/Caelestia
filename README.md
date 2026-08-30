@@ -238,7 +238,7 @@ ControlPlane.ai runs as a distributed cluster of **12 core microservices**, **4 
 - **Python 3.11+**
 - **Node.js 18+** & **npm**
 - **Google Gemini API Key** (Get free key at [aistudio.google.com](https://aistudio.google.com))
-- **Docker & Docker Compose** (Optional, for containerized run)
+- **Docker & Docker Compose** (Recommended for containerized run)
 
 ---
 
@@ -293,11 +293,43 @@ cd ..
 
 ---
 
-### Step 3: Run the Application
+### Step 3: Train Neural Guardrail Models (Required Before Docker Build)
 
-You can run ControlPlane.ai using any of the three methods below:
+> [!IMPORTANT]
+> **Train the models BEFORE running or building Docker containers!**
+> The Docker container images bake the fine-tuned neural model checkpoints directly from `models/` during the build step (`COPY models/ /app/models/`). Running the unified training pipeline downloads the multilingual datasets, trains both neural sequence classifiers (Prompt Injection & Contextual Toxicity), benchmarks them against held-out test sets, and serializes the production checkpoints to `models/prompt_injection_deberta` and `models/toxicity_roberta`.
 
-#### Method A: Native Bash Script (Recommended for Local Dev)
+```bash
+# Run the complete end-to-end ML pipeline (Build Datasets + Train Classifiers + Benchmark):
+python3 train/pipeline.py
+```
+
+*Hardware acceleration (NVIDIA CUDA / Apple Silicon MPS / CPU) is automatically detected and leveraged.*
+
+---
+
+### Step 4: Run the Application
+
+#### Method 1: Unified Docker Compose (Recommended / Production Run)
+
+```bash
+# Build and start all 12 microservices + React frontend in background:
+docker compose up -d --build
+
+# Verify container health:
+docker compose ps
+
+# View gateway streaming logs:
+docker compose logs -f gateway
+
+# Teardown containers:
+docker compose down
+```
+Open **[http://localhost:3000](http://localhost:3000)** in your browser.
+
+---
+
+#### Method 2: Native Bash Script (Local Dev)
 
 ```bash
 # Start all 12 microservices + 4 workflow components with automatic warmup:
@@ -316,28 +348,13 @@ To stop services cleanly, press `Ctrl+C` in the script terminal or run:
 ./stop_services.sh
 ```
 
-#### Method B: Windows PowerShell Script
+---
+
+#### Method 3: Windows PowerShell Script
 
 ```powershell
 .\start_services.ps1
 ```
-
-#### Method C: Unified Docker Compose (Production / Containerized Run)
-
-```bash
-# Build and start all 12 microservices + React frontend in background:
-docker compose up -d --build
-
-# Verify container health:
-docker compose ps
-
-# View gateway streaming logs:
-docker compose logs -f gateway
-
-# Teardown containers:
-docker compose down
-```
-Open **[http://localhost:3000](http://localhost:3000)**.
 
 ---
 
@@ -516,17 +533,20 @@ ControlPlane.ai includes a standalone native PyTorch training and benchmarking s
 
 ### Training Commands
 ```bash
-# 1. Fast Single-Split Training (Default on MPS / CUDA / CPU):
+# 1. Unified End-to-End Pipeline (Build Datasets + Train + Benchmark in 1 command):
+python3 train/pipeline.py
+
+# 2. Fast Single-Split Training (Default on MPS / CUDA / CPU):
 python3 train/train.py
 
-# 2. 5-Fold Stratified Cross-Validation:
+# 3. 5-Fold Stratified Cross-Validation:
 python3 train/train.py --mode kfold
 
-# 3. Train Specific Task:
+# 4. Train Specific Task:
 python3 train/train.py --task prompt_injection
 python3 train/train.py --task toxicity
 
-# 4. Run Out-of-Fold (OOF) Evaluation Benchmark:
+# 5. Run Out-of-Fold (OOF) Evaluation Benchmark:
 python3 train/evaluate.py
 ```
 
