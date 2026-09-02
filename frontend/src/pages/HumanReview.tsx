@@ -303,7 +303,7 @@ export default function HumanReview() {
             filteredItems.map((item, idx) => {
               const isPending = item.status === 'pending';
               const content = item.payload?.content || item.interaction?.payload?.content || '';
-              const uniqueKey = `${item.interaction_id}-${item.id || ''}-${item.created_at || idx}-${idx}`;
+              const uniqueKey = `${item.interaction_id}-${item.status || ''}-${item.created_at || idx}-${idx}`;
 
               return (
                 <div

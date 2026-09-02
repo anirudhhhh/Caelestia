@@ -410,14 +410,24 @@ export default function AuditTrail() {
             const content = evt.interaction?.payload?.content || (typeof evt.interaction?.payload === 'string' ? evt.interaction.payload : '') || '';
             const reason = evt.interaction?.decision?.reason || '';
             const uniqueKey = `${evt.interaction_id}-${evt.direction || 'dir'}-${evt.timestamp || idx}-${idx}`;
+            const fullContentText = content || reason || "Audited interaction payload";
 
-            // Compute highlighting for interaction ID and content
-            const idScore = searchQuery.trim() ? fuzzyScore(searchQuery.trim(), evt.interaction_id) : { score: 0, matchedIndices: [] };
-            const contentScore = searchQuery.trim() ? fuzzyScore(searchQuery.trim(), content || reason) : { score: 0, matchedIndices: [] };
-            const idSegments = getHighlightSegments(evt.interaction_id, idScore.matchedIndices);
+            // Compute multi-token highlighting for interaction ID and content
+            const tokens = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+            const idIndices: number[] = [];
+            const contentIndices: number[] = [];
+
+            tokens.forEach(tok => {
+              const iRes = fuzzyScore(tok, evt.interaction_id);
+              if (iRes.matches) idIndices.push(...iRes.matchedIndices);
+              const cRes = fuzzyScore(tok, fullContentText);
+              if (cRes.matches) contentIndices.push(...cRes.matchedIndices);
+            });
+
+            const idSegments = getHighlightSegments(evt.interaction_id, Array.from(new Set(idIndices)));
             const contentSegments = getHighlightSegments(
-              content || reason || "Audited interaction payload",
-              contentScore.matchedIndices
+              fullContentText,
+              Array.from(new Set(contentIndices))
             );
 
             return (
@@ -535,7 +545,7 @@ export default function AuditTrail() {
                     {selectedEvent.interaction.checks.map((chk, i) => (
                       <div key={i} className="p-2.5 rounded-xl bg-[#FAF8F5] flex items-center justify-between text-xs border border-black/5">
                         <span className="font-bold text-zinc-800">{chk.check_name}</span>
-                        <span className="font-mono font-bold text-zinc-600">{(chk.score * 100).toFixed(0)}%</span>
+                        <span className="font-mono font-bold text-zinc-600">{(Number(chk.score || 0) * 100).toFixed(2)}%</span>
                       </div>
                     ))}
                   </div>

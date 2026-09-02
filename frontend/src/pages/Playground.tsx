@@ -416,8 +416,8 @@ export default function Playground() {
     : [];
 
   const totalOverheadMs = latestInteraction?.latency_breakdown
-    ? Object.values(latestInteraction.latency_breakdown).reduce((a, b) => (a as number) + (b as number), 0).toFixed(1)
-    : "0.0";
+    ? Number(Object.values(latestInteraction.latency_breakdown).reduce((a, b) => Number(a) + Number(b), 0)).toFixed(2)
+    : "0.00";
 
   return (
     <div className="flex flex-col h-full w-full gap-4 min-h-0 overflow-hidden font-sans">
@@ -703,55 +703,7 @@ export default function Playground() {
           )}
         >
 
-          {/* Active Enterprise Workflow & Routing Card */}
-          <div className="bento-card p-5 sm:p-6 space-y-3.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-[10px] uppercase font-extrabold tracking-wider text-zinc-400">
-                  Active Workflow Route
-                </span>
-                <h4 className="text-base font-extrabold text-[#212328] mt-0.5 flex items-center gap-2">
-                  <Bot className="h-4 w-4 text-amber-500 shrink-0" />
-                  <span>{(latestInteraction as any)?.workflow_name || "Customer Support & Success"}</span>
-                </h4>
-              </div>
-              <span className="stat-pill bg-[#212328] text-white text-[9px]">ACTIVE</span>
-            </div>
 
-            <div className="grid grid-cols-2 gap-2 text-[11px] font-bold">
-              <div className="p-2.5 rounded-2xl bg-[#FAF8F5]">
-                <span className="text-[10px] text-zinc-400 block uppercase">Target Model</span>
-                <span className="text-[#212328] font-mono block truncate">{(latestInteraction as any)?.model_used || "gemini-2.5-flash"}</span>
-              </div>
-              <div className="p-2.5 rounded-2xl bg-[#FAF8F5]">
-                <span className="text-[10px] text-zinc-400 block uppercase">Vector Match Score</span>
-                <span className="text-emerald-700 font-mono block">
-                  {((latestInteraction as any)?.routing_trace?.[0]?.score ? `${(((latestInteraction as any).routing_trace[0].score) * 100).toFixed(1)}%` : "Direct Match")}
-                </span>
-              </div>
-            </div>
-
-            {/* Candidate Workflow Trace Matrix */}
-            {(latestInteraction as any)?.routing_trace && (latestInteraction as any).routing_trace.length > 0 && (
-              <div className="pt-2 border-t border-black/5 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-extrabold tracking-wider text-zinc-400">Vector Routing Trace:</span>
-                  <span className="text-[9px] font-mono text-zinc-400">384-d Pinecone DB</span>
-                </div>
-                <div className="space-y-1">
-                  {(latestInteraction as any).routing_trace.slice(0, 3).map((route: any, rIdx: number) => (
-                    <div key={rIdx} className={cn(
-                      "p-2 rounded-xl text-[10px] flex items-center justify-between font-mono",
-                      rIdx === 0 ? "bg-emerald-50 text-emerald-950 border border-emerald-200 font-bold" : "bg-[#FAF8F5] text-zinc-600"
-                    )}>
-                      <span className="truncate max-w-[200px]">{route.name}</span>
-                      <span className="font-bold">{(route.score * 100).toFixed(1)}%</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* Decision & Risk Overview Card */}
           <div className="bento-card p-5 sm:p-6 space-y-4">
@@ -774,10 +726,10 @@ export default function Playground() {
             {/* Radial Risk Confidence Gauge with Explicit Numbers */}
             <div className="py-2 flex justify-center">
               <RadialGauge
-                value={latestInteraction?.decision?.confidence ? Math.round(latestInteraction.decision.confidence * 100) : 0}
+                value={latestInteraction?.decision?.confidence ? Math.round(Number(latestInteraction.decision.confidence) * 100) : 0}
                 max={100}
                 label="Confidence"
-                tipValue={latestInteraction ? `${(latestInteraction.decision?.confidence ? latestInteraction.decision.confidence * 100 : 100).toFixed(0)}% · ${latestInteraction.risk_assessment?.tier?.toUpperCase() || 'LOW'} RISK` : '0% · N/A'}
+                tipValue={latestInteraction ? `${(latestInteraction.decision?.confidence ? Number(latestInteraction.decision.confidence) * 100 : 100).toFixed(2)}% · ${latestInteraction.risk_assessment?.tier?.toUpperCase() || 'LOW'} RISK` : '0.00% · N/A'}
                 color={latestInteraction?.decision?.action === 'block' ? '#FF6B5E' : '#10B981'}
                 size={135}
               />
@@ -787,7 +739,7 @@ export default function Playground() {
             <div className="grid grid-cols-2 gap-2 pt-2 border-t border-black/5 text-[11px] font-bold text-zinc-600">
               <div className="p-2.5 rounded-2xl bg-[#FAF8F5]">
                 <span className="text-[10px] text-zinc-400 block uppercase">Routing Model</span>
-                <span className="text-[#212328] truncate block font-mono">{(latestInteraction as any)?.model_used || "gemini-3.5-flash"}</span>
+                <span className="text-[#212328] truncate block font-mono">{(latestInteraction as any)?.model_used || "-"}</span>
               </div>
               <div className="p-2.5 rounded-2xl bg-[#FAF8F5]">
                 <span className="text-[10px] text-zinc-400 block uppercase">Total Latency</span>
@@ -802,19 +754,19 @@ export default function Playground() {
                 <div className="grid grid-cols-2 gap-1.5 text-[11px] font-mono">
                   <div className="p-2 rounded-xl bg-[#FAF8F5] flex justify-between">
                     <span className="text-zinc-500">Input Guard:</span>
-                    <strong className="text-[#212328]">{latestInteraction.latency_breakdown.input_guard || 0}ms</strong>
+                    <strong className="text-[#212328]">{Number(latestInteraction.latency_breakdown.input_guard || 0).toFixed(2)}ms</strong>
                   </div>
                   <div className="p-2 rounded-xl bg-[#FAF8F5] flex justify-between">
                     <span className="text-zinc-500">Router:</span>
-                    <strong className="text-[#212328]">{latestInteraction.latency_breakdown.router || 0}ms</strong>
+                    <strong className="text-[#212328]">{Number(latestInteraction.latency_breakdown.router || 0).toFixed(2)}ms</strong>
                   </div>
                   <div className="p-2 rounded-xl bg-[#FAF8F5] flex justify-between">
                     <span className="text-zinc-500">Adapter:</span>
-                    <strong className="text-[#212328]">{latestInteraction.latency_breakdown.adapter || 0}ms</strong>
+                    <strong className="text-[#212328]">{Number(latestInteraction.latency_breakdown.adapter || 0).toFixed(2)}ms</strong>
                   </div>
                   <div className="p-2 rounded-xl bg-[#FAF8F5] flex justify-between">
                     <span className="text-zinc-500">Output Guard:</span>
-                    <strong className="text-[#212328]">{latestInteraction.latency_breakdown.output_guard || 0}ms</strong>
+                    <strong className="text-[#212328]">{Number(latestInteraction.latency_breakdown.output_guard || 0).toFixed(2)}ms</strong>
                   </div>
                 </div>
               </div>
@@ -833,20 +785,24 @@ export default function Playground() {
                 <h4 className="text-sm font-extrabold text-[#212328] tracking-tight">
                   Security Check Matrix
                 </h4>
-                <p className="text-[11px] text-zinc-500 font-medium">8 parallel inspection engines</p>
+                <p className="text-[11px] text-zinc-500 font-medium">
+                  {activeChecks.length > 0 ? `${activeChecks.length} parallel inspection engines` : 'Zero-Trust Inspection Matrix'}
+                </p>
               </div>
-              <span className="stat-pill text-[10px]">8 CHECKS</span>
+              <span className="stat-pill text-[10px]">
+                {activeChecks.length > 0 ? `${activeChecks.length} CHECKS` : 'INSPECTION'}
+              </span>
             </div>
 
             <div className="space-y-2.5">
               {activeChecks.length > 0 ? activeChecks.map((chk, i) => {
                 const scoreNum = typeof chk.score === 'number' ? chk.score : parseFloat(chk.score) || 0;
-                const scorePct = (scoreNum * 100).toFixed(1);
+                const scorePct = (scoreNum * 100).toFixed(2);
                 const isFail = chk.verdict === 'fail' || scoreNum >= 0.70;
                 const isWarn = chk.verdict === 'warn' || (scoreNum >= 0.30 && scoreNum < 0.70);
 
                 const latencyNum = typeof chk.latency_ms === 'number' ? chk.latency_ms : parseFloat(chk.latency_ms) || 8.0;
-                const latencyDisplay = `${latencyNum.toFixed(1)}ms`;
+                const latencyDisplay = `${latencyNum.toFixed(2)}ms`;
 
                 return (
                   <div key={i} className="p-2.5 rounded-2xl bg-[#FAF8F5] hover:bg-[#F2ECE4] transition-colors space-y-1.5 border border-black/5">
@@ -924,14 +880,24 @@ export default function Playground() {
           </DialogHeader>
 
           <div className="p-4 rounded-2xl bg-[#212328] text-white font-mono text-xs overflow-x-auto space-y-2">
-            <div className="text-zinc-400"># cURL Request to Live Gateway</div>
+            <div className="flex items-center justify-between text-zinc-400">
+              <span># cURL Request to Live Gateway (Auto Model / Workflow Selection)</span>
+              <button
+                onClick={() => {
+                  const curlCode = `curl -X POST http://localhost:8000/api/v1/chat \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "messages": [ { "role": "user", "content": "Your query here" } ]\n  }'`;
+                  navigator.clipboard.writeText(curlCode);
+                }}
+                className="text-xs text-amber-300 hover:text-amber-200 cursor-pointer flex items-center gap-1"
+              >
+                <Copy className="h-3.5 w-3.5" />
+                <span>Copy</span>
+              </button>
+            </div>
             <div className="text-amber-300">
               curl -X POST http://localhost:8000/api/v1/chat \<br/>
               &nbsp;&nbsp;-H &quot;Content-Type: application/json&quot; \<br/>
               &nbsp;&nbsp;-d &#39;{JSON.stringify({
-                messages: [{ role: "user", content: "Your query here" }],
-                use_case: useCase,
-                geography: geography
+                messages: [{ role: "user", content: "Your query here" }]
               }, null, 2)}&#39;
             </div>
           </div>

@@ -2,6 +2,16 @@
 scripts/
 models/
 
+# ─── AI Agents, Context & Local Transcripts ─────────────────────────────────
+.agents/
+.agent/
+.gemini/
+context.md
+*context*
+agent*
+.system_generated/
+video_showcase_script.md
+
 # ─── Environment & Secrets ──────────────────────────────────────────────────
 .env
 .env.*

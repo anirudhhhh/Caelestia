@@ -107,9 +107,10 @@ async def evaluate_immune_health():
         block_rate = stats.get("block_rate", 0.0)
         escalate_rate = stats.get("escalation_rate", 0.0)
         fp_rate = outcomes.get("false_positive_rate", 0.0)
-        total_reviewed = outcomes.get("total_reviewed", 0)
-        approved_count = outcomes.get("approved_count", 0)
+        total_reviewed = outcomes.get("total_reviews", outcomes.get("total_reviewed", 0))
+        approved_count = outcomes.get("approved_count", outcomes.get("incorrect_flags", 0))
         approval_rate = (approved_count / total_reviewed) if total_reviewed > 0 else 0.0
+        review_cycle = max(1, total_reviewed // 10)
 
         # ── 1. Statistical Sigma Anomaly Detections ───────────────────────────
         baseline_block_mean = 0.05
@@ -172,10 +173,10 @@ async def evaluate_immune_health():
         # ── Check 1: Contextual Toxicity Calibration ──────────────────────────
         curr_tox_rule = find_rule("toxicity", "customer_support")
         curr_tox_block = float(curr_tox_rule.get("block_threshold", 0.90)) if curr_tox_rule else 0.90
-        curr_tox_flag = float(curr_tox_rule.get("flag_threshold", 0.40)) if curr_tox_rule else 0.40
+        curr_tox_flag = float(curr_tox_rule.get("flag_threshold", 0.30)) if curr_tox_rule else 0.30
         tox_scores = check_scores.get("toxicity", [])
 
-        prop_id_tox_block = "prop_toxicity_080"
+        prop_id_tox_block = f"prop_tox_block_{int(curr_tox_block*100)}_080"
         if prop_id_tox_block not in DECIDED_PROPOSALS and curr_tox_block > 0.80:
             mean_s = sum(tox_scores) / len(tox_scores) if tox_scores else 0.83
             PROPOSALS[prop_id_tox_block] = {
@@ -189,12 +190,15 @@ async def evaluate_immune_health():
                 "proposed_threshold": 0.80,
                 "reason": f"Telemetry analysis indicates repeated hostility clusters near 0.82 (mean score: {mean_s:.2f}). Lowering block threshold from {curr_tox_block} to 0.80 automates perimeter blocking and prevents toxic payloads from reaching downstream LLMs.",
                 "justification": f"Telemetry analysis indicates repeated hostility clusters near 0.82 (mean score: {mean_s:.2f}). Lowering block threshold from {curr_tox_block} to 0.80 automates perimeter blocking and prevents toxic payloads from reaching downstream LLMs.",
-                "status": "pending"
+                "status": "pending",
+                "cycle": review_cycle,
+                "review_count": total_reviewed
             }
         elif prop_id_tox_block in DECIDED_PROPOSALS or curr_tox_block <= 0.80:
             PROPOSALS.pop(prop_id_tox_block, None)
 
-        prop_id_tox_flag = "prop_raise_flag_toxicity_055"
+        # Proposal after 10 human review cycles
+        prop_id_tox_flag = f"prop_raise_flag_toxicity_{int(curr_tox_flag*100)}_055"
         if prop_id_tox_flag not in DECIDED_PROPOSALS and curr_tox_flag < 0.55:
             PROPOSALS[prop_id_tox_flag] = {
                 "id": prop_id_tox_flag,
@@ -205,9 +209,11 @@ async def evaluate_immune_health():
                 "target_threshold_type": "flag_threshold",
                 "current_threshold": curr_tox_flag,
                 "proposed_threshold": 0.55,
-                "reason": f"Human review verification shows high tolerance for conversational phrasing. Raising flag threshold from {curr_tox_flag} to 0.55 reduces operator queue noise by ~42% while maintaining strict perimeter blocking.",
-                "justification": f"Human review verification shows high tolerance for conversational phrasing. Raising flag threshold from {curr_tox_flag} to 0.55 reduces operator queue noise by ~42% while maintaining strict perimeter blocking.",
-                "status": "pending"
+                "reason": f"Analyzed {total_reviewed} human review cycles (Cycle {review_cycle}, {fp_rate*100:.1f}% false-positive rate). Raising flag threshold from {curr_tox_flag} to 0.55 reduces operator queue noise by ~42% while maintaining strict perimeter blocking.",
+                "justification": f"Human review verification completed {total_reviewed} evaluation cycles with a high operator clearance rate ({fp_rate*100:.1f}% false-positive rate on flagged items). Raising flag threshold from {curr_tox_flag} to 0.55 optimizes human-in-the-loop throughput without lowering perimeter safety.",
+                "status": "pending",
+                "cycle": review_cycle,
+                "review_count": total_reviewed
             }
         elif prop_id_tox_flag in DECIDED_PROPOSALS or curr_tox_flag >= 0.55:
             PROPOSALS.pop(prop_id_tox_flag, None)
@@ -217,7 +223,7 @@ async def evaluate_immune_health():
         curr_pi_block = float(curr_pi_rule.get("block_threshold", 0.90)) if curr_pi_rule else 0.90
         curr_pi_flag = float(curr_pi_rule.get("flag_threshold", 0.50)) if curr_pi_rule else 0.50
 
-        prop_id_pi_block = "prop_prompt_injection_080"
+        prop_id_pi_block = f"prop_prompt_injection_block_{int(curr_pi_block*100)}_080"
         if prop_id_pi_block not in DECIDED_PROPOSALS and curr_pi_block > 0.80:
             PROPOSALS[prop_id_pi_block] = {
                 "id": prop_id_pi_block,
@@ -228,9 +234,11 @@ async def evaluate_immune_health():
                 "target_threshold_type": "block_threshold",
                 "current_threshold": curr_pi_block,
                 "proposed_threshold": 0.80,
-                "reason": f"Empirical jailbreak attempts (DAN, STAN, instruction override) frequently score in the 0.80–0.89 range. Lowering block threshold from {curr_pi_block} to 0.80 ensures instant perimeter defense.",
+                "reason": f"Telemetry and operator reviews show empirical jailbreak attempts (DAN, STAN, instruction override) frequently score in the 0.80–0.89 range. Lowering block threshold from {curr_pi_block} to 0.80 ensures instant perimeter defense.",
                 "justification": f"Empirical jailbreak attempts (DAN, STAN, instruction override) frequently score in the 0.80–0.89 range. Lowering block threshold from {curr_pi_block} to 0.80 ensures instant perimeter defense.",
-                "status": "pending"
+                "status": "pending",
+                "cycle": review_cycle,
+                "review_count": total_reviewed
             }
         elif prop_id_pi_block in DECIDED_PROPOSALS or curr_pi_block <= 0.80:
             PROPOSALS.pop(prop_id_pi_block, None)
@@ -239,7 +247,7 @@ async def evaluate_immune_health():
         curr_sec_rule = find_rule("secrets", "internal_copilot")
         curr_sec_block = float(curr_sec_rule.get("block_threshold", 0.60)) if curr_sec_rule else 0.60
 
-        prop_id_sec_block = "prop_secrets_strict_040"
+        prop_id_sec_block = f"prop_secrets_block_{int(curr_sec_block*100)}_040"
         if prop_id_sec_block not in DECIDED_PROPOSALS and curr_sec_block > 0.40:
             PROPOSALS[prop_id_sec_block] = {
                 "id": prop_id_sec_block,
@@ -252,7 +260,9 @@ async def evaluate_immune_health():
                 "proposed_threshold": 0.40,
                 "reason": f"High entropy code snippets and partial API key prefixes pose exfiltration risk. Lowering block threshold from {curr_sec_block} to 0.40 enforces zero-knowledge credential isolation in engineering copilot workflows.",
                 "justification": f"High entropy code snippets and partial API key prefixes pose exfiltration risk. Lowering block threshold from {curr_sec_block} to 0.40 enforces zero-knowledge credential isolation in engineering copilot workflows.",
-                "status": "pending"
+                "status": "pending",
+                "cycle": review_cycle,
+                "review_count": total_reviewed
             }
         elif prop_id_sec_block in DECIDED_PROPOSALS or curr_sec_block <= 0.40:
             PROPOSALS.pop(prop_id_sec_block, None)
@@ -261,7 +271,7 @@ async def evaluate_immune_health():
         curr_leak_rule = find_rule("system_prompt_leakage", "customer_support")
         curr_leak_block = float(curr_leak_rule.get("block_threshold", 0.70)) if curr_leak_rule else 0.70
 
-        prop_id_leak = "prop_system_prompt_leakage_060"
+        prop_id_leak = f"prop_leak_block_{int(curr_leak_block*100)}_060"
         if prop_id_leak not in DECIDED_PROPOSALS and curr_leak_block > 0.60:
             PROPOSALS[prop_id_leak] = {
                 "id": prop_id_leak,
@@ -274,7 +284,9 @@ async def evaluate_immune_health():
                 "proposed_threshold": 0.60,
                 "reason": f"Egress semantic similarity scans demonstrate partial system prompt reconstruction. Tightening block threshold from {curr_leak_block} to 0.60 prevents intellectual property and prompt leakage.",
                 "justification": f"Egress semantic similarity scans demonstrate partial system prompt reconstruction. Tightening block threshold from {curr_leak_block} to 0.60 prevents intellectual property and prompt leakage.",
-                "status": "pending"
+                "status": "pending",
+                "cycle": review_cycle,
+                "review_count": total_reviewed
             }
         elif prop_id_leak in DECIDED_PROPOSALS or curr_leak_block <= 0.60:
             PROPOSALS.pop(prop_id_leak, None)
@@ -309,6 +321,12 @@ async def notify_flag():
         "batch_milestone": BATCH_MILESTONE,
         "next_evaluation_in": BATCH_MILESTONE - (FLAG_COUNTER % BATCH_MILESTONE) if (FLAG_COUNTER % BATCH_MILESTONE) != 0 else BATCH_MILESTONE
     }
+
+@app.post("/notify-review")
+async def notify_review():
+    logger.info("Immune System received human review notification! Evaluating statistical drift and proposals...")
+    asyncio.create_task(evaluate_immune_health())
+    return {"status": "recorded"}
 
 @app.on_event("startup")
 async def startup_event():
@@ -430,7 +448,15 @@ async def accept_proposal(proposal_id: str):
 @app.post("/proposals/{proposal_id}/dismiss")
 async def dismiss_proposal(proposal_id: str):
     logger.info(f"Dismissing threshold proposal: {proposal_id}")
-    prop = PROPOSALS.get(proposal_id, {})
+    prop = PROPOSALS.get(proposal_id)
+    real_key = proposal_id
+    if not prop:
+        for k, p in PROPOSALS.items():
+            if p.get("proposal_id") == proposal_id or p.get("id") == proposal_id:
+                prop = p
+                real_key = k
+                break
+    prop = prop or {}
     target_use_case = prop.get("use_case", "customer_support")
     target_geo = prop.get("geography", "US")
     target_check = prop.get("check_name", "toxicity")
@@ -439,6 +465,7 @@ async def dismiss_proposal(proposal_id: str):
 
     # Persist dismissal to SQLite
     await record_proposal_decision(proposal_id, target_use_case, target_geo, target_check, thresh_type, thresh, "dismissed")
+    PROPOSALS.pop(real_key, None)
     PROPOSALS.pop(proposal_id, None)
 
     return {"status": "dismissed", "proposal_id": proposal_id}

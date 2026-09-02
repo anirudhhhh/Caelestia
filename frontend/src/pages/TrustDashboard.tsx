@@ -87,9 +87,9 @@ export default function TrustDashboard() {
   const bubbleMetrics: BubbleMetric[] = [
     {
       id: 'latency',
-      label: 'ms Latency',
-      value: '18.4',
-      unit: 'ms P99 overhead',
+      label: 'P99 Latency',
+      value: '18.4ms',
+      unit: 'P99 Latency',
       color: 'charcoal',
     },
     {

@@ -102,10 +102,10 @@ JSON:
 """
     candidate_models = [
         DEFAULT_MODEL,
-        "gemini-3.5-flash-lite",
-        "gemini-3.1-flash-lite",
-        "gemini-flash-lite-latest",
-        "gemini-3.5-flash"
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro"
     ]
     candidate_models = list(dict.fromkeys(candidate_models))
 
@@ -139,9 +139,9 @@ JSON:
 def fallback_extract_location(text: str) -> Optional[str]:
     """Deterministic fallback regex extraction for city / place names."""
     patterns = [
-        r'(?:in|for|at|around|near)\s+([A-Za-z\s]+?)(?:\s+right\s+now|\s+today|\s+tomorrow|\?|\.|$)',
-        r'(?:weather|temperature|forecast)\s+(?:in|of|for)\s+([A-Za-z\s]+?)(?:\?|\.|$)',
-        r'how\s+(?:hot|cold|warm)\s+is\s+it\s+in\s+([A-Za-z\s]+?)(?:\?|\.|$)'
+        r'\b(?:in|for|at|around|near)\b\s+([A-Za-z\s]+?)(?:\s+right\s+now|\s+today|\s+tomorrow|\?|\.|$)',
+        r'\b(?:weather|temperature|forecast)\b\s+(?:in|of|for)\s+([A-Za-z\s]+?)(?:\?|\.|$)',
+        r'\bhow\s+(?:hot|cold|warm)\s+is\s+it\s+in\b\s+([A-Za-z\s]+?)(?:\?|\.|$)'
     ]
     for p in patterns:
         m = re.search(p, text, re.IGNORECASE)

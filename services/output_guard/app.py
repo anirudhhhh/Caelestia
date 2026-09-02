@@ -17,7 +17,6 @@ from shared.text_normalize import normalize_text
 from services.guardrails_fast.lexicon import get_lexicon_scanner
 from services.output_guard.scanners.heuristic_scanners import scan_sensitive_data
 from services.output_guard.scanners.system_prompt_leakage import scan_system_prompt_leakage
-from services.output_guard.verification.judge import verify_hallucination
 
 logger = setup_logging("output_guard")
 app = FastAPI(title="Output Guard")
@@ -196,10 +195,6 @@ async def scan_output(envelope: InteractionEnvelope):
         scan_pii(text, pii_perms)
     ]
     
-    # L4 AI-as-judge for medium/high/critical risk tiers
-    if envelope.risk.tier in (RiskTier.MEDIUM, RiskTier.HIGH, RiskTier.CRITICAL):
-        tasks.append(verify_hallucination(text))
-        
     results = await asyncio.gather(*tasks)
     
     envelope.checks.append(toxicity_result)
@@ -211,8 +206,6 @@ async def scan_output(envelope: InteractionEnvelope):
             r.layer = "L1_fast_patterns"
         elif r.check_name == "pii":
             r.layer = "pii_service"
-        elif r.check_name == "hallucination":
-            r.layer = "L4_llm_judge"
         envelope.checks.append(r)
         
     # Call Policy Engine

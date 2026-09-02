@@ -4,46 +4,6 @@ defaults:
   flag_threshold: 0.4
   on_timeout: block
 pii_permissions:
-  email_service:
-    AADHAAR: block
-    ADDRESS: allow
-    BANK_ACCOUNT: block
-    CREDIT_CARD: block
-    EMAIL: allow
-    GOVERNMENT_ID: block
-    PAN: block
-    PHONE: allow
-    SSN: block
-  general_query:
-    AADHAAR: block
-    ADDRESS: allow
-    BANK_ACCOUNT: block
-    CREDIT_CARD: block
-    EMAIL: allow
-    GOVERNMENT_ID: block
-    PAN: block
-    PHONE: allow
-    SSN: block
-  leave_approval:
-    AADHAAR: block
-    ADDRESS: allow
-    BANK_ACCOUNT: block
-    CREDIT_CARD: block
-    EMAIL: allow
-    GOVERNMENT_ID: block
-    PAN: block
-    PHONE: allow
-    SSN: block
-  weather_service:
-    AADHAAR: block
-    ADDRESS: allow
-    BANK_ACCOUNT: block
-    CREDIT_CARD: block
-    EMAIL: allow
-    GOVERNMENT_ID: block
-    PAN: block
-    PHONE: allow
-    SSN: block
   customer_support:
     AADHAAR: block
     ADDRESS: allow
@@ -64,6 +24,26 @@ pii_permissions:
     PAN: block
     PHONE: allow
     SSN: allow
+  email_service:
+    AADHAAR: block
+    ADDRESS: allow
+    BANK_ACCOUNT: block
+    CREDIT_CARD: block
+    EMAIL: allow
+    GOVERNMENT_ID: block
+    PAN: block
+    PHONE: allow
+    SSN: block
+  general_query:
+    AADHAAR: block
+    ADDRESS: allow
+    BANK_ACCOUNT: block
+    CREDIT_CARD: block
+    EMAIL: allow
+    GOVERNMENT_ID: block
+    PAN: block
+    PHONE: allow
+    SSN: block
   internal_copilot:
     AADHAAR: block
     ADDRESS: allow
@@ -74,7 +54,27 @@ pii_permissions:
     PAN: block
     PHONE: allow
     SSN: block
+  leave_approval:
+    AADHAAR: block
+    ADDRESS: allow
+    BANK_ACCOUNT: block
+    CREDIT_CARD: block
+    EMAIL: allow
+    GOVERNMENT_ID: block
+    PAN: block
+    PHONE: allow
+    SSN: block
   legal_compliance:
+    AADHAAR: block
+    ADDRESS: allow
+    BANK_ACCOUNT: block
+    CREDIT_CARD: block
+    EMAIL: allow
+    GOVERNMENT_ID: block
+    PAN: block
+    PHONE: allow
+    SSN: block
+  weather_service:
     AADHAAR: block
     ADDRESS: allow
     BANK_ACCOUNT: block
@@ -115,12 +115,12 @@ policies:
   geography: US
   on_timeout: block
   use_case: customer_support
-- block_threshold: 0.5
-  check: hallucination_risk
-  flag_threshold: 0.3
+- block_threshold: 0.8
+  check: prompt_injection
+  flag_threshold: 0.4
   geography: US
-  on_timeout: block
-  use_case: decision_support
+  on_timeout: allow
+  use_case: customer_support
 rules:
 - action: flag
   condition: geography == 'EU' and use_case == 'legal_compliance'

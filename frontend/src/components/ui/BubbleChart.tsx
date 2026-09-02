@@ -62,17 +62,17 @@ export default function BubbleChart({
           className="absolute left-20 sm:left-32 bottom-2 w-28 h-28 sm:w-36 sm:h-36 rounded-full bg-[#FF6E5B] opacity-70 blur-xl"
         />
 
-        {/* Dark Floating Charcoal Bubble Metric (e.g. 2.30 hours / Latency) */}
+        {/* Dark Floating Charcoal Bubble Metric */}
         {metrics[0] && (
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.5 }}
-            className="absolute left-12 sm:left-24 top-4 z-20"
+            className="absolute left-8 sm:left-20 top-2 z-20"
           >
-            <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-full bg-[#212328] text-white flex flex-col items-center justify-center shadow-xl border border-white/10 hover:scale-105 transition-transform cursor-pointer">
-              <span className="text-sm sm:text-base font-extrabold tracking-tight leading-none">{metrics[0].value}</span>
-              <span className="text-[10px] text-zinc-400 font-medium mt-0.5">{metrics[0].unit || metrics[0].label}</span>
+            <div className="w-20 h-20 sm:w-24 sm:h-24 p-2 rounded-full bg-[#212328] text-white flex flex-col items-center justify-center text-center shadow-xl border border-white/10 hover:scale-105 transition-transform cursor-pointer">
+              <span className="text-base sm:text-lg font-black tracking-tight leading-tight text-white">{metrics[0].value}</span>
+              <span className="text-[10px] sm:text-[11px] text-zinc-200 font-bold mt-0.5 leading-tight">{metrics[0].unit || metrics[0].label}</span>
             </div>
           </motion.div>
         )}

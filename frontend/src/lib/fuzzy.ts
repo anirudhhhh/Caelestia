@@ -1,9 +1,9 @@
 /**
- * ControlPlane.ai — High-Performance Fuzzy Search Engine
+ * ControlPlane.ai — High-Performance Instant Fuzzy Search Engine
  * 
- * Provides fast, typo-tolerant fuzzy matching, subsequence scoring,
- * acronym expansion, and match range highlighting for system-wide search
- * and audit log filtering.
+ * Provides fast, typo-tolerant token matching, subsequence scoring,
+ * acronym expansion, and multi-field keyword search with match highlighting
+ * for real-time audit log and system telemetry filtering.
  */
 
 export interface FuzzyScoreResult {
@@ -33,23 +33,38 @@ export function fuzzyScore(pattern: string, text: string): FuzzyScoreResult {
   // 2. Starts with pattern
   if (t.startsWith(p)) {
     const indices = Array.from({ length: p.length }, (_, i) => i);
-    return { matches: true, score: 85 + (p.length / t.length) * 10, matchedIndices: indices };
+    return { matches: true, score: 90 + (p.length / t.length) * 10, matchedIndices: indices };
   }
 
-  // 3. Substring match
+  // 3. Substring match (collect all occurrences)
   const subIdx = t.indexOf(p);
   if (subIdx !== -1) {
-    const indices = Array.from({ length: p.length }, (_, i) => subIdx + i);
-    // Bonus if it starts on a word boundary (after space, slash, underscore, hyphen, dot)
-    const isWordBoundary = subIdx === 0 || /[\s/_\-.:]/.test(t[subIdx - 1]);
-    const score = (isWordBoundary ? 75 : 60) + (p.length / t.length) * 10;
+    const indices: number[] = [];
+    let startPos = 0;
+    while (true) {
+      const idx = t.indexOf(p, startPos);
+      if (idx === -1) break;
+      for (let i = 0; i < p.length; i++) indices.push(idx + i);
+      startPos = idx + p.length;
+    }
+    const isWordBoundary = subIdx === 0 || /[\s/_\-.:,[\]\"'()]/.test(t[subIdx - 1]);
+    const score = (isWordBoundary ? 80 : 65) + (p.length / t.length) * 10;
     return { matches: true, score, matchedIndices: indices };
   }
 
-  // 4. Acronym match (e.g., "cs" -> "Customer Support", "pi" -> "Prompt Injection")
-  const words = t.split(/[\s/_\-.:]+/).filter(Boolean);
+  // 4. Word-prefix match
+  const words = t.split(/[\s/_\-.:,[\]\"'()]+/).filter(Boolean);
+  for (const word of words) {
+    if (word.startsWith(p)) {
+      const wordStart = t.indexOf(word);
+      const indices = Array.from({ length: p.length }, (_, i) => wordStart + i);
+      return { matches: true, score: 75 + (p.length / word.length) * 10, matchedIndices: indices };
+    }
+  }
+
+  // 5. Acronym match (e.g. "cs" -> "Customer Support", "pi" -> "Prompt Injection")
   const acronym = words.map(w => w[0]).join('');
-  if (acronym.includes(p)) {
+  if (p.length >= 2 && acronym.includes(p)) {
     const acroIdx = acronym.indexOf(p);
     const indices: number[] = [];
     let curWord = 0;
@@ -62,94 +77,38 @@ export function fuzzyScore(pattern: string, text: string): FuzzyScoreResult {
       curWord++;
       curCharInT += w.length;
     }
-    return { matches: true, score: 68, matchedIndices: indices };
+    return { matches: true, score: 70, matchedIndices: indices };
   }
 
-  // 5. Fuzzy Subsequence Search with Proximity Scoring
-  let pIdx = 0;
-  let tIdx = 0;
-  let score = 0;
-  let consecutiveMatches = 0;
-  let prevMatchIdx = -2;
-  const matchedIndices: number[] = [];
-
-  while (pIdx < p.length && tIdx < t.length) {
-    if (p[pIdx] === t[tIdx]) {
-      matchedIndices.push(tIdx);
-
-      // Word boundary bonus
-      const isWordBoundary = tIdx === 0 || /[\s/_\-.:]/.test(t[tIdx - 1]);
-      if (isWordBoundary) {
-        score += 8;
-      }
-
-      // Consecutive character bonus
-      if (tIdx === prevMatchIdx + 1) {
-        consecutiveMatches++;
-        score += 4 * consecutiveMatches;
-      } else {
-        consecutiveMatches = 0;
-        // Distance penalty for scattered matches
-        if (prevMatchIdx >= 0) {
-          const gap = tIdx - prevMatchIdx;
-          score -= Math.min(gap, 6);
-        }
-      }
-
-      prevMatchIdx = tIdx;
-      pIdx++;
-      score += 5;
-    }
-    tIdx++;
-  }
-
-  // Check if entire pattern was matched as a subsequence
-  if (pIdx === p.length) {
-    // Length coverage ratio bonus
-    const coverage = p.length / t.length;
-    const finalScore = Math.max(20, Math.min(95, score + coverage * 20));
-    return { matches: true, score: finalScore, matchedIndices };
-  }
-
-  // 6. Typo Tolerance via Levenshtein edit distance for tokens >= 4 chars
+  // 6. Proximity-Constrained Subsequence Match within individual words (for typos & abbreviations >= 4 chars)
   if (p.length >= 4) {
     for (const word of words) {
-      if (word.length >= 3 && Math.abs(word.length - p.length) <= 2) {
-        const dist = levenshteinDistance(p, word);
-        if (dist <= 1 || (p.length >= 6 && dist <= 2)) {
+      if (word.length < p.length) continue;
+      let pIdx = 0;
+      let wIdx = 0;
+      const wordMatchedIndices: number[] = [];
+
+      while (pIdx < p.length && wIdx < word.length) {
+        if (p[pIdx] === word[wIdx]) {
+          wordMatchedIndices.push(wIdx);
+          pIdx++;
+        }
+        wIdx++;
+      }
+
+      if (pIdx === p.length) {
+        const span = wordMatchedIndices[wordMatchedIndices.length - 1] - wordMatchedIndices[0] + 1;
+        if (span <= p.length + 2) {
           const wordStart = t.indexOf(word);
-          const indices = Array.from({ length: word.length }, (_, i) => wordStart + i);
-          const finalScore = 45 - dist * 10;
-          return { matches: true, score: finalScore, matchedIndices: indices };
+          const globalIndices = wordMatchedIndices.map(idx => wordStart + idx);
+          const score = Math.max(30, Math.min(80, 50 + (p.length / span) * 20));
+          return { matches: true, score, matchedIndices: globalIndices };
         }
       }
     }
   }
 
   return { matches: false, score: 0, matchedIndices: [] };
-}
-
-/**
- * Standard Levenshtein distance calculation
- */
-function levenshteinDistance(a: string, b: string): number {
-  const m = a.length;
-  const n = b.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
-
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (a[i - 1] === b[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1];
-      } else {
-        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-      }
-    }
-  }
-  return dp[m][n];
 }
 
 export interface SearchFieldConfig<T> {
@@ -166,8 +125,8 @@ export interface SearchResult<T> {
 }
 
 /**
- * Multi-field fuzzy search over an array of items.
- * Returns sorted list of matching items with ranking scores.
+ * Multi-field tokenized fuzzy search over an array of items.
+ * Returns sorted list of matching items with ranking scores and highlight indices.
  */
 export function searchCollection<T>(
   collection: T[],
@@ -176,51 +135,72 @@ export function searchCollection<T>(
 ): SearchResult<T>[] {
   const q = query.trim();
   if (!q) {
-    return collection.map(item => ({ item, score: 1 }));
+    return collection.map(item => ({ item, score: 1, matchedIndices: [] }));
+  }
+
+  const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) {
+    return collection.map(item => ({ item, score: 1, matchedIndices: [] }));
   }
 
   const results: SearchResult<T>[] = [];
 
   for (const item of collection) {
-    let bestScore = 0;
-    let bestField: string | undefined;
-    let bestIndices: number[] = [];
+    let totalScore = 0;
+    let allTokensMatched = true;
+    const combinedMatchedIndices: number[] = [];
+    let topMatchedField: string | undefined;
 
-    for (const config of fieldConfigs) {
-      const weight = config.weight ?? 1.0;
-      let rawVal: any;
+    for (const tok of tokens) {
+      let tokenBestScore = 0;
+      let tokenBestField: string | undefined;
+      let tokenBestIndices: number[] = [];
 
-      if (config.getter) {
-        rawVal = config.getter(item);
-      } else if (config.key) {
-        rawVal = item[config.key];
-      }
+      for (const config of fieldConfigs) {
+        const weight = config.weight ?? 1.0;
+        let rawVal: any;
 
-      if (rawVal == null) continue;
+        if (config.getter) {
+          rawVal = config.getter(item);
+        } else if (config.key) {
+          rawVal = item[config.key];
+        }
 
-      const values = Array.isArray(rawVal) ? rawVal : [rawVal];
+        if (rawVal == null) continue;
 
-      for (const val of values) {
-        const text = String(val);
-        const res = fuzzyScore(q, text);
+        const values = Array.isArray(rawVal) ? rawVal : [rawVal];
 
-        if (res.matches) {
-          const weightedScore = res.score * weight;
-          if (weightedScore > bestScore) {
-            bestScore = weightedScore;
-            bestField = String(config.key || 'custom');
-            bestIndices = res.matchedIndices;
+        for (const val of values) {
+          const text = String(val);
+          const res = fuzzyScore(tok, text);
+
+          if (res.matches) {
+            const weightedScore = res.score * weight;
+            if (weightedScore > tokenBestScore) {
+              tokenBestScore = weightedScore;
+              tokenBestField = String(config.key || 'custom');
+              tokenBestIndices = res.matchedIndices;
+            }
           }
         }
       }
+
+      if (tokenBestScore > 0) {
+        totalScore += tokenBestScore;
+        if (!topMatchedField) topMatchedField = tokenBestField;
+        combinedMatchedIndices.push(...tokenBestIndices);
+      } else {
+        allTokensMatched = false;
+        break;
+      }
     }
 
-    if (bestScore > 0) {
+    if (allTokensMatched && totalScore > 0) {
       results.push({
         item,
-        score: bestScore,
-        matchedField: bestField,
-        matchedIndices: bestIndices,
+        score: totalScore,
+        matchedField: topMatchedField,
+        matchedIndices: Array.from(new Set(combinedMatchedIndices)),
       });
     }
   }

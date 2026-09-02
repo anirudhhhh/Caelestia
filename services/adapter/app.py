@@ -135,12 +135,12 @@ async def complete(req: AdapterRequest):
         raw_model = req.model.replace("google/", "")
         candidate_models = [
             raw_model,
-            "gemini-3.5-flash-lite",
-            "gemini-3.1-flash-lite",
-            "gemini-flash-lite-latest",
-            "gemini-3.5-flash",
-            "gemini-3.6-flash",
-            "gemini-3.7-flash"
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-2.0-flash-lite",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro"
         ]
         # Deduplicate while preserving order
         candidate_models = list(dict.fromkeys(candidate_models))

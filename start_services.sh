@@ -16,7 +16,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${CYAN}${BOLD}  ControlPlane.ai — Starting 12 Microservice Cluster${NC}"
+echo -e "${CYAN}${BOLD}  ControlPlane.ai — Starting 17 Microservice Cluster${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 mkdir -p data
@@ -28,7 +28,16 @@ fi
 
 PYTHON_BIN="$PROJECT_ROOT/venv/bin/python3"
 if [ ! -f "$PYTHON_BIN" ]; then
-    PYTHON_BIN="python3"
+    echo -e "${YELLOW}⚡ Virtual environment not detected. Bootstrapping Python venv...${NC}"
+    python3 -m venv "$PROJECT_ROOT/venv"
+    "$PROJECT_ROOT/venv/bin/pip" install --upgrade pip
+    "$PROJECT_ROOT/venv/bin/pip" install -r "$PROJECT_ROOT/requirements.txt"
+    PYTHON_BIN="$PROJECT_ROOT/venv/bin/python3"
+fi
+
+if ! "$PYTHON_BIN" -m uvicorn --version >/dev/null 2>&1; then
+    echo -e "${YELLOW}⚠ Dependencies not fully installed. Running pip install...${NC}"
+    "$PROJECT_ROOT/venv/bin/pip" install -r "$PROJECT_ROOT/requirements.txt"
 fi
 
 # Reset PID tracking file
@@ -73,6 +82,7 @@ start_service "General Query"     "general_query"   8021
 start_service "Email Service"     "email_service"   8022
 start_service "Leave Approval"    "leave_approval"  8023
 start_service "Weather Service"   "weather_service" 8024
+start_service "Mocha Service"     "mocha_service"   8099
 sleep 2
 
 echo -e "\n${BLUE}Phase 4: Monitoring, Immune System & Human Review${NC}"
@@ -106,6 +116,7 @@ echo -e "  ${CYAN}General Query:${NC}    http://localhost:8021"
 echo -e "  ${CYAN}Email Service:${NC}    http://localhost:8022"
 echo -e "  ${CYAN}Leave Approval:${NC}   http://localhost:8023"
 echo -e "  ${CYAN}Weather Service:${NC}  http://localhost:8024"
+echo -e "  ${CYAN}Mocha Service:${NC}    http://localhost:8099"
 echo -e "  ${CYAN}Review Console:${NC}   http://localhost:8008"
 echo -e "  ${CYAN}Frontend UI:${NC}      http://localhost:3000  (Run 'cd frontend && npm run dev')"
 echo -e "${YELLOW}Press Ctrl+C to stop all services cleanly${NC}"

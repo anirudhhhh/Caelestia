@@ -151,9 +151,12 @@ def _enum_val(v):
     return v.value if hasattr(v, "value") else v
 
 
-# ─── Chat Completions (main endpoint) ─────────────────────────────────────────
+# ─── Chat Completions (main endpoint + aliases) ───────────────────────────────
 
 @app.post("/v1/chat/completions")
+@app.post("/api/v1/chat")
+@app.post("/api/chat")
+@app.post("/v1/chat")
 async def chat_completions(
     req: ChatRequest,
     x_use_case: Optional[str] = Header(None, alias="X-ControlPlane-UseCase"),

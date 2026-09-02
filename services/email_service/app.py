@@ -74,35 +74,37 @@ EMAIL_REGEX = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
 
 
 async def extract_email_fields_llm(text: str) -> Dict[str, str]:
-    """Uses LLM to extract recipient, subject, and body from natural language text."""
+    """Uses LLM to extract recipient, subject, and craft a professional body from natural language text."""
     if not GEMINI_API_KEY:
         return {}
 
     prompt = f"""
-Extract email fields from the following user request.
-Output ONLY a valid JSON object with EXACTLY these three keys:
-- "recipient": the email address (or empty string if none found)
-- "subject": an appropriate email subject line
-- "body": the message body content to send
+You are an intelligent email dispatch assistant. Based on the user request, draft a professional, well-formatted email.
+
+Rules:
+- "recipient": The exact recipient email address explicitly mentioned in the request. If NO valid email address (e.g. name@domain.com) is explicitly provided by the user in the prompt, you MUST set "recipient": "". DO NOT invent, assume, or hallucinate an email address.
+- "subject": A concise, descriptive email subject line (e.g., "Refund Request - Order #94", "Project Status Update").
+- "body": A professional, complete email message body (including formal greeting, clear statement of request or message, and sign-off). DO NOT just echo the user's prompt.
 
 Request: "{text}"
 
+Output ONLY a valid JSON object with EXACTLY keys: "recipient", "subject", "body".
 JSON:
 """
     candidate_models = [
         DEFAULT_MODEL,
-        "gemini-3.5-flash-lite",
-        "gemini-3.1-flash-lite",
-        "gemini-flash-lite-latest",
-        "gemini-3.5-flash"
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro"
     ]
     candidate_models = list(dict.fromkeys(candidate_models))
 
     body = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {
-            "maxOutputTokens": 300,
-            "temperature": 0.1
+            "maxOutputTokens": 400,
+            "temperature": 0.2
         }
     }
 
@@ -117,7 +119,12 @@ JSON:
                     if candidates:
                         raw_text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
                         clean_json = raw_text.replace("```json", "").replace("```", "").strip()
-                        return json.loads(clean_json)
+                        parsed = json.loads(clean_json)
+                        # Guard against hallucinated recipient not present in user text
+                        rec = parsed.get("recipient", "").strip()
+                        if rec and not (rec.lower() in text.lower() or EMAIL_REGEX.search(text)):
+                            parsed["recipient"] = ""
+                        return parsed
             except Exception as e:
                 logger.warning(f"Gemini email extraction failed on {model_name}: {e}")
                 continue
@@ -126,23 +133,86 @@ JSON:
 
 
 def fallback_extract(text: str) -> Dict[str, str]:
-    """Fallback regex extraction when LLM is unavailable."""
+    """Robust heuristic extraction and message drafting when LLM is unavailable."""
     match = EMAIL_REGEX.search(text)
     recipient = match.group(0) if match else ""
 
-    # Subject and body heuristic
-    subject = "Notification from ControlPlane"
-    body = text
-    if "saying" in text.lower():
-        parts = re.split(r'\bsaying\b', text, flags=re.IGNORECASE)
-        if len(parts) > 1:
-            body = parts[1].strip(" :\"'")
-            subject = "Update regarding: " + body[:30] + "..."
-    elif "that" in text.lower():
-        parts = re.split(r'\bthat\b', text, flags=re.IGNORECASE)
-        if len(parts) > 1:
-            body = parts[1].strip(" :\"'")
-            subject = "Notice regarding: " + body[:30] + "..."
+    # Clean the raw text by removing email address and introductory dispatch commands
+    clean = text
+    if recipient:
+        clean = clean.replace(recipient, "")
+
+    clean = re.sub(
+        r'^(?:please\s+)?(?:send|write|shoot|forward|draft)\s+(?:an?\s+)?(?:email|mail|message)\s+(?:to\s+)?',
+        '',
+        clean,
+        flags=re.IGNORECASE
+    ).strip()
+    clean = re.sub(r'^(?:to\s+)?', '', clean).strip(" ,;:-")
+
+    # Case A: Explicit Subject / Body specified in prompt
+    subj_match = re.search(r'(?:with\s+)?subject\s*[:=]\s*["\']?([^"\']+)["\']?', text, re.IGNORECASE)
+    body_match = re.search(r'(?:and\s+)?body\s*[:=]\s*["\']?([^"\']+)["\']?', text, re.IGNORECASE)
+    if subj_match and body_match:
+        return {
+            "recipient": recipient,
+            "subject": subj_match.group(1).strip(),
+            "body": body_match.group(1).strip()
+        }
+
+    # Case B: Refund Request
+    if re.search(r'\b(?:asking for|requesting|want|need)\s+(?:a\s+)?refund\b', clean, re.IGNORECASE) or "refund" in clean.lower():
+        order_m = re.search(r'\b(?:order\s+(?:number\s+|no\.?\s*|#\s*)?([A-Za-z0-9_-]+))\b', clean, re.IGNORECASE)
+        order_ref = f" - Order #{order_m.group(1)}" if order_m else ""
+        order_detail = f" for order #{order_m.group(1)}" if order_m else ""
+        subject = f"Refund Request{order_ref}"
+        body = (
+            f"Hello,\n\n"
+            f"I am writing to formally request a refund{order_detail}.\n"
+            f"Could you please review this request and advise on the next steps for processing the refund?\n\n"
+            f"Thank you for your assistance."
+        )
+    # Case C: Saying / That (Direct quote or notification)
+    elif re.search(r'\b(?:saying|telling them|stating)\b', clean, re.IGNORECASE):
+        parts = re.split(r'\b(?:saying|telling them|stating)\b', clean, flags=re.IGNORECASE)
+        raw_msg = parts[1].strip(" :\"'") if len(parts) > 1 else clean
+        clean_msg = re.sub(r'^\s*that\s+', '', raw_msg, flags=re.IGNORECASE).strip()
+        if clean_msg:
+            clean_msg = clean_msg[:1].upper() + clean_msg[1:]
+        subject = f"Update: {clean_msg[:35]}..." if len(clean_msg) > 35 else f"Update: {clean_msg}"
+        body = (
+            f"Hello,\n\n"
+            f"{clean_msg}\n\n"
+            f"Best regards."
+        )
+    # Case D: Asking for / Requesting general action
+    elif re.search(r'\b(?:asking for|requesting|asking to)\s+(.+)', clean, re.IGNORECASE):
+        req_topic = re.search(r'\b(?:asking for|requesting|asking to)\s+(.+)', clean, re.IGNORECASE).group(1).strip(" .?!")
+        subject = f"Request: {req_topic[:35].title()}"
+        body = (
+            f"Hello,\n\n"
+            f"I am writing to request {req_topic}.\n"
+            f"Please let me know if any additional information or verification is required from my end.\n\n"
+            f"Thank you."
+        )
+    # Case E: About / Regarding a topic
+    elif re.search(r'\b(?:about|regarding|concerning)\s+(.+)', clean, re.IGNORECASE):
+        topic = re.search(r'\b(?:about|regarding|concerning)\s+(.+)', clean, re.IGNORECASE).group(1).strip(" .?!")
+        subject = f"Regarding {topic[:40].title()}"
+        body = (
+            f"Hello,\n\n"
+            f"I am reaching out regarding {topic}.\n"
+            f"Please review this at your earliest convenience and let me know your thoughts.\n\n"
+            f"Best regards."
+        )
+    else:
+        subject = f"Notification: {clean[:30]}"
+        body = (
+            f"Hello,\n\n"
+            f"I am writing regarding the following matter:\n{clean}\n\n"
+            f"Please let me know if you have any questions.\n\n"
+            f"Best regards."
+        )
 
     return {
         "recipient": recipient,
@@ -257,25 +327,39 @@ async def handle_send_email(req: EmailRequest):
             subject = subject or extracted.get("subject", "Notification")
             body = body or extracted.get("body", prompt)
 
-    # 2. Validation
+    # Strict safety check: Ensure recipient was either explicitly in req.recipient or found in prompt text.
+    # Never invent, guess, or dispatch to non-existent or hallucinated email addresses!
+    if recipient:
+        matched_in_prompt = EMAIL_REGEX.search(prompt) if prompt else None
+        if not req.recipient and not matched_in_prompt:
+            recipient = None
+
+    # 2. Safe Fallback if No Recipient Email Found
     if not recipient or not recipient.strip() or not EMAIL_REGEX.search(recipient):
-        logger.warning(f"Email validation failed: recipient missing or invalid in prompt '{prompt}'")
-        err_msg = "Recipient email could not be identified"
+        logger.info(f"No recipient email specified in prompt '{prompt}'. Returning safe draft preview.")
+        content_summary = (
+            f"[Email Service: Draft Prepared]\n"
+            f"Subject: {subject or 'Notification'}\n"
+            f"Status: Awaiting destination email address\n\n"
+            f"Message Body:\n{body.strip()}\n\n"
+            f"⚠ No recipient email address was detected in your request. "
+            f"Please specify a destination email (e.g. name@domain.com) to dispatch this message."
+        )
         return EmailResponse(
-            status="error",
+            status="success",
             service="email",
-            error=err_msg,
-            content=f"[Email Service Error] {err_msg}. Please specify a recipient email address (e.g. name@domain.com)."
+            recipient=None,
+            content=content_summary,
+            details={
+                "draft_subject": subject or "Notification",
+                "draft_body": body.strip(),
+                "ready_to_send": False,
+                "missing_fields": ["recipient"]
+            }
         )
 
     if not body or not body.strip():
-        err_msg = "Email body cannot be empty"
-        return EmailResponse(
-            status="error",
-            service="email",
-            error=err_msg,
-            content=f"[Email Service Error] {err_msg}."
-        )
+        body = f"Hello,\n\nI am writing to follow up on this request.\n\nBest regards."
 
     # 3. Email Dispatch via SMTP
     try:

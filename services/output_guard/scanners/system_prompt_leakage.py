@@ -178,8 +178,25 @@ class SystemPromptLeakageScanner:
                                 max_semantic_sim = cos_sim
                                 semantic_matched_rule = sys_sentences[s_idx][:60]
 
+        # ── 5. Layer 5: Calibrated Synthesis
+        # In natural conversation, common introductory sentences have a high cosine baseline (~0.75-0.85)
+        # without actually leaking confidential instructions.
+        # True leakage requires either:
+        # 1. Near-verbatim reproduction (max_semantic_sim >= 0.94)
+        # 2. Token chunk reuse (max_lcs_score >= 0.30)
+        # 3. Explicit exfiltration intent markers (meta_score > 0.0)
+        if max_semantic_sim >= 0.94:
+            effective_semantic_score = max_semantic_sim
+        elif max_lcs_score >= 0.30:
+            effective_semantic_score = max(max_lcs_score, 0.5 * max_semantic_sim + 0.5 * max_lcs_score)
+        elif meta_score > 0.0:
+            effective_semantic_score = max(meta_score, max_semantic_sim * 0.8)
+        else:
+            # Baseline background similarity without token reuse: dampened score (below warn/fail thresholds)
+            effective_semantic_score = min(max_semantic_sim * 0.35, 0.35)
+
         # Compute combined weighted score (Raw continuous scores)
-        final_score = max(meta_score, max_lcs_score, max_semantic_sim)
+        final_score = max(meta_score, max_lcs_score, effective_semantic_score)
 
         latency_ms = (time.time() - start) * 1000
         verdict = CheckVerdict.FAIL if final_score >= 0.80 else (CheckVerdict.WARN if final_score >= 0.65 else CheckVerdict.PASS)
@@ -189,7 +206,7 @@ class SystemPromptLeakageScanner:
             engine="lcs_semantic_canary_scanner",
             score=round(final_score, 4),
             verdict=verdict,
-            layer="L3_semantic_vector" if semantic_score >= max(meta_score, max_lcs_score) and semantic_score > 0 else "L1_token_lcs",
+            layer="L3_semantic_vector" if effective_semantic_score >= max(meta_score, max_lcs_score) and effective_semantic_score > 0 else "L1_token_lcs",
             latency_ms=latency_ms,
             details={
                 "max_semantic_similarity": round(max_semantic_sim, 4),

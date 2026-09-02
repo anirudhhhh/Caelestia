@@ -170,17 +170,7 @@ export const SYSTEM_SEARCH_ITEMS: SearchItem[] = [
     icon: ShieldCheck,
     badge: 'Egress Guard'
   },
-  {
-    id: 'check-hallucination-judge',
-    title: 'L4 LLM Grounding & Hallucination Judge',
-    description: 'AI-as-judge evidence verification and claim validation via Google Gemini',
-    category: 'SECURITY GUARDS',
-    path: '/trust',
-    sectionId: 'trust-compliance',
-    keywords: ['hallucination', 'grounding', 'judge', 'gemini', 'evidence', 'rag', 'verification', 'unverified'],
-    icon: Cpu,
-    badge: 'L4 Verifier'
-  },
+
 
   // POLICY & GOVERNANCE
   {

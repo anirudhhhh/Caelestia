@@ -10,7 +10,7 @@
 
 **ControlPlane.ai** is a high-throughput, enterprise-grade AI governance middleware and security firewall that sits at the network perimeter between client applications and downstream AI models / multi-agent workflows.
 
-Every AI interaction passes through ControlPlane at the **perimeter boundary** (ingress user prompt and egress model response). It performs **stateless, sub-millisecond safety evaluations** (prompt injection, contextual toxicity, PII, secret credentials leakage, hallucination verification), executes **dynamic policy decisions** (allow / flag / block / escalate), routes queries semantically to specialized agent endpoints, and powers a **closed-loop self-healing Immune System** calibrated by human verification.
+Every AI interaction passes through ControlPlane at the **perimeter boundary** (ingress user prompt and egress model response). It performs **stateless, sub-millisecond safety evaluations** (prompt injection, contextual toxicity, PII, secret credentials leakage, and system prompt exfiltration), executes **dynamic policy decisions** (allow / flag / block / escalate), routes queries semantically to specialized agent endpoints, and powers a **closed-loop self-healing Immune System** calibrated by human verification.
 
 ```
                      ┌────────────────────────────────────────────────────────┐
@@ -106,7 +106,7 @@ Every AI interaction passes through ControlPlane at the **perimeter boundary** (
   * **PII & Privacy Engine (`0.0%` clean, `100.0%` PII):** Presidio NER boundary confidence + strict entity formatting.
 
 ### 4. Native Google Gemini Multi-Model Adapter & Regional Data Sovereignty
-* **Native Google Gemini Flash & Pro Integration:** High-throughput direct access via Google Generative Language API (`gemini-3.5-flash-lite`, `gemini-3.6-flash`, `gemini-3.7-flash`).
+* **Native Google Gemini Flash & Pro Integration:** High-throughput direct access via Google Generative Language API (`gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-flash`, `gemini-1.5-pro`).
 * **Zero-Downtime Model Rotation:** Automatically rotates across Gemini models and falls back gracefully during network drops or quota constraints.
 * **Regional Data Sovereignty Context:** Dynamically injects sovereign compliance prompts based on request geography (`US` Federal/State, `EU` GDPR Sovereignty Zone with EUR € currency context, `IN` DPDP Act with INR ₹ context).
 
@@ -156,7 +156,7 @@ ControlPlane.ai runs as a distributed cluster of **12 core microservices**, **4 
 | 04 | **PII Service** | `8003` | Non-blocking Microsoft Presidio NER + regex recognizers (Email, Phone, SSN, PAN, Aadhaar, Cards, Bank) |
 | 05 | **Policy Engine** | `8004` | Versioned declarative YAML evaluator with hierarchical wildcard matching and dynamic thresholds |
 | 06 | **Semantic Router & LB** | `8005` | 384-d vector embedding router (`all-MiniLM-L6-v2`) + BM25 keyword matching + geographic residency |
-| 07 | **Model Adapter** | `8006` | Native Google Gemini API executor (`gemini-3.5-flash-lite`, `gemini-3.6-flash`, `gemini-3.7-flash` + external URLs) |
+| 07 | **Model Adapter** | `8006` | Native Google Gemini API executor (`gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-flash` + external URLs) |
 | 08 | **Audit Store** | `8007` | Append-only SQLite ledger (`interaction_events`, `human_outcomes`, `registered_secrets`, `redaction_vault`) |
 | 09 | **Human Review Console** | `8008` | Durable SQLite escalation queue with human-in-the-loop triage (Approve, Deny, Edit) |
 | 10 | **Immune System** | `8009` | Real-time statistical telemetry analyzer, $\sigma$-anomaly detection, automated self-healing threshold proposals |
@@ -221,12 +221,11 @@ ControlPlane.ai runs as a distributed cluster of **12 core microservices**, **4 
                                          │
                                          ▼
  ┌──────────────────────────────────────────────────────────────────────────────┐
- │ EGRESS SCANNERS & L4 VERIFIER (services/output_guard/)                       │
+ │ EGRESS SCANNERS (services/output_guard/)                                     │
  │ • System Prompt Leakage: 5-tier detection (Canaries, Cosine Sim, LCS,        │
  │   4-gram Jaccard, and Meta-intent patterns)                                  │
  │ • Sensitive Data Leak: Gitleaks patterns, Shannon Entropy (H ≥ 4.30),        │
  │   JWT validation, Luhn algorithm, input-output differential re-leakage       │
- │ • L4 Groundedness & Hallucination Verifier: LLM-as-Judge (Gemini)            │
  └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -313,7 +312,7 @@ python3 train/pipeline.py
 #### Method 1: Unified Docker Compose (Recommended / Production Run)
 
 ```bash
-# Build and start all 12 microservices + React frontend in background:
+# Build and start all 17 microservices + React frontend in background:
 docker compose up -d --build
 
 # Verify container health:
@@ -332,7 +331,7 @@ Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 #### Method 2: Native Bash Script (Local Dev)
 
 ```bash
-# Start all 12 microservices + 4 workflow components with automatic warmup:
+# Start all 17 microservices with automatic bootstrap & warmup:
 ./start_services.sh
 ```
 
@@ -398,7 +397,7 @@ Once the application is running, access the dashboard at **`http://localhost:300
 * **Revocation & Status Management:** Revoke expired credentials or modify match actions (`block` vs `block_escalate`).
 
 ### 7. Cluster & Mesh Health Telemetry (`/health`)
-* **Real-time 30s Heartbeat Probes:** Live health and latency telemetry across all 12 microservices.
+* **Real-time 30s Heartbeat Probes:** Live health and latency telemetry across all 17 microservices.
 * **Statistical Sigma Anomaly Detection:** Detects baseline drift in block and escalation rates ($\mu \pm 3\sigma$).
 * **Automated Self-Healing Proposals:** Review, accept, or dismiss bi-directional threshold proposals generated by the Immune System.
 
@@ -603,8 +602,7 @@ Caelestia/
 │   │   ├── sanitizer.py            # PII policy evaluation & findings aggregator
 │   │   └── scanners/               # Secret, injection, toxicity, and code unpackers
 │   ├── output_guard/               # 03 - Egress Perimeter Firewall (port 8002)
-│   │   ├── scanners/               # System prompt leakage & sensitive data scanners
-│   │   └── verification/judge.py   # L4 LLM Grounding & Hallucination Judge
+│   │   └── scanners/system_prompt_leakage.py  # Egress leak detection & canaries
 │   ├── pii_service/                # 04 - PII Detection & Anonymizer (port 8003)
 │   ├── policy_engine/              # 05 - Declarative Policy Engine (port 8004)
 │   │   └── evaluator.py            # Hierarchical policy evaluator & threshold proposal

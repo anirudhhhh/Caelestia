@@ -50,14 +50,15 @@ GENERAL_QUERY_URL = get_env("GENERAL_QUERY_URL", "http://localhost:8021")
 EMAIL_SERVICE_URL = get_env("EMAIL_SERVICE_URL", "http://localhost:8022")
 LEAVE_APPROVAL_URL = get_env("LEAVE_APPROVAL_URL", "http://localhost:8023")
 WEATHER_SERVICE_URL = get_env("WEATHER_SERVICE_URL", "http://localhost:8024")
+MOCHA_SERVICE_URL = get_env("MOCHA_SERVICE_URL", "http://localhost:8099")
 
 # ─── LLM Configuration (Google Gemini Native) ─────────────────────────────────
 
 GEMINI_API_KEY = get_env("GEMINI_API_KEY")
 
 # Default models (Google Gemini)
-DEFAULT_MODEL = get_env("DEFAULT_MODEL", "gemini-3.5-flash-lite")
-JUDGE_MODEL = get_env("JUDGE_MODEL", "gemini-3.5-flash-lite")
+DEFAULT_MODEL = get_env("DEFAULT_MODEL", "gemini-2.5-flash")
+JUDGE_MODEL = get_env("JUDGE_MODEL", "gemini-2.5-flash")
 
 # Default system prompt
 CONTROLPLANE_SYSTEM_PROMPT = get_env(
@@ -71,7 +72,7 @@ CONTROLPLANE_SYSTEM_PROMPT = get_env(
 AVAILABLE_MODELS = [
     m.strip() for m in get_env(
         "AVAILABLE_MODELS",
-        "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-flash-lite-latest,gemini-3.5-flash,gemini-3.6-flash,gemini-3.7-flash"
+        "gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash,gemini-1.5-pro"
     ).split(",") if m.strip()
 ]
 
