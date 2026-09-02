@@ -96,7 +96,7 @@ class PolicyEvaluator:
             else:
                 check.verdict = CheckVerdict.PASS
 
-            logger.info(f"[{req.interaction_id}] Policy evaluated: use_case={req.use_case.value} geo={req.geography.value} check={check.check_name} (score={score:.2f}, block_thresh={block_thresh}, verdict={check.verdict.value})")
+            logger.info(f"[{req.interaction_id}] Policy evaluated: use_case={req.use_case.value} geo={req.geography.value} check={check.check_name} (score={score:.2f}, flag_thresh={flag_thresh:.2f}, block_thresh={block_thresh:.2f}, verdict={check.verdict.value})")
 
             if check.verdict == CheckVerdict.FAIL:
                 trigger_layer = check.layer or check.engine or "L1_lexicon"

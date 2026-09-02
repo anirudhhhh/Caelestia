@@ -29,12 +29,24 @@ policies:
   use_case: decision_support
 - block_threshold: 0.75
   check: toxicity
-  flag_threshold: 0.3
+  flag_threshold: 0.55
   geography: US
   on_timeout: block
   use_case: customer_support
 - block_threshold: 0.8
   check: prompt_injection
+  flag_threshold: 0.4
+  geography: US
+  on_timeout: allow
+  use_case: customer_support
+- block_threshold: 0.4
+  check: secrets
+  flag_threshold: 0.4
+  geography: US
+  on_timeout: allow
+  use_case: internal_copilot
+- block_threshold: 0.6
+  check: system_prompt_leakage
   flag_threshold: 0.4
   geography: US
   on_timeout: allow

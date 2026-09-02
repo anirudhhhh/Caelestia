@@ -63,9 +63,16 @@ export default function Playground() {
 
   const [isApiModalOpen, setIsApiModalOpen] = useState(false);
   const [copiedJson, setCopiedJson] = useState(false);
+  const [copiedMessageIdx, setCopiedMessageIdx] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [appealingId, setAppealingId] = useState<string | null>(null);
+
+  const handleCopyMessage = (text: string, idx: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedMessageIdx(idx);
+    setTimeout(() => setCopiedMessageIdx(null), 2000);
+  };
 
   const handleCopyJson = (data: any) => {
     navigator.clipboard.writeText(JSON.stringify(data, null, 2));
@@ -112,9 +119,13 @@ export default function Playground() {
     loadActivePiiConfig();
   }, [loadActivePiiConfig]);
 
+  const prevMsgCountRef = useRef(messages.length);
   useEffect(() => {
-    endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading]);
+    if (messages.length > prevMsgCountRef.current || isLoading) {
+      endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+    prevMsgCountRef.current = messages.length;
+  }, [messages.length, isLoading]);
 
   const pollForResolution = async (interactionId: string) => {
     const maxAttempts = 60;
@@ -561,8 +572,8 @@ export default function Playground() {
             </button>
           </div>
 
-          {/* Messages Stream */}
-          <ScrollArea className="flex-1 p-4 sm:p-5 overflow-y-auto">
+          {/* Messages Stream with Full Native Overflow Scroll */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 overscroll-contain">
             <div className="space-y-4 max-w-3xl mx-auto">
               {messages.map((msg, idx) => {
                 const isUser = msg.role === "user";
@@ -577,7 +588,7 @@ export default function Playground() {
                       isUser ? "items-end" : "items-start"
                     )}
                   >
-                    <div className="flex flex-wrap items-center gap-1.5 px-1">
+                    <div className="flex flex-wrap items-center gap-1.5 px-1 w-full">
                       <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400">
                         {isUser ? "Operator Input" : "Guardrail Engine"}
                       </span>
@@ -594,14 +605,39 @@ export default function Playground() {
                       )}
                       {msg.action && (
                         <span className={cn(
-                          "px-2 py-0.5 rounded-full text-[9px] font-black uppercase",
+                          "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider",
                           msg.action === 'allow' && "bg-emerald-100 text-emerald-800",
                           msg.action === 'block' && "bg-rose-100 text-rose-800",
-                          msg.action === 'escalate' && "bg-amber-100 text-amber-800"
+                          msg.action === 'escalate' && "bg-amber-100 text-amber-800",
+                          msg.action === 'flag' && "bg-amber-100 text-amber-900 border border-amber-300"
                         )}>
                           {msg.action}
                         </span>
                       )}
+
+                      {/* One-Click Copy Button for Requests and Responses */}
+                      <button
+                        onClick={() => handleCopyMessage(msg.content, idx)}
+                        title={isUser ? "Copy request prompt" : "Copy response text"}
+                        className={cn(
+                          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all cursor-pointer",
+                          isUser 
+                            ? "ml-auto text-zinc-400 hover:text-zinc-700 hover:bg-black/5" 
+                            : "ml-auto text-zinc-400 hover:text-zinc-700 hover:bg-black/5"
+                        )}
+                      >
+                        {copiedMessageIdx === idx ? (
+                          <>
+                            <Check className="h-2.5 w-2.5 text-emerald-600" />
+                            <span className="text-emerald-700 text-[9px] font-bold">Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-2.5 w-2.5" />
+                            <span className="text-[9px]">{isUser ? "Copy Request" : "Copy"}</span>
+                          </>
+                        )}
+                      </button>
                     </div>
 
                     <div
@@ -613,6 +649,8 @@ export default function Playground() {
                           ? "bg-rose-50 text-rose-950 border border-rose-200 shadow-sm rounded-tl-sm"
                           : isEscalate
                           ? "bg-amber-50 text-amber-950 border border-amber-200 shadow-sm rounded-tl-sm"
+                          : msg.action === 'flag'
+                          ? "bg-amber-50/40 text-[#1E2024] border border-amber-200/80 shadow-xs rounded-tl-sm"
                           : "bg-[#F7F4EE] text-[#1E2024] border border-black/5 shadow-xs rounded-tl-sm"
                       )}
                     >
@@ -648,10 +686,10 @@ export default function Playground() {
                     <Loader2 className="h-4 w-4 animate-spin text-[#FF6B5E]" />
                     <div className="space-y-0.5">
                       <span className="text-xs font-extrabold text-[#212328] block">
-                        Evaluating perimeter guardrails via ControlPlane...
+                        Evaluating Zero-Trust Perimeter Policies...
                       </span>
-                      <span className="text-[10px] text-zinc-500 font-mono">
-                        Checking 8 ML threat layers & vector router in parallel
+                      <span className="text-[10px] text-zinc-500 font-medium block">
+                        Checking ML threat layers & vector router in parallel
                       </span>
                     </div>
                   </div>
@@ -670,7 +708,7 @@ export default function Playground() {
 
               <div ref={endOfMessagesRef} />
             </div>
-          </ScrollArea>
+          </div>
 
           {/* Bottom Chat Input Bar */}
           <div id="playground-input" className="p-3.5 sm:p-4 border-t border-black/5 bg-[#FAF8F5] shrink-0">
