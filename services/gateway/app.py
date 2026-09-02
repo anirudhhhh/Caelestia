@@ -20,7 +20,7 @@ from shared.config import (
     setup_logging, INPUT_GUARD_URL, ROUTER_URL, ADAPTER_URL,
     OUTPUT_GUARD_URL, AUDIT_STORE_URL, ACTION_GUARD_URL,
     REVIEW_CONSOLE_URL, POLICY_ENGINE_URL, IMMUNE_SYSTEM_URL,
-    GUARDRAILS_ML_URL, CONTROLPLANE_SYSTEM_PROMPT
+    GUARDRAILS_ML_URL, CONTROLPLANE_SYSTEM_PROMPT, PII_SERVICE_URL
 )
 
 logger = setup_logging("gateway")
@@ -84,7 +84,7 @@ async def aggregate_health():
     services = {
         "input_guard": INPUT_GUARD_URL,
         "output_guard": OUTPUT_GUARD_URL,
-        "pii_service": "http://localhost:8003",
+        "pii_service": PII_SERVICE_URL,
         "policy_engine": POLICY_ENGINE_URL,
         "router": ROUTER_URL,
         "adapter": ADAPTER_URL,
@@ -103,7 +103,8 @@ async def aggregate_health():
                 "status": "healthy" if resp.status_code == 200 else "unhealthy",
                 "latency_ms": round(resp.elapsed.total_seconds() * 1000, 1),
             }
-        except Exception:
+        except Exception as e:
+            logger.error(f"Health check failed for {name} ({url}): {e}")
             results[name] = {"status": "unhealthy", "latency_ms": 0}
     results["gateway"] = {"status": "healthy", "latency_ms": 0}
     return results

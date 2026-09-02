@@ -11,7 +11,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from shared.schemas import InteractionEnvelope
-from shared.config import setup_logging, AVAILABLE_MODELS, DEFAULT_MODEL
+from shared.config import (
+    setup_logging, AVAILABLE_MODELS, DEFAULT_MODEL,
+    GENERAL_QUERY_URL, EMAIL_SERVICE_URL, LEAVE_APPROVAL_URL, WEATHER_SERVICE_URL
+)
 
 logger = setup_logging("router")
 app = FastAPI(title="Semantic Router & Load Balancer")
@@ -45,8 +48,8 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
         id="general_query",
         name="General Query Service",
         instructions="Handles general-purpose questions, informational queries, company facts, employee counts, technology comparisons, math, science, programming, algorithms, and educational explanations.",
-        endpoint="http://localhost:8021/complete",
-        target_model_or_url="http://localhost:8021/complete",
+        endpoint=f"{GENERAL_QUERY_URL}/complete",
+        target_model_or_url=f"{GENERAL_QUERY_URL}/complete",
         use_case="general_query",
         keywords=[
             "explain", "what is", "how does", "why", "tell me about", "difference between",
@@ -61,8 +64,8 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
         id="email_service",
         name="Email Service",
         instructions="Handles natural-language requests to send, compose, draft, and dispatch electronic mail messages via SMTP.",
-        endpoint="http://localhost:8022/complete",
-        target_model_or_url="http://localhost:8022/complete",
+        endpoint=f"{EMAIL_SERVICE_URL}/complete",
+        target_model_or_url=f"{EMAIL_SERVICE_URL}/complete",
         use_case="email_service",
         keywords=[
             "email", "mail", "send email", "send an email", "send a mail", "email to", "mail to",
@@ -76,8 +79,8 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
         id="leave_approval",
         name="Leave Approval Service",
         instructions="Processes employee time-off, leave requests, vacation applications, and sick days using deterministic business logic.",
-        endpoint="http://localhost:8023/complete",
-        target_model_or_url="http://localhost:8023/complete",
+        endpoint=f"{LEAVE_APPROVAL_URL}/complete",
+        target_model_or_url=f"{LEAVE_APPROVAL_URL}/complete",
         use_case="leave_approval",
         keywords=[
             "leave", "take leave", "request leave", "days off", "day off", "time off", "vacation",
@@ -91,8 +94,8 @@ DEFAULT_ENDPOINTS: Dict[str, WorkflowEndpoint] = {
         id="weather_service",
         name="Weather Service",
         instructions="Retrieves live meteorological information, temperature, weather conditions, rain forecast, humidity, and wind speed for global cities.",
-        endpoint="http://localhost:8024/complete",
-        target_model_or_url="http://localhost:8024/complete",
+        endpoint=f"{WEATHER_SERVICE_URL}/complete",
+        target_model_or_url=f"{WEATHER_SERVICE_URL}/complete",
         use_case="weather_service",
         keywords=[
             "weather", "temperature", "forecast", "climate", "rain", "will it rain", "raining",

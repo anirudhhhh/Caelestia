@@ -41,11 +41,13 @@ def normalize_pii_type(etype: str) -> str:
     return etype_upper
 
 
+from shared.config import AUDIT_STORE_URL
+
 class SanitizerEngine:
     """Enterprise Findings Aggregator and Policy-Based PII Evaluation Engine."""
 
-    def __init__(self, audit_store_url: str = "http://localhost:8007"):
-        self.audit_store_url = audit_store_url
+    def __init__(self, audit_store_url: Optional[str] = None):
+        self.audit_store_url = audit_store_url or AUDIT_STORE_URL
 
     def sanitize_payload(
         self,

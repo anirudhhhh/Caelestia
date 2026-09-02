@@ -31,7 +31,9 @@ COPY train/ /app/train/
 RUN mkdir -p /app/data /app/data/datasets
 
 ENV PYTHONPATH=/app \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    HF_HUB_DISABLE_SYMLINKS_WARNING=1 \
+    TOKENIZERS_PARALLELISM=false
 
 # Default environment variables (can be overridden per container in docker-compose)
 ENV SERVICE_MODULE=gateway \

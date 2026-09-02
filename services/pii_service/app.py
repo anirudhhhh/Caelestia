@@ -21,6 +21,7 @@ logger = setup_logging("pii_service")
 # Optional dependencies
 try:
     from presidio_analyzer import AnalyzerEngine, RecognizerResult
+    from presidio_analyzer.nlp_engine import NlpEngineProvider
     from presidio_anonymizer import AnonymizerEngine
     HAS_PRESIDIO = True
 except ImportError:
@@ -38,9 +39,14 @@ def init_presidio():
             if not spacy.util.is_package("en_core_web_sm"):
                 import subprocess
                 subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
-            analyzer = AnalyzerEngine()
+            provider = NlpEngineProvider(nlp_configuration={
+                "nlp_engine_name": "spacy",
+                "models": [{"lang_code": "en", "model_name": "en_core_web_sm"}]
+            })
+            nlp_engine = provider.create_engine()
+            analyzer = AnalyzerEngine(nlp_engine=nlp_engine)
             anonymizer = AnonymizerEngine()
-            logger.info("Presidio initialized successfully.")
+            logger.info("Presidio initialized successfully with en_core_web_sm.")
         except Exception as e:
             logger.error(f"Failed to initialize Presidio: {e}")
             analyzer = None

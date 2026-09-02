@@ -127,8 +127,7 @@ async def complete(req: AdapterRequest):
                 provider_request_id=f"external-endpoint-{req.model}"
             )
         except Exception as e:
-            logger.error(f"External endpoint error ({req.model}): {e}")
-            raise HTTPException(status_code=502, detail=f"Failed to communicate with external endpoint: {str(e)}")
+            logger.warning(f"External endpoint error ({req.model}): {e}. Falling back to Google Gemini.")
 
     # ── Case 2: Google Gemini Native API
     if GEMINI_API_KEY:

@@ -39,17 +39,33 @@ foreach ($p in $ports) {
 $env:PYTHONPATH = $PROJECT_ROOT
 
 $pythonPath = "python"
-if (Test-Path -Path "$PROJECT_ROOT\venv\Scripts\python.exe") {
+if (Test-Path -Path "$PROJECT_ROOT\.venv\Scripts\python.exe") {
+    $pythonPath = "$PROJECT_ROOT\.venv\Scripts\python.exe"
+} elseif (Test-Path -Path "$PROJECT_ROOT\venv\Scripts\python.exe") {
     $pythonPath = "$PROJECT_ROOT\venv\Scripts\python.exe"
 } else {
     Write-Host "Virtual environment not detected. Bootstrapping Python venv..." -ForegroundColor Yellow
     try {
-        python -m venv "$PROJECT_ROOT\venv"
-        & "$PROJECT_ROOT\venv\Scripts\pip.exe" install -r "$PROJECT_ROOT\requirements.txt"
-        $pythonPath = "$PROJECT_ROOT\venv\Scripts\python.exe"
+        python -m venv "$PROJECT_ROOT\.venv"
+        & "$PROJECT_ROOT\.venv\Scripts\pip.exe" install -r "$PROJECT_ROOT\requirements.txt"
+        $pythonPath = "$PROJECT_ROOT\.venv\Scripts\python.exe"
     } catch {
         Write-Host "Auto-venv creation skipped; using system python." -ForegroundColor Yellow
     }
+}
+
+# Ensure spaCy en_core_web_sm model is present
+$spacyCheck = & $pythonPath -c "import spacy; print(spacy.util.is_package('en_core_web_sm'))" 2>$null
+if ($spacyCheck -ne "True") {
+    Write-Host "Downloading spaCy model 'en_core_web_sm' for Presidio PII..." -ForegroundColor Yellow
+    & $pythonPath -m spacy download en_core_web_sm
+}
+
+# Pre-cache sentence-transformers model if needed
+$minilmCheck = & $pythonPath -c "from transformers import AutoTokenizer, AutoModel; AutoTokenizer.from_pretrained('sentence-transformers/all-MiniLM-L6-v2'); AutoModel.from_pretrained('sentence-transformers/all-MiniLM-L6-v2'); print('OK')" 2>$null
+if ($minilmCheck -ne "OK") {
+    Write-Host "Pre-caching all-MiniLM-L6-v2 embedding model..." -ForegroundColor Yellow
+    & $pythonPath -c "from transformers import AutoTokenizer, AutoModel; AutoTokenizer.from_pretrained('sentence-transformers/all-MiniLM-L6-v2'); AutoModel.from_pretrained('sentence-transformers/all-MiniLM-L6-v2')"
 }
 
 function Start-ControlService {
@@ -98,6 +114,22 @@ try {
     Start-Sleep -Seconds 3
 
     Write-Host "`nPhase 6: Warming Up Services (Eliminating Cold Starts)..." -ForegroundColor Blue
+    $corePorts = 8000..8011
+    $maxWait = 30
+    $waited = 0
+    while ($waited -lt $maxWait) {
+        $ready = 0
+        foreach ($port in $corePorts) {
+            try {
+                $resp = Invoke-WebRequest -Uri "http://localhost:$port/healthz" -UseBasicParsing -TimeoutSec 1 -ErrorAction SilentlyContinue
+                if ($resp.StatusCode -eq 200) { $ready++ }
+            } catch {}
+        }
+        if ($ready -eq $corePorts.Count) { break }
+        Start-Sleep -Seconds 1
+        $waited++
+    }
+
     try {
         Invoke-RestMethod -Uri "http://localhost:8000/v1/health/system" -TimeoutSec 3 -ErrorAction SilentlyContinue | Out-Null
         Write-Host "v Gateway and connection pools initialized" -ForegroundColor Green

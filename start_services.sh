@@ -26,18 +26,36 @@ if [ ! -f .env ]; then
     cp .env.example .env
 fi
 
-PYTHON_BIN="$PROJECT_ROOT/venv/bin/python3"
-if [ ! -f "$PYTHON_BIN" ]; then
-    echo -e "${YELLOW}⚡ Virtual environment not detected. Bootstrapping Python venv...${NC}"
-    python3 -m venv "$PROJECT_ROOT/venv"
-    "$PROJECT_ROOT/venv/bin/pip" install --upgrade pip
-    "$PROJECT_ROOT/venv/bin/pip" install -r "$PROJECT_ROOT/requirements.txt"
+if [ -f "$PROJECT_ROOT/.venv/bin/python3" ]; then
+    PYTHON_BIN="$PROJECT_ROOT/.venv/bin/python3"
+elif [ -f "$PROJECT_ROOT/venv/bin/python3" ]; then
     PYTHON_BIN="$PROJECT_ROOT/venv/bin/python3"
+elif [ -n "$VIRTUAL_ENV" ] && [ -f "$VIRTUAL_ENV/bin/python3" ]; then
+    PYTHON_BIN="$VIRTUAL_ENV/bin/python3"
+else
+    echo -e "${YELLOW}⚡ Virtual environment not detected. Bootstrapping Python venv...${NC}"
+    python3 -m venv "$PROJECT_ROOT/.venv"
+    "$PROJECT_ROOT/.venv/bin/pip" install --upgrade pip
+    "$PROJECT_ROOT/.venv/bin/pip" install -r "$PROJECT_ROOT/requirements.txt"
+    PYTHON_BIN="$PROJECT_ROOT/.venv/bin/python3"
 fi
 
 if ! "$PYTHON_BIN" -m uvicorn --version >/dev/null 2>&1; then
     echo -e "${YELLOW}⚠ Dependencies not fully installed. Running pip install...${NC}"
-    "$PROJECT_ROOT/venv/bin/pip" install -r "$PROJECT_ROOT/requirements.txt"
+    "$PYTHON_BIN" -m pip install -r "$PROJECT_ROOT/requirements.txt"
+fi
+
+export HF_HUB_DISABLE_SYMLINKS_WARNING=1
+export TOKENIZERS_PARALLELISM=false
+
+if ! "$PYTHON_BIN" -c "import spacy; spacy.load('en_core_web_sm')" >/dev/null 2>&1; then
+    echo -e "${YELLOW}⚡ Downloading spaCy model 'en_core_web_sm' for Presidio PII...${NC}"
+    "$PYTHON_BIN" -m spacy download en_core_web_sm
+fi
+
+if ! "$PYTHON_BIN" -c "from transformers import AutoTokenizer, AutoModel; AutoTokenizer.from_pretrained('sentence-transformers/all-MiniLM-L6-v2'); AutoModel.from_pretrained('sentence-transformers/all-MiniLM-L6-v2')" >/dev/null 2>&1; then
+    echo -e "${YELLOW}⚡ Pre-caching all-MiniLM-L6-v2 embedding model...${NC}"
+    "$PYTHON_BIN" -c "from transformers import AutoTokenizer, AutoModel; AutoTokenizer.from_pretrained('sentence-transformers/all-MiniLM-L6-v2'); AutoModel.from_pretrained('sentence-transformers/all-MiniLM-L6-v2')"
 fi
 
 # Reset PID tracking file
@@ -98,6 +116,24 @@ sleep 3
 # WARM UP PHASE (Eliminating Cold Starts)
 # ---------------------------------------------------------
 echo -e "\n${BLUE}Phase 6: Warming Up Services (Eliminating Cold Starts)...${NC}"
+
+core_services=(8000 8001 8002 8003 8004 8005 8006 8007 8008 8009 8010 8011)
+max_wait=30
+waited=0
+
+while [ $waited -lt $max_wait ]; do
+    ready=0
+    for port in "${core_services[@]}"; do
+        if curl -s -f "http://localhost:${port}/healthz" >/dev/null 2>&1; then
+            ready=$((ready + 1))
+        fi
+    done
+    if [ "$ready" -eq "${#core_services[@]}" ]; then
+        break
+    fi
+    sleep 1
+    waited=$((waited + 1))
+done
 
 # 1. Warm up the Gateway system cascade
 curl -s http://localhost:8000/v1/health/system > /dev/null || true

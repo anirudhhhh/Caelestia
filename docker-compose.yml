@@ -11,9 +11,17 @@ x-env-defaults: &env-defaults
   IMMUNE_SYSTEM_URL: http://immune_system:8009
   ACTION_GUARD_URL: http://action_guard:8010
   GUARDRAILS_ML_URL: http://guardrails_ml:8011
+  GENERAL_QUERY_URL: http://general_query:8021
+  EMAIL_SERVICE_URL: http://email_service:8022
+  LEAVE_APPROVAL_URL: http://leave_approval:8023
+  WEATHER_SERVICE_URL: http://weather_service:8024
+  MOCHA_SERVICE_URL: http://mocha_service:8099
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  HF_HUB_DISABLE_SYMLINKS_WARNING: "1"
+  TOKENIZERS_PARALLELISM: "false"
 
 x-service-defaults: &service-defaults
+  image: caelestia-backend:latest
   build:
     context: .
     dockerfile: Dockerfile
@@ -122,6 +130,10 @@ services:
       - "8005:8005"
     depends_on:
       - guardrails_ml
+      - general_query
+      - email_service
+      - leave_approval
+      - weather_service
 
   adapter:
     <<: *service-defaults
@@ -132,6 +144,57 @@ services:
       PORT: 8006
     ports:
       - "8006:8006"
+
+  # ─── 3b. AI Workflow Components (PRD Workflows) ────────────────────────────
+  general_query:
+    <<: *service-defaults
+    container_name: cp-general-query
+    environment:
+      <<: *env-defaults
+      SERVICE_MODULE: general_query
+      PORT: 8021
+    ports:
+      - "8021:8021"
+
+  email_service:
+    <<: *service-defaults
+    container_name: cp-email-service
+    environment:
+      <<: *env-defaults
+      SERVICE_MODULE: email_service
+      PORT: 8022
+    ports:
+      - "8022:8022"
+
+  leave_approval:
+    <<: *service-defaults
+    container_name: cp-leave-approval
+    environment:
+      <<: *env-defaults
+      SERVICE_MODULE: leave_approval
+      PORT: 8023
+    ports:
+      - "8023:8023"
+
+  weather_service:
+    <<: *service-defaults
+    container_name: cp-weather-service
+    environment:
+      <<: *env-defaults
+      SERVICE_MODULE: weather_service
+      PORT: 8024
+    ports:
+      - "8024:8024"
+
+  mocha_service:
+    <<: *service-defaults
+    container_name: cp-mocha-service
+    environment:
+      <<: *env-defaults
+      SERVICE_MODULE: mocha_service
+      PORT: 8099
+    ports:
+      - "8099:8099"
 
   # ─── 4. Monitoring & Immune System ──────────────────────────────────────────
   review_console:
@@ -177,6 +240,7 @@ services:
       - audit_store
       - review_console
       - policy_engine
+      - pii_service
 
   # ─── 6. React Frontend Dashboard ────────────────────────────────────────────
   frontend:

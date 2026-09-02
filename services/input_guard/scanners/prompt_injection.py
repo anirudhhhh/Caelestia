@@ -70,6 +70,9 @@ class PromptInjectionScanner(ScannerBase):
                     s_data = sim_resp.json()
                     vector_similarity = float(s_data.get("max_similarity", 0.0))
                     top_match = s_data.get("top_match", {})
+        except Exception as e:
+            logger.warning(f"Error calling ML service: {e}")
+
         # Only consider vector similarity if it reaches high-confidence attack cluster threshold (>= 0.80)
         effective_vector_score = vector_similarity if vector_similarity >= 0.80 else 0.0
         final_score = max(l1_score, neural_score, effective_vector_score)

@@ -100,11 +100,13 @@ def passes_luhn_checksum(card_number: str) -> bool:
     return checksum % 10 == 0
 
 
+from shared.config import AUDIT_STORE_URL
+
 class SecretScanner:
     """Enterprise Secret Detection Engine."""
 
-    def __init__(self, audit_store_url: str = "http://localhost:8007"):
-        self.audit_store_url = audit_store_url
+    def __init__(self, audit_store_url: Optional[str] = None):
+        self.audit_store_url = audit_store_url or AUDIT_STORE_URL
 
     def extract_candidate_tokens(self, text: str) -> List[Tuple[str, int, int]]:
         """Extracts candidate tokens bounded by natural delimiters and length."""
